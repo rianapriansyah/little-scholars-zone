@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
+  Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { inviteFamily } from '../../../lib/inviteFamily'
@@ -24,6 +25,13 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [fatherName, setFatherName] = useState('')
+  const [fatherOccupation, setFatherOccupation] = useState('')
+  const [fatherPhone, setFatherPhone] = useState('')
+  const [motherName, setMotherName] = useState('')
+  const [motherOccupation, setMotherOccupation] = useState('')
+  const [motherPhone, setMotherPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [resending, setResending] = useState(false)
@@ -33,6 +41,13 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
     setName(family.name ?? '')
     setEmail(family.contact_email ?? '')
     setPhone(family.contact_phone ?? '')
+    setFatherName(family.father_name ?? '')
+    setFatherOccupation(family.father_occupation ?? '')
+    setFatherPhone(family.father_phone ?? '')
+    setMotherName(family.mother_name ?? '')
+    setMotherOccupation(family.mother_occupation ?? '')
+    setMotherPhone(family.mother_phone ?? '')
+    setAddress(family.address ?? '')
     setError(null)
   }, [open, family])
 
@@ -51,6 +66,13 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
         name: name.trim(),
         contact_email: email.trim() || null,
         contact_phone: phone.trim() || null,
+        father_name: fatherName.trim() || null,
+        father_occupation: fatherOccupation.trim() || null,
+        father_phone: fatherPhone.trim() || null,
+        mother_name: motherName.trim() || null,
+        mother_occupation: motherOccupation.trim() || null,
+        mother_phone: motherPhone.trim() || null,
+        address: address.trim() || null,
       })
       .eq('id', family.id)
     setSaving(false)
@@ -115,6 +137,64 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
             onChange={(e) => setPhone(e.target.value)}
             fullWidth
           />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Father</Typography>
+          <TextField
+            size="small"
+            label="Father name"
+            value={fatherName}
+            onChange={(e) => setFatherName(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Father occupation"
+            value={fatherOccupation}
+            onChange={(e) => setFatherOccupation(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Father phone number"
+            value={fatherPhone}
+            onChange={(e) => setFatherPhone(e.target.value)}
+            fullWidth
+          />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Mother</Typography>
+          <TextField
+            size="small"
+            label="Mother name"
+            value={motherName}
+            onChange={(e) => setMotherName(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Mother occupation"
+            value={motherOccupation}
+            onChange={(e) => setMotherOccupation(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Mother phone number"
+            value={motherPhone}
+            onChange={(e) => setMotherPhone(e.target.value)}
+            fullWidth
+          />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Address</Typography>
+          <TextField
+            size="small"
+            label="Address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            fullWidth
+            multiline
+            rows={2}
+          />
+
           {!family.auth_user_id ? (
             <Button variant="outlined" disabled={resending || saving} onClick={() => void handleResend()}>
               {resending ? 'Sending…' : 'Send parent portal invite'}

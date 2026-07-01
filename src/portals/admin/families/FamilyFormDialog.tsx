@@ -8,7 +8,9 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
+  Typography,
 } from '@mui/material'
+import { supabase } from '../../../lib/supabase'
 import { inviteFamily } from '../../../lib/inviteFamily'
 
 type Props = {
@@ -21,6 +23,13 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [fatherName, setFatherName] = useState('')
+  const [fatherOccupation, setFatherOccupation] = useState('')
+  const [fatherPhone, setFatherPhone] = useState('')
+  const [motherName, setMotherName] = useState('')
+  const [motherOccupation, setMotherOccupation] = useState('')
+  const [motherPhone, setMotherPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -28,6 +37,13 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
     setName('')
     setEmail('')
     setPhone('')
+    setFatherName('')
+    setFatherOccupation('')
+    setFatherPhone('')
+    setMotherName('')
+    setMotherOccupation('')
+    setMotherPhone('')
+    setAddress('')
     setError(null)
   }
 
@@ -46,12 +62,31 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
 
     setSaving(true)
     const result = await inviteFamily({ name, email, phone })
-    setSaving(false)
     if (!result.ok) {
+      setSaving(false)
       setError(result.message)
       return
     }
 
+    // Patch the extra fields onto the newly created family row (looked up by email).
+    const extras = {
+      father_name: fatherName.trim() || null,
+      father_occupation: fatherOccupation.trim() || null,
+      father_phone: fatherPhone.trim() || null,
+      mother_name: motherName.trim() || null,
+      mother_occupation: motherOccupation.trim() || null,
+      mother_phone: motherPhone.trim() || null,
+      address: address.trim() || null,
+    }
+    const hasExtras = Object.values(extras).some((v) => v !== null)
+    if (hasExtras) {
+      await supabase
+        .from('families')
+        .update(extras)
+        .eq('contact_email', email.trim().toLowerCase())
+    }
+
+    setSaving(false)
     onSaved()
     handleClose()
   }
@@ -90,6 +125,63 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             fullWidth
+          />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Father</Typography>
+          <TextField
+            size="small"
+            label="Father name"
+            value={fatherName}
+            onChange={(e) => setFatherName(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Father occupation"
+            value={fatherOccupation}
+            onChange={(e) => setFatherOccupation(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Father phone number"
+            value={fatherPhone}
+            onChange={(e) => setFatherPhone(e.target.value)}
+            fullWidth
+          />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Mother</Typography>
+          <TextField
+            size="small"
+            label="Mother name"
+            value={motherName}
+            onChange={(e) => setMotherName(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Mother occupation"
+            value={motherOccupation}
+            onChange={(e) => setMotherOccupation(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            size="small"
+            label="Mother phone number"
+            value={motherPhone}
+            onChange={(e) => setMotherPhone(e.target.value)}
+            fullWidth
+          />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Address</Typography>
+          <TextField
+            size="small"
+            label="Address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            fullWidth
+            multiline
+            rows={2}
           />
         </Box>
       </DialogContent>

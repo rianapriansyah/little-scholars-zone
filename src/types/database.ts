@@ -19,6 +19,13 @@ export type Database = {
           name: string
           contact_phone: string | null
           contact_email: string | null
+          father_name: string | null
+          father_occupation: string | null
+          father_phone: string | null
+          mother_name: string | null
+          mother_occupation: string | null
+          mother_phone: string | null
+          address: string | null
           auth_user_id: string | null
           created_by: string | null
           created_at: string | null
@@ -28,6 +35,13 @@ export type Database = {
           name: string
           contact_phone?: string | null
           contact_email?: string | null
+          father_name?: string | null
+          father_occupation?: string | null
+          father_phone?: string | null
+          mother_name?: string | null
+          mother_occupation?: string | null
+          mother_phone?: string | null
+          address?: string | null
           auth_user_id?: string | null
           created_by?: string | null
           created_at?: string | null
@@ -37,6 +51,13 @@ export type Database = {
           name?: string
           contact_phone?: string | null
           contact_email?: string | null
+          father_name?: string | null
+          father_occupation?: string | null
+          father_phone?: string | null
+          mother_name?: string | null
+          mother_occupation?: string | null
+          mother_phone?: string | null
+          address?: string | null
           auth_user_id?: string | null
           created_by?: string | null
           created_at?: string | null
