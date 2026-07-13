@@ -10,7 +10,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveDestination } from '../lib/resolveDestination'
@@ -19,8 +19,6 @@ import { isAdminBootstrapEnabled } from '../lib/bootstrapAdmin'
 export function LoginPage() {
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-  const from = (location.state as { from?: string } | null)?.from
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -54,7 +52,7 @@ export function LoginPage() {
   if (user) {
     const dest = resolveDestination(user)
     if (dest) {
-      return <Navigate to={from ?? dest} replace />
+      return <Navigate to={dest} replace />
     }
     return (
       <Container maxWidth="sm" sx={{ mt: { xs: 2, sm: 4, md: 8 }, mb: 4, px: { xs: 2, sm: 3 } }}>
@@ -102,7 +100,7 @@ export function LoginPage() {
     }
 
     // Keep `busy` true — the effect above navigates once `user` updates from onAuthStateChange.
-    setDestination(from ?? dest)
+    setDestination(dest)
   }
 
   return (
