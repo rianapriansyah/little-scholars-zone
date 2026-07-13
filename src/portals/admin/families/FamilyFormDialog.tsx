@@ -35,6 +35,8 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false)
   const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null)
 
+  const phoneDigits = phone.replace(/\D/g, '')
+
   function reset() {
     setName('')
     setEmail('')
@@ -59,6 +61,10 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
     setError(null)
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Enter a valid email address.')
+      return
+    }
+    if (!phoneDigits) {
+      setError('Enter a contact phone number — used to send login details via WhatsApp.')
       return
     }
 
@@ -132,7 +138,9 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
             label="Contact phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            required
             fullWidth
+            helperText="Login details are sent to this number via WhatsApp."
           />
 
           <Typography variant="subtitle2" sx={{ mt: 1 }}>Father</Typography>
@@ -200,7 +208,7 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
         <Button
           variant="contained"
           onClick={() => void handleSave()}
-          disabled={saving || !name.trim() || !email.trim()}
+          disabled={saving || !name.trim() || !email.trim() || !phoneDigits}
         >
           {saving ? 'Creating…' : 'Save & create login'}
         </Button>
@@ -208,8 +216,10 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
     </Dialog>
     <CredentialsRevealDialog
       open={credentials !== null}
+      name={name.trim()}
       email={credentials?.email ?? ''}
       password={credentials?.password ?? ''}
+      phone={phone}
       onClose={handleCredentialsDone}
     />
     </>

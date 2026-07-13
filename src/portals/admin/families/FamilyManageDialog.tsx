@@ -38,6 +38,8 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
   const [generating, setGenerating] = useState(false)
   const [credentials, setCredentials] = useState<{ email: string; password: string; reused: boolean } | null>(null)
 
+  const phoneDigits = phone.replace(/\D/g, '')
+
   useEffect(() => {
     if (!open || !family) return
     setName(family.name ?? '')
@@ -60,6 +62,10 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
 
   async function handleSave() {
     if (!family) return
+    if (!phoneDigits) {
+      setError('Enter a contact phone number — used to send login details via WhatsApp.')
+      return
+    }
     setSaving(true)
     setError(null)
     const { error: uErr } = await supabase
@@ -112,7 +118,7 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
 
   if (!family) return null
 
-  const canGenerateCredentials = !!(email.trim() || family.contact_email)
+  const canGenerateCredentials = !!(email.trim() || family.contact_email) && !!phoneDigits
 
   return (
     <>
@@ -146,7 +152,9 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
             label="Contact phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            required
             fullWidth
+            helperText="Login details are sent to this number via WhatsApp."
           />
 
           <Typography variant="subtitle2" sx={{ mt: 1 }}>Father</Typography>
@@ -219,15 +227,21 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
         <Button onClick={handleClose} disabled={saving || generating}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={() => void handleSave()} disabled={saving || generating}>
+        <Button
+          variant="contained"
+          onClick={() => void handleSave()}
+          disabled={saving || generating || !phoneDigits}
+        >
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </DialogActions>
     </Dialog>
     <CredentialsRevealDialog
       open={credentials !== null}
+      name={name.trim() || family.name}
       email={credentials?.email ?? ''}
       password={credentials?.password ?? ''}
+      phone={phone}
       reused={credentials?.reused}
       onClose={handleCredentialsDone}
     />

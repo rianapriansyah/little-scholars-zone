@@ -32,6 +32,8 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
   const [generating, setGenerating] = useState(false)
   const [credentials, setCredentials] = useState<{ email: string; password: string; reused: boolean } | null>(null)
 
+  const phoneDigits = phone.replace(/\D/g, '')
+
   useEffect(() => {
     if (!open || !teacher) return
     setFullName(teacher.full_name ?? '')
@@ -47,6 +49,10 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
 
   async function handleSave() {
     if (!teacher) return
+    if (!phoneDigits) {
+      setError('Enter a phone number — used to send login details via WhatsApp.')
+      return
+    }
     setSaving(true)
     setError(null)
     const { error: uErr } = await supabase
@@ -115,7 +121,9 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
               label="Phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              required
               fullWidth
+              helperText="Login details are sent to this number via WhatsApp."
             />
             <FormControlLabel
               control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
@@ -123,7 +131,7 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
             />
             <Button
               variant="outlined"
-              disabled={generating || saving}
+              disabled={generating || saving || !phoneDigits}
               onClick={() => void handleGenerateCredentials()}
             >
               {generating ? 'Generating…' : teacher.auth_user_id ? 'Reset password' : 'Generate login credentials'}
@@ -134,15 +142,21 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
           <Button onClick={handleClose} disabled={saving || generating}>
             Cancel
           </Button>
-          <Button variant="contained" onClick={() => void handleSave()} disabled={saving || generating}>
+          <Button
+            variant="contained"
+            onClick={() => void handleSave()}
+            disabled={saving || generating || !phoneDigits}
+          >
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>
       <CredentialsRevealDialog
         open={credentials !== null}
+        name={fullName.trim() || teacher.full_name}
         email={credentials?.email ?? ''}
         password={credentials?.password ?? ''}
+        phone={phone}
         reused={credentials?.reused}
         onClose={handleCredentialsDone}
       />

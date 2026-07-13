@@ -14,16 +14,21 @@ import {
 } from '@mui/material'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import { buildWhatsAppMeUrlWithMessage } from '../lib/whatsappLink'
+import { buildLoginCredentialsMessage } from '../lib/loginCredentialsMessage'
 
 type Props = {
   open: boolean
+  name: string
   email: string
   password: string
+  phone?: string | null
   reused?: boolean
   onClose: () => void
 }
 
-export function CredentialsRevealDialog({ open, email, password, reused, onClose }: Props) {
+export function CredentialsRevealDialog({ open, name, email, password, phone, reused, onClose }: Props) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
@@ -31,6 +36,14 @@ export function CredentialsRevealDialog({ open, email, password, reused, onClose
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
+
+  function handleSendWhatsApp() {
+    const message = buildLoginCredentialsMessage(name, email, password)
+    const waUrl = buildWhatsAppMeUrlWithMessage(phone, message)
+    if (waUrl) window.open(waUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const waUrl = buildWhatsAppMeUrlWithMessage(phone, '')
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
@@ -57,9 +70,24 @@ export function CredentialsRevealDialog({ open, email, password, reused, onClose
           }}
         />
         <Alert severity="warning" sx={{ mt: 2 }}>
-          This password will not be shown again. Share it with the {reused ? 'account holder' : 'teacher/parent'}{' '}
-          directly (e.g. WhatsApp or in person).
+          This password will not be shown again.
         </Alert>
+        {waUrl ? (
+          <Button
+            variant="outlined"
+            color="success"
+            startIcon={<WhatsAppIcon />}
+            fullWidth
+            sx={{ mt: 2 }}
+            onClick={handleSendWhatsApp}
+          >
+            Send via WhatsApp
+          </Button>
+        ) : (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            No phone number on file — share this password with the account holder directly.
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Box sx={{ flex: 1 }} />

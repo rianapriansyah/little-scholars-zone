@@ -104,6 +104,9 @@ Deno.serve(async (req) => {
     if (!email) {
       return jsonResponse({ error: 'email is required' }, 400)
     }
+    if (!phone) {
+      return jsonResponse({ error: 'phone is required' }, 400)
+    }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
