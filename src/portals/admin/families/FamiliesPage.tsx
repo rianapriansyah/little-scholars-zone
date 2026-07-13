@@ -5,8 +5,7 @@ import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { FamilyRow } from '../../../types/family'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
-import { FamilyFormDialog } from './FamilyFormDialog'
-import { FamilyManageDialog } from './FamilyManageDialog'
+import { FamilyDialog } from './FamilyDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -20,7 +19,7 @@ export function FamiliesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [manageFamily, setManageFamily] = useState<FamilyRow | null>(null)
+  const [editFamily, setEditFamily] = useState<FamilyRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -81,7 +80,12 @@ export function FamiliesPage() {
         filterable: false,
         disableColumnMenu: true,
         renderCell: (params) => (
-          <DataGridUpdateIconButton onClick={() => setManageFamily(params.row)} />
+          <DataGridUpdateIconButton
+            onClick={() => {
+              setEditFamily(params.row)
+              setDialogOpen(true)
+            }}
+          />
         ),
       },
     ],
@@ -104,7 +108,15 @@ export function FamiliesPage() {
       />
 
       <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
-        <Button variant="contained" fullWidth sx={{ maxWidth: { xs: '100%', sm: 200 } }} onClick={() => setDialogOpen(true)}>
+        <Button
+          variant="contained"
+          fullWidth
+          sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+          onClick={() => {
+            setEditFamily(null)
+            setDialogOpen(true)
+          }}
+        >
           Add family
         </Button>
       </Box>
@@ -132,11 +144,10 @@ export function FamiliesPage() {
           </Paper>
         </Box>
       )}
-      <FamilyFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
-      <FamilyManageDialog
-        open={manageFamily !== null}
-        family={manageFamily}
-        onClose={() => setManageFamily(null)}
+      <FamilyDialog
+        open={dialogOpen}
+        family={editFamily}
+        onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
       />
     </Box>

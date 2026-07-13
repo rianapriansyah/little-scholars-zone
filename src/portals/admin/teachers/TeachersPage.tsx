@@ -5,8 +5,7 @@ import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { TeacherRow } from '../../../types/teacher'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
-import { TeacherFormDialog } from './TeacherFormDialog'
-import { TeacherManageDialog } from './TeacherManageDialog'
+import { TeacherDialog } from './TeacherDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -20,7 +19,7 @@ export function TeachersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [manageTeacher, setManageTeacher] = useState<TeacherRow | null>(null)
+  const [editTeacher, setEditTeacher] = useState<TeacherRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -92,7 +91,12 @@ export function TeachersPage() {
         filterable: false,
         disableColumnMenu: true,
         renderCell: (params) => (
-          <DataGridUpdateIconButton onClick={() => setManageTeacher(params.row)} />
+          <DataGridUpdateIconButton
+            onClick={() => {
+              setEditTeacher(params.row)
+              setDialogOpen(true)
+            }}
+          />
         ),
       },
     ],
@@ -115,7 +119,15 @@ export function TeachersPage() {
       />
 
       <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
-        <Button variant="contained" fullWidth sx={{ maxWidth: { xs: '100%', sm: 200 } }} onClick={() => setDialogOpen(true)}>
+        <Button
+          variant="contained"
+          fullWidth
+          sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+          onClick={() => {
+            setEditTeacher(null)
+            setDialogOpen(true)
+          }}
+        >
           Add teacher
         </Button>
       </Box>
@@ -143,11 +155,10 @@ export function TeachersPage() {
           </Paper>
         </Box>
       )}
-      <TeacherFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
-      <TeacherManageDialog
-        open={manageTeacher !== null}
-        teacher={manageTeacher}
-        onClose={() => setManageTeacher(null)}
+      <TeacherDialog
+        open={dialogOpen}
+        teacher={editTeacher}
+        onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
       />
     </Box>

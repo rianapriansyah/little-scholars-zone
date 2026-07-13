@@ -6,8 +6,7 @@ import { supabase } from '../../../lib/supabase'
 import type { ClassroomRow } from '../../../types/classroom'
 import type { TeacherRow } from '../../../types/teacher'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
-import { ClassroomFormDialog } from './ClassroomFormDialog'
-import { ClassroomManageDialog } from './ClassroomManageDialog'
+import { ClassroomDialog } from './ClassroomDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -23,7 +22,7 @@ export function ClassroomsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [manageClassroom, setManageClassroom] = useState<ClassroomRow | null>(null)
+  const [editClassroom, setEditClassroom] = useState<ClassroomRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -120,7 +119,12 @@ export function ClassroomsPage() {
         filterable: false,
         disableColumnMenu: true,
         renderCell: (params) => (
-          <DataGridUpdateIconButton onClick={() => setManageClassroom(params.row)} />
+          <DataGridUpdateIconButton
+            onClick={() => {
+              setEditClassroom(params.row)
+              setDialogOpen(true)
+            }}
+          />
         ),
       },
     ],
@@ -143,7 +147,15 @@ export function ClassroomsPage() {
       />
 
       <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
-        <Button variant="contained" fullWidth sx={{ maxWidth: { xs: '100%', sm: 200 } }} onClick={() => setDialogOpen(true)}>
+        <Button
+          variant="contained"
+          fullWidth
+          sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+          onClick={() => {
+            setEditClassroom(null)
+            setDialogOpen(true)
+          }}
+        >
           Add classroom
         </Button>
       </Box>
@@ -171,11 +183,10 @@ export function ClassroomsPage() {
           </Paper>
         </Box>
       )}
-      <ClassroomFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
-      <ClassroomManageDialog
-        open={manageClassroom !== null}
-        classroom={manageClassroom}
-        onClose={() => setManageClassroom(null)}
+      <ClassroomDialog
+        open={dialogOpen}
+        classroom={editClassroom}
+        onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
       />
     </Box>

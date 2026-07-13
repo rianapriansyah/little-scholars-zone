@@ -8,23 +8,34 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   FormGroup,
+  List,
+  ListItem,
+  ListItemText,
   MenuItem,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import type { TeacherRow } from '../../../types/teacher'
 import { DAYS_OF_WEEK } from '../../../types/enrollment'
+import type { ClassroomRow } from '../../../types/classroom'
+
+type RosterEntry = { enrollmentId: string; childId: string; childName: string }
 
 type Props = {
   open: boolean
+  classroom: ClassroomRow | null
   onClose: () => void
   onSaved: () => void
 }
 
-export function ClassroomFormDialog({ open, onClose, onSaved }: Props) {
+export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
+  const isEdit = classroom !== null
+
   const [teachers, setTeachers] = useState<TeacherRow[]>([])
   const [teacherId, setTeacherId] = useState('')
   const [label, setLabel] = useState('')
@@ -32,32 +43,44 @@ export function ClassroomFormDialog({ open, onClose, onSaved }: Props) {
   const [timeStart, setTimeStart] = useState('10:00')
   const [timeEnd, setTimeEnd] = useState('11:00')
   const [capacity, setCapacity] = useState('6')
+  const [active, setActive] = useState(true)
+  const [roster, setRoster] = useState<RosterEntry[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    void supabase
-      .from('teachers')
-      .select('*')
-      .eq('active', true)
-      .order('full_name')
-      .then(({ data }) => setTeachers(data ?? []))
-  }, [open])
-
-  function reset() {
-    setTeacherId('')
-    setLabel('')
-    setDays([])
-    setTimeStart('10:00')
-    setTimeEnd('11:00')
-    setCapacity('6')
+    setTeacherId(classroom?.teacher_id ?? '')
+    setLabel(classroom?.label ?? '')
+    setDays(classroom?.days_of_week ?? [])
+    setTimeStart(classroom?.time_start.slice(0, 5) ?? '10:00')
+    setTimeEnd(classroom?.time_end?.slice(0, 5) ?? '11:00')
+    setCapacity(classroom ? String(classroom.capacity) : '6')
+    setActive(classroom?.active ?? true)
     setError(null)
-  }
+
+    void supabase.from('teachers').select('*').eq('active', true).order('full_name').then(({ data }) => setTeachers(data ?? []))
+
+    if (classroom) {
+      void supabase
+        .from('children_classrooms')
+        .select('id, child_id, children(full_name)')
+        .eq('classroom_id', classroom.id)
+        .is('ended_at', null)
+        .then(({ data }) => {
+          const entries: RosterEntry[] = (data ?? []).map((row) => {
+            const child = row.children as unknown as { full_name: string } | null
+            return { enrollmentId: row.id, childId: row.child_id, childName: child?.full_name ?? '—' }
+          })
+          setRoster(entries)
+        })
+    } else {
+      setRoster([])
+    }
+  }, [open, classroom])
 
   const handleClose = () => {
     if (saving) return
-    reset()
     onClose()
   }
 
@@ -94,27 +117,47 @@ export function ClassroomFormDialog({ open, onClose, onSaved }: Props) {
     }
 
     setSaving(true)
-    const { error: iErr } = await supabase.from('classrooms').insert({
-      teacher_id: teacherId,
-      label: label.trim(),
-      days_of_week: days,
-      time_start: timeStart,
-      time_end: timeEnd,
-      capacity: capacityNum,
-    })
-    setSaving(false)
-    if (iErr) {
-      setError(iErr.message)
-      return
+    if (isEdit) {
+      const { error: uErr } = await supabase
+        .from('classrooms')
+        .update({
+          teacher_id: teacherId,
+          label: label.trim(),
+          days_of_week: days,
+          time_start: timeStart,
+          time_end: timeEnd,
+          capacity: capacityNum,
+          active,
+        })
+        .eq('id', classroom.id)
+      setSaving(false)
+      if (uErr) {
+        setError(uErr.message)
+        return
+      }
+    } else {
+      const { error: iErr } = await supabase.from('classrooms').insert({
+        teacher_id: teacherId,
+        label: label.trim(),
+        days_of_week: days,
+        time_start: timeStart,
+        time_end: timeEnd,
+        capacity: capacityNum,
+      })
+      setSaving(false)
+      if (iErr) {
+        setError(iErr.message)
+        return
+      }
     }
 
     onSaved()
-    handleClose()
+    onClose()
   }
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>Add classroom</DialogTitle>
+      <DialogTitle>{isEdit ? 'Edit classroom' : 'Add classroom'}</DialogTitle>
       <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -189,6 +232,30 @@ export function ClassroomFormDialog({ open, onClose, onSaved }: Props) {
               slotProps={{ htmlInput: { min: 1 } }}
             />
           </Box>
+
+          {isEdit ? (
+            <>
+              <FormControlLabel control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />} label="Active" />
+
+              <Divider />
+              <Typography variant="subtitle2">
+                Current roster ({roster.length}/{capacity})
+              </Typography>
+              {roster.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No children currently enrolled.
+                </Typography>
+              ) : (
+                <List dense disablePadding>
+                  {roster.map((r) => (
+                    <ListItem key={r.enrollmentId} disableGutters>
+                      <ListItemText primary={r.childName} />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </>
+          ) : null}
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

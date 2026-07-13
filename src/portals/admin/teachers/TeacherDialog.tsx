@@ -23,22 +23,26 @@ type Props = {
   onSaved: () => void
 }
 
-export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) {
+export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
+  const isEdit = teacher !== null
+
   const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [active, setActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [credentials, setCredentials] = useState<{ email: string; password: string; reused: boolean } | null>(null)
+  const [credentials, setCredentials] = useState<{ email: string; password: string; reused?: boolean } | null>(null)
 
   const phoneDigits = phone.replace(/\D/g, '')
 
   useEffect(() => {
-    if (!open || !teacher) return
-    setFullName(teacher.full_name ?? '')
-    setPhone(teacher.contact_phone ?? '')
-    setActive(teacher.active)
+    if (!open) return
+    setFullName(teacher?.full_name ?? '')
+    setEmail(teacher?.email ?? '')
+    setPhone(teacher?.contact_phone ?? '')
+    setActive(teacher?.active ?? true)
     setError(null)
   }, [open, teacher])
 
@@ -48,28 +52,42 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
   }
 
   async function handleSave() {
-    if (!teacher) return
+    setError(null)
+    if (!isEdit && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter a valid email address.')
+      return
+    }
+    if (!fullName.trim()) {
+      setError('Enter a full name.')
+      return
+    }
     if (!phoneDigits) {
       setError('Enter a phone number — used to send login details via WhatsApp.')
       return
     }
+
     setSaving(true)
-    setError(null)
-    const { error: uErr } = await supabase
-      .from('teachers')
-      .update({
-        full_name: fullName.trim(),
-        contact_phone: phone.trim() || null,
-        active,
-      })
-      .eq('id', teacher.id)
-    setSaving(false)
-    if (uErr) {
-      setError(uErr.message)
-      return
+    if (isEdit) {
+      const { error: uErr } = await supabase
+        .from('teachers')
+        .update({ full_name: fullName.trim(), contact_phone: phone.trim() || null, active })
+        .eq('id', teacher.id)
+      setSaving(false)
+      if (uErr) {
+        setError(uErr.message)
+        return
+      }
+      onSaved()
+      onClose()
+    } else {
+      const result = await createTeacherAccount({ fullName, email, phone })
+      setSaving(false)
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+      setCredentials({ email: email.trim().toLowerCase(), password: result.password })
     }
-    onSaved()
-    onClose()
   }
 
   async function handleGenerateCredentials() {
@@ -92,14 +110,13 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
   function handleCredentialsDone() {
     setCredentials(null)
     onSaved()
+    if (!isEdit) onClose()
   }
-
-  if (!teacher) return null
 
   return (
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>Edit teacher</DialogTitle>
+        <DialogTitle>{isEdit ? 'Edit teacher' : 'Add teacher'}</DialogTitle>
         <DialogContent dividers>
           {error ? (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -107,7 +124,20 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
             </Alert>
           ) : null}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField size="small" label="Email" value={teacher.email} disabled fullWidth />
+            {isEdit ? (
+              <TextField size="small" label="Email" value={teacher.email} disabled fullWidth />
+            ) : (
+              <TextField
+                size="small"
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                fullWidth
+                helperText="Used as the teacher's login email."
+              />
+            )}
             <TextField
               size="small"
               label="Full name"
@@ -125,17 +155,21 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
               fullWidth
               helperText="Login details are sent to this number via WhatsApp."
             />
-            <FormControlLabel
-              control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
-              label="Active"
-            />
-            <Button
-              variant="outlined"
-              disabled={generating || saving || !phoneDigits}
-              onClick={() => void handleGenerateCredentials()}
-            >
-              {generating ? 'Generating…' : teacher.auth_user_id ? 'Reset password' : 'Generate login credentials'}
-            </Button>
+            {isEdit ? (
+              <>
+                <FormControlLabel
+                  control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
+                  label="Active"
+                />
+                <Button
+                  variant="outlined"
+                  disabled={generating || saving || !phoneDigits}
+                  onClick={() => void handleGenerateCredentials()}
+                >
+                  {generating ? 'Generating…' : teacher.auth_user_id ? 'Reset password' : 'Generate login credentials'}
+                </Button>
+              </>
+            ) : null}
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -145,15 +179,15 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
           <Button
             variant="contained"
             onClick={() => void handleSave()}
-            disabled={saving || generating || !phoneDigits}
+            disabled={saving || generating || !fullName.trim() || !email.trim() || !phoneDigits}
           >
-            {saving ? 'Saving…' : 'Save'}
+            {isEdit ? (saving ? 'Saving…' : 'Save') : saving ? 'Creating…' : 'Save & create login'}
           </Button>
         </DialogActions>
       </Dialog>
       <CredentialsRevealDialog
         open={credentials !== null}
-        name={fullName.trim() || teacher.full_name}
+        name={fullName.trim() || teacher?.full_name || ''}
         email={credentials?.email ?? ''}
         password={credentials?.password ?? ''}
         phone={phone}

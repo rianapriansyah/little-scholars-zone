@@ -6,8 +6,7 @@ import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
-import { ChildFormDialog } from './ChildFormDialog'
-import { ChildManageDialog } from './ChildManageDialog'
+import { ChildDialog } from './ChildDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -23,7 +22,7 @@ export function ChildrenPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [manageChild, setManageChild] = useState<ChildRow | null>(null)
+  const [editChild, setEditChild] = useState<ChildRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -109,7 +108,12 @@ export function ChildrenPage() {
         filterable: false,
         disableColumnMenu: true,
         renderCell: (params) => (
-          <DataGridUpdateIconButton onClick={() => setManageChild(params.row)} />
+          <DataGridUpdateIconButton
+            onClick={() => {
+              setEditChild(params.row)
+              setDialogOpen(true)
+            }}
+          />
         ),
       },
     ],
@@ -132,7 +136,15 @@ export function ChildrenPage() {
       />
 
       <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
-        <Button variant="contained" fullWidth sx={{ maxWidth: { xs: '100%', sm: 200 } }} onClick={() => setDialogOpen(true)}>
+        <Button
+          variant="contained"
+          fullWidth
+          sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+          onClick={() => {
+            setEditChild(null)
+            setDialogOpen(true)
+          }}
+        >
           Add child
         </Button>
       </Box>
@@ -160,11 +172,10 @@ export function ChildrenPage() {
           </Paper>
         </Box>
       )}
-      <ChildFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
-      <ChildManageDialog
-        open={manageChild !== null}
-        child={manageChild}
-        onClose={() => setManageChild(null)}
+      <ChildDialog
+        open={dialogOpen}
+        child={editChild}
+        onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
       />
     </Box>
