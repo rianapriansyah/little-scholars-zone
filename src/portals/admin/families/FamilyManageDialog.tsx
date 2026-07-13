@@ -11,7 +11,8 @@ import {
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
-import { inviteFamily } from '../../../lib/inviteFamily'
+import { createFamilyAccount } from '../../../lib/createFamilyAccount'
+import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { FamilyRow } from '../../../types/family'
 
 type Props = {
@@ -34,7 +35,8 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
   const [address, setAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [resending, setResending] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [credentials, setCredentials] = useState<{ email: string; password: string; reused: boolean } | null>(null)
 
   useEffect(() => {
     if (!open || !family) return
@@ -52,7 +54,7 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
   }, [open, family])
 
   const handleClose = () => {
-    if (saving || resending) return
+    if (saving || generating) return
     onClose()
   }
 
@@ -84,27 +86,36 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
     onClose()
   }
 
-  async function handleResend() {
+  async function handleGenerateCredentials() {
     if (!family) return
-    setResending(true)
+    const targetEmail = email.trim() || family.contact_email || ''
+    if (!targetEmail) return
+    setGenerating(true)
     setError(null)
-    const result = await inviteFamily({
+    const result = await createFamilyAccount({
       name: name.trim() || family.name,
-      email: email.trim() || family.contact_email || '',
+      email: targetEmail,
       phone: phone.trim() || family.contact_phone,
     })
-    setResending(false)
+    setGenerating(false)
     if (!result.ok) {
-      setError(`Invite failed: ${result.message}`)
+      setError(`Failed to generate login: ${result.message}`)
       return
     }
+    setCredentials({ email: targetEmail, password: result.password, reused: !!family.auth_user_id })
+  }
+
+  function handleCredentialsDone() {
+    setCredentials(null)
     onSaved()
-    onClose()
   }
 
   if (!family) return null
 
+  const canGenerateCredentials = !!(email.trim() || family.contact_email)
+
   return (
+    <>
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Edit family</DialogTitle>
       <DialogContent dividers>
@@ -195,21 +206,31 @@ export function FamilyManageDialog({ open, family, onClose, onSaved }: Props) {
             rows={2}
           />
 
-          {!family.auth_user_id ? (
-            <Button variant="outlined" disabled={resending || saving} onClick={() => void handleResend()}>
-              {resending ? 'Sending…' : 'Send parent portal invite'}
-            </Button>
-          ) : null}
+          <Button
+            variant="outlined"
+            disabled={generating || saving || !canGenerateCredentials}
+            onClick={() => void handleGenerateCredentials()}
+          >
+            {generating ? 'Generating…' : family.auth_user_id ? 'Reset password' : 'Generate login credentials'}
+          </Button>
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={handleClose} disabled={saving || resending}>
+        <Button onClick={handleClose} disabled={saving || generating}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={() => void handleSave()} disabled={saving || resending}>
+        <Button variant="contained" onClick={() => void handleSave()} disabled={saving || generating}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </DialogActions>
     </Dialog>
+    <CredentialsRevealDialog
+      open={credentials !== null}
+      email={credentials?.email ?? ''}
+      password={credentials?.password ?? ''}
+      reused={credentials?.reused}
+      onClose={handleCredentialsDone}
+    />
+    </>
   )
 }

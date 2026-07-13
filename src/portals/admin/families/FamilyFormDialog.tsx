@@ -11,7 +11,8 @@ import {
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
-import { inviteFamily } from '../../../lib/inviteFamily'
+import { createFamilyAccount } from '../../../lib/createFamilyAccount'
+import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 
 type Props = {
   open: boolean
@@ -32,6 +33,7 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
   const [address, setAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null)
 
   function reset() {
     setName('')
@@ -61,7 +63,7 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
     }
 
     setSaving(true)
-    const result = await inviteFamily({ name, email, phone })
+    const result = await createFamilyAccount({ name, email, phone })
     if (!result.ok) {
       setSaving(false)
       setError(result.message)
@@ -87,11 +89,17 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
     }
 
     setSaving(false)
+    setCredentials({ email: email.trim().toLowerCase(), password: result.password })
+  }
+
+  function handleCredentialsDone() {
+    setCredentials(null)
     onSaved()
     handleClose()
   }
 
   return (
+    <>
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Add family</DialogTitle>
       <DialogContent dividers>
@@ -117,7 +125,7 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
             onChange={(e) => setEmail(e.target.value)}
             required
             fullWidth
-            helperText="Used to send parent portal invite."
+            helperText="Used as the parent's login email."
           />
           <TextField
             size="small"
@@ -194,9 +202,16 @@ export function FamilyFormDialog({ open, onClose, onSaved }: Props) {
           onClick={() => void handleSave()}
           disabled={saving || !name.trim() || !email.trim()}
         >
-          {saving ? 'Inviting…' : 'Save & invite'}
+          {saving ? 'Creating…' : 'Save & create login'}
         </Button>
       </DialogActions>
     </Dialog>
+    <CredentialsRevealDialog
+      open={credentials !== null}
+      email={credentials?.email ?? ''}
+      password={credentials?.password ?? ''}
+      onClose={handleCredentialsDone}
+    />
+    </>
   )
 }

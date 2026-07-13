@@ -1,6 +1,5 @@
 /// <reference path="./deno-shim.d.ts" />
-// Deploy: supabase functions deploy invite-family
-// Set secret: supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/accept-invite
+// Deploy: supabase functions deploy create-teacher-account
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const corsHeaders = {
@@ -15,18 +14,26 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
-/** Links families row (by contact_email) to the Supabase Auth user so parents can log in without a client-side claim RPC. */
-async function linkFamilyAuthUser(
+/** Email local-part + 3 random digits, e.g. jane.doe@school.com -> janedoe482. */
+function generatePassword(email: string): string {
+  const local = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+  const base = local.padEnd(5, 'x')
+  const digits = Math.floor(100 + Math.random() * 900)
+  return `${base}${digits}`
+}
+
+/** Links teachers row (by email) to the Supabase Auth user so teachers can log in without a client-side claim RPC. */
+async function linkTeacherAuthUser(
   adminClient: ReturnType<typeof createClient>,
   email: string,
   authUserId: string,
 ): Promise<void> {
   const { error } = await adminClient
-    .from('families')
+    .from('teachers')
     .update({ auth_user_id: authUserId })
-    .eq('contact_email', email)
+    .eq('email', email)
   if (error) {
-    console.error('linkFamilyAuthUser:', error.message)
+    console.error('linkTeacherAuthUser:', error.message)
   }
 }
 
@@ -90,43 +97,41 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Server misconfigured' }, 500)
     }
 
-    const body = (await req.json()) as { email?: string; name?: string; phone?: string | null }
+    const body = (await req.json()) as { email?: string; fullName?: string; phone?: string | null }
     const email = body.email?.trim().toLowerCase()
-    const name = body.name?.trim() || email
+    const fullName = body.fullName?.trim() || email
     const phone = body.phone?.trim() || null
     if (!email) {
       return jsonResponse({ error: 'email is required' }, 400)
     }
 
-    // Redirect URL is configured server-side (shared with invite-teacher) — set via:
-    // supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/accept-invite
-    const redirectTo = Deno.env.get('INVITE_REDIRECT_URL')?.trim() || undefined
-
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Ensure a families row exists before sending the invite email.
-    // Using upsert with ignoreDuplicates=true so resend-invite doesn't overwrite.
+    // Ensure a teachers row exists before creating the login.
+    // Using upsert with ignoreDuplicates=true so regenerating a password doesn't overwrite.
     const { error: upsertErr } = await adminClient
-      .from('families')
+      .from('teachers')
       .upsert(
-        { name: name!, contact_email: email, contact_phone: phone },
-        { onConflict: 'contact_email', ignoreDuplicates: true },
+        { full_name: fullName!, email, contact_phone: phone, active: true },
+        { onConflict: 'email', ignoreDuplicates: true },
       )
     if (upsertErr) {
-      console.error('Failed to upsert families:', upsertErr.message)
-      // Non-fatal: family row may already exist; continue with invite
+      console.error('Failed to upsert teachers:', upsertErr.message)
+      // Non-fatal: teacher row may already exist; continue with account creation
     }
 
-    const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
+    const password = generatePassword(email)
+    const { data, error } = await adminClient.auth.admin.createUser({
       email,
-      { ...(redirectTo ? { redirectTo } : {}) },
-    )
+      password,
+      email_confirm: true,
+    })
 
     if (!error && data?.user?.id) {
-      await linkFamilyAuthUser(adminClient, email, data.user.id)
-      return jsonResponse({ userId: data.user.id })
+      await linkTeacherAuthUser(adminClient, email, data.user.id)
+      return jsonResponse({ userId: data.user.id, password })
     }
 
     const msg = error?.message?.toLowerCase() ?? ''
@@ -139,12 +144,16 @@ Deno.serve(async (req) => {
     if (already) {
       const existingId = await findUserIdByEmail(adminClient, email)
       if (existingId) {
-        await linkFamilyAuthUser(adminClient, email, existingId)
-        return jsonResponse({ userId: existingId, reused: true })
+        const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingId, { password })
+        if (updateErr) {
+          return jsonResponse({ error: updateErr.message }, 400)
+        }
+        await linkTeacherAuthUser(adminClient, email, existingId)
+        return jsonResponse({ userId: existingId, password, reused: true })
       }
     }
 
-    return jsonResponse({ error: error?.message ?? 'Invite failed' }, 400)
+    return jsonResponse({ error: error?.message ?? 'Account creation failed' }, 400)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Server error'
     console.error('Unhandled exception:', message)

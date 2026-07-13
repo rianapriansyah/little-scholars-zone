@@ -5,7 +5,6 @@ import { AdminRoute } from './components/routing/AdminRoute'
 import { TeacherRoute } from './components/routing/TeacherRoute'
 import { ParentRoute } from './components/routing/ParentRoute'
 import { LoginPage } from './portals/LoginPage'
-import { AcceptInvitePage } from './portals/AcceptInvitePage'
 import { BootstrapAdminPage } from './portals/BootstrapAdminPage'
 import { AdminLayout } from './portals/admin/AdminLayout'
 import { FamiliesPage } from './portals/admin/families/FamiliesPage'
@@ -24,7 +23,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route path="/bootstrap-admin" element={<BootstrapAdminPage />} />
 
           <Route path="/admin" element={<AdminRoute />}>

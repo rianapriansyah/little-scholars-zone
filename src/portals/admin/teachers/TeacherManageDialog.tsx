@@ -12,7 +12,8 @@ import {
   TextField,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
-import { inviteTeacher } from '../../../lib/inviteTeacher'
+import { createTeacherAccount } from '../../../lib/createTeacherAccount'
+import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { TeacherRow } from '../../../types/teacher'
 
 type Props = {
@@ -28,7 +29,8 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
   const [active, setActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [resending, setResending] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [credentials, setCredentials] = useState<{ email: string; password: string; reused: boolean } | null>(null)
 
   useEffect(() => {
     if (!open || !teacher) return
@@ -39,7 +41,7 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
   }, [open, teacher])
 
   const handleClose = () => {
-    if (saving || resending) return
+    if (saving || generating) return
     onClose()
   }
 
@@ -64,71 +66,86 @@ export function TeacherManageDialog({ open, teacher, onClose, onSaved }: Props) 
     onClose()
   }
 
-  async function handleResend() {
+  async function handleGenerateCredentials() {
     if (!teacher) return
-    setResending(true)
+    setGenerating(true)
     setError(null)
-    const result = await inviteTeacher({
+    const result = await createTeacherAccount({
       fullName: fullName.trim() || teacher.full_name,
       email: teacher.email,
       phone: phone.trim() || teacher.contact_phone,
     })
-    setResending(false)
+    setGenerating(false)
     if (!result.ok) {
-      setError(`Invite failed: ${result.message}`)
+      setError(`Failed to generate login: ${result.message}`)
       return
     }
+    setCredentials({ email: teacher.email, password: result.password, reused: !!teacher.auth_user_id })
+  }
+
+  function handleCredentialsDone() {
+    setCredentials(null)
     onSaved()
-    onClose()
   }
 
   if (!teacher) return null
 
   return (
-    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>Edit teacher</DialogTitle>
-      <DialogContent dividers>
-        {error ? (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        ) : null}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField size="small" label="Email" value={teacher.email} disabled fullWidth />
-          <TextField
-            size="small"
-            label="Full name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            fullWidth
-          />
-          <TextField
-            size="small"
-            label="Phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            fullWidth
-          />
-          <FormControlLabel
-            control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
-            label="Active"
-          />
-          {!teacher.auth_user_id ? (
-            <Button variant="outlined" disabled={resending || saving} onClick={() => void handleResend()}>
-              {resending ? 'Sending…' : 'Send teacher portal invite'}
-            </Button>
+    <>
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+        <DialogTitle>Edit teacher</DialogTitle>
+        <DialogContent dividers>
+          {error ? (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
           ) : null}
-        </Box>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={handleClose} disabled={saving || resending}>
-          Cancel
-        </Button>
-        <Button variant="contained" onClick={() => void handleSave()} disabled={saving || resending}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField size="small" label="Email" value={teacher.email} disabled fullWidth />
+            <TextField
+              size="small"
+              label="Full name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              fullWidth
+            />
+            <FormControlLabel
+              control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
+              label="Active"
+            />
+            <Button
+              variant="outlined"
+              disabled={generating || saving}
+              onClick={() => void handleGenerateCredentials()}
+            >
+              {generating ? 'Generating…' : teacher.auth_user_id ? 'Reset password' : 'Generate login credentials'}
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleClose} disabled={saving || generating}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={() => void handleSave()} disabled={saving || generating}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <CredentialsRevealDialog
+        open={credentials !== null}
+        email={credentials?.email ?? ''}
+        password={credentials?.password ?? ''}
+        reused={credentials?.reused}
+        onClose={handleCredentialsDone}
+      />
+    </>
   )
 }

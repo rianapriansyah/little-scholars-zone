@@ -1,9 +1,9 @@
 # Supabase local / CLI config. Link your project with: supabase link
-# Deploy: npm run deploy:function:invite-teacher
-# Deploy: npm run deploy:function:invite-family
+# Deploy: npm run deploy:function:create-teacher-account
+# Deploy: npm run deploy:function:create-family-account
 
-[functions.invite-teacher]
+[functions.create-teacher-account]
 verify_jwt = true
 
-[functions.invite-family]
+[functions.create-family-account]
 verify_jwt = true

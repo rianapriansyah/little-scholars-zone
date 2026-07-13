@@ -9,8 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "deploy:function:invite-teacher": "supabase functions deploy invite-teacher",
-    "deploy:function:invite-family": "supabase functions deploy invite-family"
+    "deploy:function:create-teacher-account": "supabase functions deploy create-teacher-account",
+    "deploy:function:create-family-account": "supabase functions deploy create-family-account"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
