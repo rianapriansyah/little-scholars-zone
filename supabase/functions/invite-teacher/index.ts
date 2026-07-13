@@ -1,6 +1,6 @@
 /// <reference path="./deno-shim.d.ts" />
-// Deploy: supabase functions deploy invite-teacher --no-verify-jwt
-// Set secret: supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/teacher-accept-invite
+// Deploy: supabase functions deploy invite-teacher
+// Set secret: supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/accept-invite
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const corsHeaders = {
@@ -98,8 +98,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'email is required' }, 400)
     }
 
-    // Redirect URL is configured server-side — set via:
-    // supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/teacher-accept-invite
+    // Redirect URL is configured server-side (shared with invite-family) — set via:
+    // supabase secrets set INVITE_REDIRECT_URL=https://<your-app>/accept-invite
     const redirectTo = Deno.env.get('INVITE_REDIRECT_URL')?.trim() || undefined
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
