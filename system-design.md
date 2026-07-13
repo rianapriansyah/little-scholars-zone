@@ -59,8 +59,9 @@ A management platform for a toddler tutoring center (30–100 children) supporti
 | id | uuid PK | |
 | teacher_id | uuid | FK → teachers |
 | label | text | e.g. "Teacher Rina – Tuesday 10am" |
-| day_of_week | text | Monday … Sunday |
+| days_of_week | text[] | one or more of Monday … Sunday |
 | time_start | time | |
+| time_end | time | nullable (existing rows predate this column) |
 | capacity | int | default 6 |
 | active | boolean | |
 | created_at | timestamptz | |

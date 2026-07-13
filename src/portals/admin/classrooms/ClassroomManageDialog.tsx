@@ -3,12 +3,14 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
   FormControlLabel,
+  FormGroup,
   List,
   ListItem,
   ListItemText,
@@ -35,8 +37,9 @@ export function ClassroomManageDialog({ open, classroom, onClose, onSaved }: Pro
   const [teachers, setTeachers] = useState<TeacherRow[]>([])
   const [teacherId, setTeacherId] = useState('')
   const [label, setLabel] = useState('')
-  const [dayOfWeek, setDayOfWeek] = useState<string>(DAYS_OF_WEEK[0])
+  const [days, setDays] = useState<string[]>([])
   const [timeStart, setTimeStart] = useState('10:00')
+  const [timeEnd, setTimeEnd] = useState('11:00')
   const [capacity, setCapacity] = useState('6')
   const [active, setActive] = useState(true)
   const [roster, setRoster] = useState<RosterEntry[]>([])
@@ -47,8 +50,9 @@ export function ClassroomManageDialog({ open, classroom, onClose, onSaved }: Pro
     if (!open || !classroom) return
     setTeacherId(classroom.teacher_id)
     setLabel(classroom.label)
-    setDayOfWeek(classroom.day_of_week)
+    setDays(classroom.days_of_week)
     setTimeStart(classroom.time_start.slice(0, 5))
+    setTimeEnd(classroom.time_end?.slice(0, 5) ?? '')
     setCapacity(String(classroom.capacity))
     setActive(classroom.active)
     setError(null)
@@ -74,10 +78,26 @@ export function ClassroomManageDialog({ open, classroom, onClose, onSaved }: Pro
     onClose()
   }
 
+  function toggleDay(day: string) {
+    setDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))
+  }
+
   async function handleSave() {
     if (!classroom) return
     setError(null)
     const capacityNum = Number(capacity)
+    if (days.length === 0) {
+      setError('Select at least one day.')
+      return
+    }
+    if (!timeEnd) {
+      setError('Enter an end time.')
+      return
+    }
+    if (timeEnd <= timeStart) {
+      setError('End time must be after start time.')
+      return
+    }
     if (!Number.isInteger(capacityNum) || capacityNum < 1) {
       setError('Capacity must be a positive whole number.')
       return
@@ -89,8 +109,9 @@ export function ClassroomManageDialog({ open, classroom, onClose, onSaved }: Pro
       .update({
         teacher_id: teacherId,
         label: label.trim(),
-        day_of_week: dayOfWeek,
+        days_of_week: days,
         time_start: timeStart,
+        time_end: timeEnd,
         capacity: capacityNum,
         active,
       })
@@ -131,20 +152,36 @@ export function ClassroomManageDialog({ open, classroom, onClose, onSaved }: Pro
             ))}
           </TextField>
           <TextField size="small" label="Label" value={label} onChange={(e) => setLabel(e.target.value)} fullWidth />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
-            <TextField size="small" select label="Day" value={dayOfWeek} onChange={(e) => setDayOfWeek(e.target.value)} fullWidth>
+          <Box>
+            <Typography variant="body2" sx={{ mb: 0.5 }}>
+              Days
+            </Typography>
+            <FormGroup row>
               {DAYS_OF_WEEK.map((d) => (
-                <MenuItem key={d} value={d}>
-                  {d}
-                </MenuItem>
+                <FormControlLabel
+                  key={d}
+                  control={<Checkbox size="small" checked={days.includes(d)} onChange={() => toggleDay(d)} />}
+                  label={d.slice(0, 3)}
+                />
               ))}
-            </TextField>
+            </FormGroup>
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
             <TextField
               size="small"
               label="Start time"
               type="time"
               value={timeStart}
               onChange={(e) => setTimeStart(e.target.value)}
+              fullWidth
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              size="small"
+              label="End time"
+              type="time"
+              value={timeEnd}
+              onChange={(e) => setTimeEnd(e.target.value)}
               fullWidth
               slotProps={{ inputLabel: { shrink: true } }}
             />

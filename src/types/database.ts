@@ -129,8 +129,9 @@ export type Database = {
           id: string
           teacher_id: string
           label: string
-          day_of_week: string
+          days_of_week: string[]
           time_start: string
+          time_end: string | null
           capacity: number
           active: boolean
           created_at: string | null
@@ -139,8 +140,9 @@ export type Database = {
           id?: string
           teacher_id: string
           label: string
-          day_of_week: string
+          days_of_week: string[]
           time_start: string
+          time_end?: string | null
           capacity?: number
           active?: boolean
           created_at?: string | null
@@ -149,8 +151,9 @@ export type Database = {
           id?: string
           teacher_id?: string
           label?: string
-          day_of_week?: string
+          days_of_week?: string[]
           time_start?: string
+          time_end?: string | null
           capacity?: number
           active?: boolean
           created_at?: string | null

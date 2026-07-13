@@ -15,7 +15,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 type ClassroomView = ClassroomRow & { teacherName: string; enrolledCount: number }
 
 function classroomSearchBlob(row: ClassroomView): string {
-  return `${row.label} ${row.teacherName} ${row.day_of_week}`.toLowerCase()
+  return `${row.label} ${row.teacherName} ${row.days_of_week.join(' ')}`.toLowerCase()
 }
 
 export function ClassroomsPage() {
@@ -80,8 +80,19 @@ export function ClassroomsPage() {
     () => [
       { field: 'label', headerName: 'Classroom', flex: 1, minWidth: 200 },
       { field: 'teacherName', headerName: 'Teacher', flex: 1, minWidth: 140 },
-      { field: 'day_of_week', headerName: 'Day', width: 110 },
-      { field: 'time_start', headerName: 'Time', width: 90, valueGetter: (_v, row) => row.time_start.slice(0, 5) },
+      {
+        field: 'days_of_week',
+        headerName: 'Days',
+        width: 160,
+        valueGetter: (_v, row) => row.days_of_week.map((d) => d.slice(0, 3)).join(', '),
+      },
+      {
+        field: 'time_start',
+        headerName: 'Time',
+        width: 110,
+        valueGetter: (_v, row) =>
+          row.time_end ? `${row.time_start.slice(0, 5)}–${row.time_end.slice(0, 5)}` : row.time_start.slice(0, 5),
+      },
       {
         field: 'enrolledCount',
         headerName: 'Roster',

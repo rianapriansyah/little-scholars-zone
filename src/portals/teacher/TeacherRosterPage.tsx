@@ -84,7 +84,8 @@ export function TeacherRosterPage() {
                   {classroom.label}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  {classroom.day_of_week} · {classroom.time_start.slice(0, 5)} · {classroom.roster.length}/
+                  {classroom.days_of_week.join(', ')} · {classroom.time_start.slice(0, 5)}
+                  {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {classroom.roster.length}/
                   {classroom.capacity} enrolled
                 </Typography>
                 {classroom.roster.length === 0 ? (
