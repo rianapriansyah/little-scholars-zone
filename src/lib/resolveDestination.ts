@@ -1,24 +1,17 @@
 import type { User } from '@supabase/supabase-js'
-import { supabase } from './supabase'
-import { isAdminUser } from './authRole'
+import { getAppRole } from './authRole'
 
-/** Admin is an app_metadata role; teacher/parent are row lookups (mirrors car-rental's partner check). */
-export async function resolveDestination(user: User): Promise<string | null> {
-  if (isAdminUser(user)) return '/admin'
-
-  const { data: teacher } = await supabase
-    .from('teachers')
-    .select('id')
-    .eq('auth_user_id', user.id)
-    .maybeSingle()
-  if (teacher) return '/teacher'
-
-  const { data: family } = await supabase
-    .from('families')
-    .select('id')
-    .eq('auth_user_id', user.id)
-    .maybeSingle()
-  if (family) return '/parent'
-
+/**
+ * Role lives entirely in the JWT's app_metadata (set when the account is created —
+ * see create-teacher-account/create-family-account), so this is a synchronous, free
+ * check — no DB round trip. The destination route guard (TeacherRoute/ParentRoute)
+ * still does the authoritative row lookup; this only picks which guard to send the
+ * user to (mirrors car-rental's LoginPage, which is sync for the same reason).
+ */
+export function resolveDestination(user: User): string | null {
+  const role = getAppRole(user)
+  if (role === 'admin') return '/admin'
+  if (role === 'teacher') return '/teacher'
+  if (role === 'parent') return '/parent'
   return null
 }

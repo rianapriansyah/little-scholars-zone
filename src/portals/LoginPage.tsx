@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
@@ -10,7 +10,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveDestination } from '../lib/resolveDestination'
@@ -40,30 +40,8 @@ export function LoginPage() {
     setDestination(null)
   }, [destination, user, navigate])
 
-  // Already signed in (e.g. returned to /login with an existing session) — resolve role
-  // once and reuse the same `destination`/navigate effect above. Guarded by a ref rather
-  // than depending on `user` staying referentially stable — `user` gets a new object on
-  // every auth event (token refresh, etc.), and re-running this on every such change is
-  // what caused a login loop of repeated role lookups that never settled.
-  const resolvedOnce = useRef(false)
-
-  useEffect(() => {
-    if (authLoading || !user || busy || destination || resolvedOnce.current) return
-    resolvedOnce.current = true
-    setBusy(true)
-    void resolveDestination(user).then((dest) => {
-      if (dest) {
-        setDestination(from ?? dest)
-      } else {
-        setBusy(false)
-        setError('No profile is linked to this account. Contact an admin.')
-        void supabase.auth.signOut()
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user])
-
-  if (authLoading || busy) {
+  // ── 1. Session resolving ─────────────────────────────────────────────────────
+  if (authLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
         <CircularProgress />
@@ -71,12 +49,41 @@ export function LoginPage() {
     )
   }
 
+  // ── 2. Already signed in (returning to /login while authenticated) ───────────
+  // Role lives in the JWT app_metadata, so this is a synchronous check — no DB call.
+  if (user) {
+    const dest = resolveDestination(user)
+    if (dest) {
+      return <Navigate to={from ?? dest} replace />
+    }
+    return (
+      <Container maxWidth="sm" sx={{ mt: { xs: 2, sm: 4, md: 8 }, mb: 4, px: { xs: 2, sm: 3 } }}>
+        <Paper sx={{ p: { xs: 2, sm: 3 } }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            No role is linked to this account. Contact an admin.
+          </Alert>
+          <Button variant="contained" onClick={() => void supabase.auth.signOut()}>
+            Sign out
+          </Button>
+        </Paper>
+      </Container>
+    )
+  }
+
+  // ── 3. Async work in progress (submitting the form) ──────────────────────────
+  if (busy) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  // ── 4. Form ────────────────────────────────────────────────────────────────
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setBusy(true)
-    // Skip the "already signed in" effect's redundant lookup once `user` updates below.
-    resolvedOnce.current = true
 
     const { data, error: signError } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -86,10 +93,10 @@ export function LoginPage() {
       return
     }
 
-    const dest = await resolveDestination(data.user)
+    const dest = resolveDestination(data.user)
     if (!dest) {
       setBusy(false)
-      setError('No profile is linked to this account. Contact an admin.')
+      setError('No role is linked to this account. Contact an admin.')
       await supabase.auth.signOut()
       return
     }

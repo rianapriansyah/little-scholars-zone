@@ -127,6 +127,7 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
+      app_metadata: { role: 'teacher' },
     })
 
     if (!error && data?.user?.id) {
@@ -144,7 +145,10 @@ Deno.serve(async (req) => {
     if (already) {
       const existingId = await findUserIdByEmail(adminClient, email)
       if (existingId) {
-        const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingId, { password })
+        const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingId, {
+          password,
+          app_metadata: { role: 'teacher' },
+        })
         if (updateErr) {
           return jsonResponse({ error: updateErr.message }, 400)
         }
