@@ -89,7 +89,7 @@ export function FamilyDialog({ open, family, onClose, onSaved }: Props) {
         .from('families')
         .update({
           name: name.trim(),
-          contact_email: email.trim() || null,
+          contact_email: email.trim(),
           contact_phone: phone.trim() || null,
           ...extras,
         })

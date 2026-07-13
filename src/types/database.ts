@@ -18,7 +18,7 @@ export type Database = {
           id: string
           name: string
           contact_phone: string | null
-          contact_email: string | null
+          contact_email: string
           father_name: string | null
           father_occupation: string | null
           father_phone: string | null
@@ -34,7 +34,7 @@ export type Database = {
           id?: string
           name: string
           contact_phone?: string | null
-          contact_email?: string | null
+          contact_email: string
           father_name?: string | null
           father_occupation?: string | null
           father_phone?: string | null
@@ -50,7 +50,7 @@ export type Database = {
           id?: string
           name?: string
           contact_phone?: string | null
-          contact_email?: string | null
+          contact_email?: string
           father_name?: string | null
           father_occupation?: string | null
           father_phone?: string | null

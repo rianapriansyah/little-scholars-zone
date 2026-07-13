@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       )
     if (upsertErr) {
       console.error('Failed to upsert teachers:', upsertErr.message)
-      // Non-fatal: teacher row may already exist; continue with account creation
+      return jsonResponse({ error: `Failed to save teacher record: ${upsertErr.message}` }, 500)
     }
 
     const password = generatePassword(email)

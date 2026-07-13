@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       )
     if (upsertErr) {
       console.error('Failed to upsert families:', upsertErr.message)
-      // Non-fatal: family row may already exist; continue with account creation
+      return jsonResponse({ error: `Failed to save family record: ${upsertErr.message}` }, 500)
     }
 
     const password = generatePassword(email)
