@@ -10,11 +10,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveDestination } from '../lib/resolveDestination'
-import { isAdminUser } from '../lib/authRole'
 import { isAdminBootstrapEnabled } from '../lib/bootstrapAdmin'
 
 export function LoginPage() {
@@ -41,20 +40,22 @@ export function LoginPage() {
     setDestination(null)
   }, [destination, user, navigate])
 
-  // Teacher/parent role lookup for a user who's already signed in (e.g. returned to
-  // /login with an existing session). Guarded to run once — `user` gets a new object
-  // reference on every auth event (token refresh, etc.), and re-running this on every
-  // such change is what caused a login loop of repeated role lookups that never settled.
+  // Already signed in (e.g. returned to /login with an existing session) — resolve role
+  // once and reuse the same `destination`/navigate effect above. Guarded by a ref rather
+  // than depending on `user` staying referentially stable — `user` gets a new object on
+  // every auth event (token refresh, etc.), and re-running this on every such change is
+  // what caused a login loop of repeated role lookups that never settled.
   const resolvedOnce = useRef(false)
-  const [resolvedDestination, setResolvedDestination] = useState<string | null>(null)
 
   useEffect(() => {
-    if (authLoading || !user || isAdminUser(user) || resolvedOnce.current) return
+    if (authLoading || !user || busy || destination || resolvedOnce.current) return
     resolvedOnce.current = true
+    setBusy(true)
     void resolveDestination(user).then((dest) => {
       if (dest) {
-        setResolvedDestination(from ?? dest)
+        setDestination(from ?? dest)
       } else {
+        setBusy(false)
         setError('No profile is linked to this account. Contact an admin.')
         void supabase.auth.signOut()
       }
@@ -62,8 +63,7 @@ export function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user])
 
-  // ── 1. Session resolving ─────────────────────────────────────────────────────
-  if (authLoading) {
+  if (authLoading || busy) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
         <CircularProgress />
@@ -71,35 +71,12 @@ export function LoginPage() {
     )
   }
 
-  // ── 2. Already signed in (returning to /login while authenticated) ───────────
-  if (user) {
-    if (isAdminUser(user)) {
-      return <Navigate to={from ?? '/admin'} replace />
-    }
-    if (resolvedDestination) {
-      return <Navigate to={resolvedDestination} replace />
-    }
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <CircularProgress />
-      </Box>
-    )
-  }
-
-  // ── 3. Async work in progress (submitting the form) ──────────────────────────
-  if (busy) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <CircularProgress />
-      </Box>
-    )
-  }
-
-  // ── 4. Form ────────────────────────────────────────────────────────────────
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setBusy(true)
+    // Skip the "already signed in" effect's redundant lookup once `user` updates below.
+    resolvedOnce.current = true
 
     const { data, error: signError } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -116,10 +93,6 @@ export function LoginPage() {
       await supabase.auth.signOut()
       return
     }
-
-    // Already resolved via the submit flow — skip the "already signed in" effect's lookup
-    // once `user` updates from onAuthStateChange.
-    resolvedOnce.current = true
 
     // Keep `busy` true — the effect above navigates once `user` updates from onAuthStateChange.
     setDestination(from ?? dest)
