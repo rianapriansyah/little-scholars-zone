@@ -31,23 +31,23 @@ describe('getClassStatus', () => {
 })
 
 describe('getTodaysClassStartInWita', () => {
-  it('converts a WITA wall-clock time to the correct UTC instant on a matching day', () => {
+  it('converts a WITA wall-clock time to the correct UTC instant on a weekday', () => {
     // 2026-07-14 is a Tuesday in WITA (UTC+8); pick a reference instant safely inside that WITA day.
     const referenceNow = new Date('2026-07-14T04:00:00Z') // 12:00 WITA, still Tuesday
-    const result = getTodaysClassStartInWita(['Tuesday'], '10:00', referenceNow)
+    const result = getTodaysClassStartInWita('10:00', referenceNow)
     expect(result).toEqual(new Date('2026-07-14T02:00:00Z'))
   })
 
-  it('returns null when the classroom does not run on the current WITA weekday', () => {
-    const referenceNow = new Date('2026-07-14T04:00:00Z') // Tuesday in WITA
-    const result = getTodaysClassStartInWita(['Monday', 'Wednesday', 'Friday'], '10:00', referenceNow)
+  it('returns null on a WITA weekend', () => {
+    // 2026-07-18 is a Saturday in WITA (UTC+8).
+    const referenceNow = new Date('2026-07-18T04:00:00Z') // 12:00 WITA, Saturday
+    const result = getTodaysClassStartInWita('10:00', referenceNow)
     expect(result).toBeNull()
   })
 
   it('uses the WITA calendar date near a UTC midnight boundary, not the UTC date', () => {
     // 2026-07-13T17:00:00Z = 2026-07-14T01:00:00 WITA — already Tuesday in WITA, still Monday in UTC.
     const referenceNow = new Date('2026-07-13T17:00:00Z')
-    expect(getTodaysClassStartInWita(['Tuesday'], '10:00', referenceNow)).toEqual(new Date('2026-07-14T02:00:00Z'))
-    expect(getTodaysClassStartInWita(['Monday'], '10:00', referenceNow)).toBeNull()
+    expect(getTodaysClassStartInWita('10:00', referenceNow)).toEqual(new Date('2026-07-14T02:00:00Z'))
   })
 })

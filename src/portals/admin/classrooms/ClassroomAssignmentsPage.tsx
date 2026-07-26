@@ -14,7 +14,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 type ClassroomView = ClassroomRow & { teacherName: string; enrolledCount: number }
 
 function classroomSearchBlob(row: ClassroomView): string {
-  return `${row.label} ${row.teacherName} ${row.days_of_week.join(' ')}`.toLowerCase()
+  return `${row.label} ${row.teacherName}`.toLowerCase()
 }
 
 export function ClassroomAssignmentsPage() {

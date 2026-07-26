@@ -129,7 +129,6 @@ export type Database = {
           id: string
           teacher_id: string | null
           label: string
-          days_of_week: string[]
           time_start: string
           time_end: string | null
           capacity: number
@@ -140,7 +139,6 @@ export type Database = {
           id?: string
           teacher_id?: string | null
           label: string
-          days_of_week: string[]
           time_start: string
           time_end?: string | null
           capacity?: number
@@ -151,7 +149,6 @@ export type Database = {
           id?: string
           teacher_id?: string | null
           label?: string
-          days_of_week?: string[]
           time_start?: string
           time_end?: string | null
           capacity?: number

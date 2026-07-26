@@ -97,7 +97,7 @@ export function TeacherRosterPage() {
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {classrooms.map((classroom) => {
-            const todaysStart = getTodaysClassStartInWita(classroom.days_of_week, classroom.time_start, now)
+            const todaysStart = getTodaysClassStartInWita(classroom.time_start, now)
             const status = todaysStart ? getClassStatus(todaysStart, now) : null
             const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
 
@@ -117,7 +117,7 @@ export function TeacherRosterPage() {
                     ) : null}
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    {classroom.days_of_week.join(', ')} · {classroom.time_start.slice(0, 5)}
+                    Mon–Fri · {classroom.time_start.slice(0, 5)}
                     {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {classroom.roster.length}/
                     {classroom.capacity} enrolled
                   </Typography>

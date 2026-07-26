@@ -3,14 +3,12 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
   FormControlLabel,
-  FormGroup,
   List,
   ListItem,
   ListItemText,
@@ -19,7 +17,6 @@ import {
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
-import { DAYS_OF_WEEK } from '../../../types/enrollment'
 import type { ClassroomRow } from '../../../types/classroom'
 
 type RosterEntry = { enrollmentId: string; childId: string; childName: string }
@@ -36,7 +33,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
 
   const [teacherName, setTeacherName] = useState<string | null>(null)
   const [label, setLabel] = useState('')
-  const [days, setDays] = useState<string[]>([])
   const [timeStart, setTimeStart] = useState('10:00')
   const [timeEnd, setTimeEnd] = useState('11:00')
   const [capacity, setCapacity] = useState('6')
@@ -48,7 +44,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) return
     setLabel(classroom?.label ?? '')
-    setDays(classroom?.days_of_week ?? [])
     setTimeStart(classroom?.time_start.slice(0, 5) ?? '10:00')
     setTimeEnd(classroom?.time_end?.slice(0, 5) ?? '11:00')
     setCapacity(classroom ? String(classroom.capacity) : '6')
@@ -88,19 +83,11 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
     onClose()
   }
 
-  function toggleDay(day: string) {
-    setDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))
-  }
-
   async function handleSave() {
     setError(null)
     const capacityNum = Number(capacity)
     if (!label.trim()) {
       setError('Enter a classroom label.')
-      return
-    }
-    if (days.length === 0) {
-      setError('Select at least one day.')
       return
     }
     if (!timeEnd) {
@@ -122,7 +109,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
         .from('classrooms')
         .update({
           label: label.trim(),
-          days_of_week: days,
           time_start: timeStart,
           time_end: timeEnd,
           capacity: capacityNum,
@@ -137,7 +123,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
     } else {
       const { error: iErr } = await supabase.from('classrooms').insert({
         label: label.trim(),
-        days_of_week: days,
         time_start: timeStart,
         time_end: timeEnd,
         capacity: capacityNum,
@@ -175,22 +160,11 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
             onChange={(e) => setLabel(e.target.value)}
             required
             fullWidth
-            placeholder='e.g. "Teacher Rina — Tuesday 10am"'
+            placeholder='e.g. "Teacher Rina — 10am"'
           />
-          <Box>
-            <Typography variant="body2" sx={{ mb: 0.5 }}>
-              Days
-            </Typography>
-            <FormGroup row>
-              {DAYS_OF_WEEK.map((d) => (
-                <FormControlLabel
-                  key={d}
-                  control={<Checkbox size="small" checked={days.includes(d)} onChange={() => toggleDay(d)} />}
-                  label={d.slice(0, 3)}
-                />
-              ))}
-            </FormGroup>
-          </Box>
+          <Typography variant="body2" color="text.secondary">
+            Runs every weekday, Monday–Friday.
+          </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
             <TextField
               size="small"

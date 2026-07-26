@@ -45,18 +45,16 @@ function getWitaDateParts(instant: Date) {
   }
 }
 
+const WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
+
 /**
  * Returns the instant `timeStart` (HH:MM[:SS]) falls on *today's WITA date*, or null if
- * `daysOfWeek` doesn't include today's weekday in WITA. Always uses Asia/Makassar (UTC+8,
- * no DST) regardless of the browser/server's local timezone.
+ * today is a weekend in WITA (classrooms only run Monday–Friday). Always uses Asia/Makassar
+ * (UTC+8, no DST) regardless of the browser/server's local timezone.
  */
-export function getTodaysClassStartInWita(
-  daysOfWeek: string[],
-  timeStart: string,
-  referenceNow: Date = new Date(),
-): Date | null {
+export function getTodaysClassStartInWita(timeStart: string, referenceNow: Date = new Date()): Date | null {
   const { weekday, year, month, day } = getWitaDateParts(referenceNow)
-  if (!daysOfWeek.includes(weekday)) return null
+  if (!WEEKDAYS.has(weekday)) return null
 
   const [hourStr, minuteStr] = timeStart.split(':')
   const hour = Number(hourStr)
