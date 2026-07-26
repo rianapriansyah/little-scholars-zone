@@ -4,17 +4,16 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { ClassroomRow } from '../../../types/classroom'
-import type { TeacherRow } from '../../../types/teacher'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { ClassroomAssignmentDialog } from './ClassroomAssignmentDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-type ClassroomView = ClassroomRow & { teacherName: string; enrolledCount: number }
+type ClassroomView = ClassroomRow & { teacherNames: string[]; enrolledCount: number }
 
 function classroomSearchBlob(row: ClassroomView): string {
-  return `${row.label} ${row.teacherName}`.toLowerCase()
+  return `${row.label} ${row.teacherNames.join(' ')}`.toLowerCase()
 }
 
 export function ClassroomAssignmentsPage() {
@@ -29,28 +28,39 @@ export function ClassroomAssignmentsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const [classroomsRes, teachersRes, enrollmentsRes] = await Promise.all([
+    const [classroomsRes, groupsRes, enrollmentsRes] = await Promise.all([
       supabase.from('classrooms').select('*').order('label'),
-      supabase.from('teachers').select('*'),
-      supabase.from('children_classrooms').select('classroom_id').is('ended_at', null),
+      supabase.from('classroom_teachers').select('id, classroom_id, teachers(full_name)'),
+      supabase.from('children_classrooms').select('classroom_teacher_id').is('ended_at', null),
     ])
     setLoading(false)
 
-    const qError = classroomsRes.error ?? teachersRes.error ?? enrollmentsRes.error
+    const qError = classroomsRes.error ?? groupsRes.error ?? enrollmentsRes.error
     if (qError) {
       setError(qError.message)
       return
     }
 
-    const teacherById = new Map<string, TeacherRow>((teachersRes.data ?? []).map((t) => [t.id, t]))
+    const groupClassroomId = new Map<string, string>()
+    const teacherNamesByClassroom = new Map<string, string[]>()
+    for (const g of groupsRes.data ?? []) {
+      groupClassroomId.set(g.id, g.classroom_id)
+      const teacherName = (g.teachers as unknown as { full_name: string } | null)?.full_name ?? '—'
+      const names = teacherNamesByClassroom.get(g.classroom_id) ?? []
+      names.push(teacherName)
+      teacherNamesByClassroom.set(g.classroom_id, names)
+    }
+
     const countByClassroom = new Map<string, number>()
     for (const row of enrollmentsRes.data ?? []) {
-      countByClassroom.set(row.classroom_id, (countByClassroom.get(row.classroom_id) ?? 0) + 1)
+      const classroomId = groupClassroomId.get(row.classroom_teacher_id)
+      if (!classroomId) continue
+      countByClassroom.set(classroomId, (countByClassroom.get(classroomId) ?? 0) + 1)
     }
 
     const views: ClassroomView[] = (classroomsRes.data ?? []).map((c) => ({
       ...c,
-      teacherName: (c.teacher_id ? teacherById.get(c.teacher_id)?.full_name : undefined) ?? 'Unassigned',
+      teacherNames: teacherNamesByClassroom.get(c.id) ?? [],
       enrolledCount: countByClassroom.get(c.id) ?? 0,
     }))
     setRows(views)
@@ -79,13 +89,13 @@ export function ClassroomAssignmentsPage() {
     () => [
       { field: 'label', headerName: 'Classroom', flex: 1, minWidth: 200 },
       {
-        field: 'teacherName',
-        headerName: 'Teacher',
+        field: 'teacherNames',
+        headerName: 'Teachers',
         flex: 1,
-        minWidth: 140,
+        minWidth: 160,
         renderCell: (params) =>
-          params.row.teacher_id ? (
-            params.value
+          params.row.teacherNames.length > 0 ? (
+            params.row.teacherNames.join(', ')
           ) : (
             <Chip size="small" label="Unassigned" color="warning" variant="outlined" />
           ),
@@ -93,8 +103,8 @@ export function ClassroomAssignmentsPage() {
       {
         field: 'enrolledCount',
         headerName: 'Roster',
-        width: 100,
-        valueGetter: (_v, row) => `${row.enrolledCount}/${row.capacity}`,
+        width: 90,
+        valueGetter: (_v, row) => `${row.enrolledCount}`,
       },
       {
         field: 'actions',
@@ -122,10 +132,10 @@ export function ClassroomAssignmentsPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Assignments
+        Penugasan
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Assign a teacher and enroll or remove students for each classroom.
+        Assign teachers and enroll or remove students for each classroom. Each teacher can have up to 6 students.
       </Typography>
 
       <DataGridSearchPanel

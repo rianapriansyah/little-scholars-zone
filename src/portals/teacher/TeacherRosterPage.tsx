@@ -5,8 +5,13 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import type { ClassroomRow } from '../../types/classroom'
 import { getClassStatus, getTodaysClassStartInWita, type ClassStatusBorder } from '../../lib/classStatus'
+import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
 
-type ClassroomWithRoster = ClassroomRow & { roster: { childId: string; childName: string }[] }
+type GroupWithRoster = {
+  id: string
+  classroom: ClassroomRow
+  roster: { childId: string; childName: string }[]
+}
 
 const STATUS_BORDER_COLOR: Record<ClassStatusBorder, string | undefined> = {
   green: 'success.main',
@@ -28,7 +33,7 @@ function useNow(intervalMs = 30_000): Date {
 export function TeacherRosterPage() {
   const { user } = useAuth()
   const { teacher } = useTeacherProfile(user?.id)
-  const [classrooms, setClassrooms] = useState<ClassroomWithRoster[]>([])
+  const [groups, setGroups] = useState<GroupWithRoster[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const now = useNow()
@@ -38,35 +43,37 @@ export function TeacherRosterPage() {
     let cancelled = false
     setLoading(true)
     void (async () => {
-      const { data: classroomRows, error: cError } = await supabase
-        .from('classrooms')
-        .select('*')
+      const { data: groupRows, error: gError } = await supabase
+        .from('classroom_teachers')
+        .select('id, classrooms(*)')
         .eq('teacher_id', teacher.id)
-        .order('label')
-      if (cError) {
+      if (gError) {
         if (!cancelled) {
-          setError(cError.message)
+          setError(gError.message)
           setLoading(false)
         }
         return
       }
 
-      const results: ClassroomWithRoster[] = []
-      for (const classroom of classroomRows ?? []) {
+      const results: GroupWithRoster[] = []
+      for (const group of groupRows ?? []) {
+        const classroom = group.classrooms as unknown as ClassroomRow | null
+        if (!classroom) continue
         const { data: enrollmentRows } = await supabase
           .from('children_classrooms')
           .select('child_id, children(full_name)')
-          .eq('classroom_id', classroom.id)
+          .eq('classroom_teacher_id', group.id)
           .is('ended_at', null)
         const roster = (enrollmentRows ?? []).map((row) => {
           const child = row.children as unknown as { full_name: string } | null
           return { childId: row.child_id, childName: child?.full_name ?? '—' }
         })
-        results.push({ ...classroom, roster })
+        results.push({ id: group.id, classroom, roster })
       }
+      results.sort((a, b) => a.classroom.label.localeCompare(b.classroom.label))
 
       if (!cancelled) {
-        setClassrooms(results)
+        setGroups(results)
         setLoading(false)
       }
     })()
@@ -87,23 +94,24 @@ export function TeacherRosterPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        My classrooms
+        Kelas Saya
       </Typography>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
 
-      {classrooms.length === 0 ? (
+      {groups.length === 0 ? (
         <Typography color="text.secondary">No classrooms assigned yet.</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {classrooms.map((classroom) => {
+          {groups.map((group) => {
+            const { classroom } = group
             const todaysStart = getTodaysClassStartInWita(classroom.time_start, now)
             const status = todaysStart ? getClassStatus(todaysStart, now) : null
             const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
 
             return (
               <Card
-                key={classroom.id}
+                key={group.id}
                 variant="outlined"
                 sx={borderColor ? { borderColor, borderWidth: 2 } : undefined}
               >
@@ -118,16 +126,16 @@ export function TeacherRosterPage() {
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                     Mon–Fri · {classroom.time_start.slice(0, 5)}
-                    {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {classroom.roster.length}/
-                    {classroom.capacity} enrolled
+                    {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
+                    {MAX_STUDENTS_PER_TEACHER} enrolled
                   </Typography>
-                  {classroom.roster.length === 0 ? (
+                  {group.roster.length === 0 ? (
                     <Typography variant="body2" color="text.secondary">
                       No children currently enrolled.
                     </Typography>
                   ) : (
                     <List dense disablePadding>
-                      {classroom.roster.map((r) => (
+                      {group.roster.map((r) => (
                         <ListItem key={r.childId} disableGutters>
                           <ListItemText primary={r.childName} />
                         </ListItem>

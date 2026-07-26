@@ -31,11 +31,10 @@ type Props = {
 export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
   const isEdit = classroom !== null
 
-  const [teacherName, setTeacherName] = useState<string | null>(null)
+  const [teacherNames, setTeacherNames] = useState<string[]>([])
   const [label, setLabel] = useState('')
   const [timeStart, setTimeStart] = useState('10:00')
   const [timeEnd, setTimeEnd] = useState('11:00')
-  const [capacity, setCapacity] = useState('6')
   const [active, setActive] = useState(true)
   const [roster, setRoster] = useState<RosterEntry[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -46,32 +45,36 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
     setLabel(classroom?.label ?? '')
     setTimeStart(classroom?.time_start.slice(0, 5) ?? '10:00')
     setTimeEnd(classroom?.time_end?.slice(0, 5) ?? '11:00')
-    setCapacity(classroom ? String(classroom.capacity) : '6')
     setActive(classroom?.active ?? true)
     setError(null)
-    setTeacherName(null)
-
-    if (classroom?.teacher_id) {
-      void supabase
-        .from('teachers')
-        .select('full_name')
-        .eq('id', classroom.teacher_id)
-        .maybeSingle()
-        .then(({ data }) => setTeacherName(data?.full_name ?? null))
-    }
+    setTeacherNames([])
 
     if (classroom) {
       void supabase
-        .from('children_classrooms')
-        .select('id, child_id, children(full_name)')
+        .from('classroom_teachers')
+        .select('id, teachers(full_name)')
         .eq('classroom_id', classroom.id)
-        .is('ended_at', null)
         .then(({ data }) => {
-          const entries: RosterEntry[] = (data ?? []).map((row) => {
-            const child = row.children as unknown as { full_name: string } | null
-            return { enrollmentId: row.id, childId: row.child_id, childName: child?.full_name ?? '—' }
-          })
-          setRoster(entries)
+          const groupIds = (data ?? []).map((row) => row.id)
+          const names = (data ?? []).map((row) => (row.teachers as unknown as { full_name: string } | null)?.full_name ?? '—')
+          setTeacherNames(names)
+
+          if (groupIds.length === 0) {
+            setRoster([])
+            return
+          }
+          void supabase
+            .from('children_classrooms')
+            .select('id, child_id, children(full_name)')
+            .in('classroom_teacher_id', groupIds)
+            .is('ended_at', null)
+            .then(({ data: enrollmentRows }) => {
+              const entries: RosterEntry[] = (enrollmentRows ?? []).map((row) => {
+                const child = row.children as unknown as { full_name: string } | null
+                return { enrollmentId: row.id, childId: row.child_id, childName: child?.full_name ?? '—' }
+              })
+              setRoster(entries)
+            })
         })
     } else {
       setRoster([])
@@ -85,7 +88,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
 
   async function handleSave() {
     setError(null)
-    const capacityNum = Number(capacity)
     if (!label.trim()) {
       setError('Enter a classroom label.')
       return
@@ -98,10 +100,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
       setError('End time must be after start time.')
       return
     }
-    if (!Number.isInteger(capacityNum) || capacityNum < 1) {
-      setError('Capacity must be a positive whole number.')
-      return
-    }
 
     setSaving(true)
     if (isEdit) {
@@ -111,7 +109,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
           label: label.trim(),
           time_start: timeStart,
           time_end: timeEnd,
-          capacity: capacityNum,
           active,
         })
         .eq('id', classroom.id)
@@ -125,7 +122,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
         label: label.trim(),
         time_start: timeStart,
         time_end: timeEnd,
-        capacity: capacityNum,
       })
       setSaving(false)
       if (iErr) {
@@ -140,7 +136,7 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>{isEdit ? 'Edit classroom' : 'Add classroom'}</DialogTitle>
+      <DialogTitle>{isEdit ? 'Edit Kelas' : 'Tambah Kelas'}</DialogTitle>
       <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -150,7 +146,8 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {isEdit ? (
             <Typography variant="body2" color="text.secondary">
-              Teacher: {teacherName ?? 'Unassigned'} — assign from the Assignments screen.
+              Teachers: {teacherNames.length > 0 ? teacherNames.join(', ') : 'Unassigned'} — assign from the
+              Assignments screen.
             </Typography>
           ) : null}
           <TextField
@@ -160,12 +157,12 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
             onChange={(e) => setLabel(e.target.value)}
             required
             fullWidth
-            placeholder='e.g. "Teacher Rina — 10am"'
+            placeholder='e.g. "Kelas A — 10am"'
           />
           <Typography variant="body2" color="text.secondary">
             Runs every weekday, Monday–Friday.
           </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
             <TextField
               size="small"
               label="Start time"
@@ -184,15 +181,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
               fullWidth
               slotProps={{ inputLabel: { shrink: true } }}
             />
-            <TextField
-              size="small"
-              label="Capacity"
-              type="number"
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              fullWidth
-              slotProps={{ htmlInput: { min: 1 } }}
-            />
           </Box>
 
           {isEdit ? (
@@ -200,9 +188,7 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
               <FormControlLabel control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />} label="Active" />
 
               <Divider />
-              <Typography variant="subtitle2">
-                Current roster ({roster.length}/{capacity})
-              </Typography>
+              <Typography variant="subtitle2">Current roster ({roster.length} total)</Typography>
               {roster.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   No children currently enrolled.

@@ -17,9 +17,9 @@ import {
 import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
-import type { ClassroomRow } from '../../../types/classroom'
 
-type CurrentEnrollment = { enrollmentId: string; classroomId: string; classroomLabel: string }
+type Group = { id: string; label: string }
+type CurrentEnrollment = { enrollmentId: string; groupId: string; groupLabel: string }
 
 type Props = {
   open: boolean
@@ -40,16 +40,16 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
   const [current, setCurrent] = useState<CurrentEnrollment | null>(null)
-  const [selectedClassroomId, setSelectedClassroomId] = useState('')
+  const [selectedGroupId, setSelectedGroupId] = useState('')
   const [endReason, setEndReason] = useState('')
   const [enrolling, setEnrolling] = useState(false)
 
   const loadEnrollment = async (childId: string) => {
     const { data } = await supabase
       .from('children_classrooms')
-      .select('id, classroom_id, classrooms(label)')
+      .select('id, classroom_teacher_id, classroom_teachers(classrooms(label), teachers(full_name))')
       .eq('child_id', childId)
       .is('ended_at', null)
       .maybeSingle()
@@ -57,8 +57,14 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
       setCurrent(null)
       return
     }
-    const classroom = data.classrooms as unknown as { label: string } | null
-    setCurrent({ enrollmentId: data.id, classroomId: data.classroom_id, classroomLabel: classroom?.label ?? '—' })
+    const group = data.classroom_teachers as unknown as
+      | { classrooms: { label: string } | null; teachers: { full_name: string } | null }
+      | null
+    setCurrent({
+      enrollmentId: data.id,
+      groupId: data.classroom_teacher_id,
+      groupLabel: group ? `${group.classrooms?.label ?? '—'} (${group.teachers?.full_name ?? '—'})` : '—',
+    })
   }
 
   useEffect(() => {
@@ -69,7 +75,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
     setActive(child?.active ?? true)
     setFamilyId('')
     setError(null)
-    setSelectedClassroomId('')
+    setSelectedGroupId('')
     setEndReason('')
     setCurrent(null)
 
@@ -78,7 +84,17 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
       return
     }
 
-    void supabase.from('classrooms').select('*').eq('active', true).order('label').then(({ data }) => setClassrooms(data ?? []))
+    void supabase
+      .from('classroom_teachers')
+      .select('id, classrooms(label), teachers(full_name)')
+      .then(({ data }) => {
+        const options: Group[] = (data ?? []).map((row) => {
+          const classroom = row.classrooms as unknown as { label: string } | null
+          const teacher = row.teachers as unknown as { full_name: string } | null
+          return { id: row.id, label: `${classroom?.label ?? '—'} (${teacher?.full_name ?? '—'})` }
+        })
+        setGroups(options)
+      })
     void loadEnrollment(child.id)
   }, [open, child])
 
@@ -133,30 +149,30 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
   }
 
   async function handleEnroll() {
-    if (!child || !selectedClassroomId) return
+    if (!child || !selectedGroupId) return
     setEnrolling(true)
     setError(null)
     const { error: rpcErr } = await supabase.rpc('enroll_child_in_classroom', {
       p_child_id: child.id,
-      p_classroom_id: selectedClassroomId,
+      p_classroom_teacher_id: selectedGroupId,
     })
     setEnrolling(false)
     if (rpcErr) {
       setError(rpcErr.message)
       return
     }
-    setSelectedClassroomId('')
+    setSelectedGroupId('')
     await loadEnrollment(child.id)
     onSaved()
   }
 
   async function handleSwitch() {
-    if (!child || !selectedClassroomId) return
+    if (!child || !selectedGroupId) return
     setEnrolling(true)
     setError(null)
     const { error: rpcErr } = await supabase.rpc('switch_classroom', {
       p_child_id: child.id,
-      p_new_classroom_id: selectedClassroomId,
+      p_new_classroom_teacher_id: selectedGroupId,
       p_end_reason: endReason.trim() || null,
     })
     setEnrolling(false)
@@ -164,7 +180,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
       setError(rpcErr.message)
       return
     }
-    setSelectedClassroomId('')
+    setSelectedGroupId('')
     setEndReason('')
     await loadEnrollment(child.id)
     onSaved()
@@ -172,7 +188,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>{isEdit ? 'Edit child' : 'Add child'}</DialogTitle>
+      <DialogTitle>{isEdit ? 'Edit Siswa' : 'Tambah Siswa'}</DialogTitle>
       <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -231,21 +247,21 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
               <Divider />
               <Typography variant="subtitle2">Classroom</Typography>
               <Typography variant="body2" color="text.secondary">
-                {current ? `Currently in: ${current.classroomLabel}` : 'Not enrolled in a classroom.'}
+                {current ? `Currently in: ${current.groupLabel}` : 'Not enrolled in a classroom.'}
               </Typography>
               <TextField
                 size="small"
                 select
                 label={current ? 'Switch to classroom' : 'Enroll in classroom'}
-                value={selectedClassroomId}
-                onChange={(e) => setSelectedClassroomId(e.target.value)}
+                value={selectedGroupId}
+                onChange={(e) => setSelectedGroupId(e.target.value)}
                 fullWidth
               >
-                {classrooms
-                  .filter((c) => c.id !== current?.classroomId)
-                  .map((c) => (
-                    <MenuItem key={c.id} value={c.id}>
-                      {c.label}
+                {groups
+                  .filter((g) => g.id !== current?.groupId)
+                  .map((g) => (
+                    <MenuItem key={g.id} value={g.id}>
+                      {g.label}
                     </MenuItem>
                   ))}
               </TextField>
@@ -260,7 +276,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
               ) : null}
               <Button
                 variant="outlined"
-                disabled={!selectedClassroomId || enrolling}
+                disabled={!selectedGroupId || enrolling}
                 onClick={() => void (current ? handleSwitch() : handleEnroll())}
               >
                 {enrolling ? 'Saving…' : current ? 'Switch classroom' : 'Enroll'}

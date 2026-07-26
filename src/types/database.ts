@@ -127,32 +127,47 @@ export type Database = {
       classrooms: {
         Row: {
           id: string
-          teacher_id: string | null
           label: string
           time_start: string
           time_end: string | null
-          capacity: number
           active: boolean
           created_at: string | null
         }
         Insert: {
           id?: string
-          teacher_id?: string | null
           label: string
           time_start: string
           time_end?: string | null
-          capacity?: number
           active?: boolean
           created_at?: string | null
         }
         Update: {
           id?: string
-          teacher_id?: string | null
           label?: string
           time_start?: string
           time_end?: string | null
-          capacity?: number
           active?: boolean
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      classroom_teachers: {
+        Row: {
+          id: string
+          classroom_id: string
+          teacher_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          classroom_id: string
+          teacher_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          classroom_id?: string
+          teacher_id?: string
           created_at?: string | null
         }
         Relationships: []
@@ -161,7 +176,7 @@ export type Database = {
         Row: {
           id: string
           child_id: string
-          classroom_id: string
+          classroom_teacher_id: string
           started_at: string
           ended_at: string | null
           end_reason: string | null
@@ -171,7 +186,7 @@ export type Database = {
         Insert: {
           id?: string
           child_id: string
-          classroom_id: string
+          classroom_teacher_id: string
           started_at?: string
           ended_at?: string | null
           end_reason?: string | null
@@ -181,7 +196,7 @@ export type Database = {
         Update: {
           id?: string
           child_id?: string
-          classroom_id?: string
+          classroom_teacher_id?: string
           started_at?: string
           ended_at?: string | null
           end_reason?: string | null
@@ -194,11 +209,11 @@ export type Database = {
     Views: Record<string, never>
     Functions: {
       enroll_child_in_classroom: {
-        Args: { p_child_id: string; p_classroom_id: string }
+        Args: { p_child_id: string; p_classroom_teacher_id: string }
         Returns: undefined
       }
       switch_classroom: {
-        Args: { p_child_id: string; p_new_classroom_id: string; p_end_reason?: string | null }
+        Args: { p_child_id: string; p_new_classroom_teacher_id: string; p_end_reason?: string | null }
         Returns: undefined
       }
       unenroll_child: {

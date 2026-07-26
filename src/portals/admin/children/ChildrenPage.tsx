@@ -32,7 +32,10 @@ export function ChildrenPage() {
     const [childrenRes, familiesRes, enrollmentsRes] = await Promise.all([
       supabase.from('children').select('*').order('full_name'),
       supabase.from('families').select('*'),
-      supabase.from('children_classrooms').select('child_id, classrooms(label)').is('ended_at', null),
+      supabase
+        .from('children_classrooms')
+        .select('child_id, classroom_teachers(classrooms(label), teachers(full_name))')
+        .is('ended_at', null),
     ])
     setLoading(false)
 
@@ -45,8 +48,12 @@ export function ChildrenPage() {
     const familyById = new Map<string, FamilyRow>((familiesRes.data ?? []).map((f) => [f.id, f]))
     const classroomByChild = new Map<string, string>()
     for (const row of enrollmentsRes.data ?? []) {
-      const classroom = row.classrooms as unknown as { label: string } | null
-      if (classroom) classroomByChild.set(row.child_id, classroom.label)
+      const group = row.classroom_teachers as unknown as
+        | { classrooms: { label: string } | null; teachers: { full_name: string } | null }
+        | null
+      if (group?.classrooms) {
+        classroomByChild.set(row.child_id, `${group.classrooms.label} (${group.teachers?.full_name ?? '—'})`)
+      }
     }
 
     const views: ChildView[] = (childrenRes.data ?? []).map((c) => ({
@@ -123,7 +130,7 @@ export function ChildrenPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Children
+        Siswa
       </Typography>
 
       <DataGridSearchPanel

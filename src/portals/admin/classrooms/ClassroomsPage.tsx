@@ -5,7 +5,6 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { ClassroomRow } from '../../../types/classroom'
-import type { TeacherRow } from '../../../types/teacher'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ClassroomDialog } from './ClassroomDialog'
@@ -13,10 +12,10 @@ import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-type ClassroomView = ClassroomRow & { teacherName: string; enrolledCount: number }
+type ClassroomView = ClassroomRow & { enrolledCount: number }
 
 function classroomSearchBlob(row: ClassroomView): string {
-  return `${row.label} ${row.teacherName}`.toLowerCase()
+  return row.label.toLowerCase()
 }
 
 export function ClassroomsPage() {
@@ -33,28 +32,33 @@ export function ClassroomsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const [classroomsRes, teachersRes, enrollmentsRes] = await Promise.all([
+    const [classroomsRes, groupsRes, enrollmentsRes] = await Promise.all([
       supabase.from('classrooms').select('*').order('label'),
-      supabase.from('teachers').select('*'),
-      supabase.from('children_classrooms').select('classroom_id').is('ended_at', null),
+      supabase.from('classroom_teachers').select('id, classroom_id'),
+      supabase.from('children_classrooms').select('classroom_teacher_id').is('ended_at', null),
     ])
     setLoading(false)
 
-    const qError = classroomsRes.error ?? teachersRes.error ?? enrollmentsRes.error
+    const qError = classroomsRes.error ?? groupsRes.error ?? enrollmentsRes.error
     if (qError) {
       setError(qError.message)
       return
     }
 
-    const teacherById = new Map<string, TeacherRow>((teachersRes.data ?? []).map((t) => [t.id, t]))
+    const groupClassroomId = new Map<string, string>()
+    for (const g of groupsRes.data ?? []) {
+      groupClassroomId.set(g.id, g.classroom_id)
+    }
+
     const countByClassroom = new Map<string, number>()
     for (const row of enrollmentsRes.data ?? []) {
-      countByClassroom.set(row.classroom_id, (countByClassroom.get(row.classroom_id) ?? 0) + 1)
+      const classroomId = groupClassroomId.get(row.classroom_teacher_id)
+      if (!classroomId) continue
+      countByClassroom.set(classroomId, (countByClassroom.get(classroomId) ?? 0) + 1)
     }
 
     const views: ClassroomView[] = (classroomsRes.data ?? []).map((c) => ({
       ...c,
-      teacherName: (c.teacher_id ? teacherById.get(c.teacher_id)?.full_name : undefined) ?? 'Unassigned',
       enrolledCount: countByClassroom.get(c.id) ?? 0,
     }))
     setRows(views)
@@ -99,7 +103,6 @@ export function ClassroomsPage() {
   const columns: GridColDef<ClassroomView>[] = useMemo(
     () => [
       { field: 'label', headerName: 'Classroom', flex: 1, minWidth: 200 },
-      { field: 'teacherName', headerName: 'Teacher', flex: 1, minWidth: 140 },
       {
         field: 'time_start',
         headerName: 'Time',
@@ -110,8 +113,8 @@ export function ClassroomsPage() {
       {
         field: 'enrolledCount',
         headerName: 'Roster',
-        width: 100,
-        valueGetter: (_v, row) => `${row.enrolledCount}/${row.capacity}`,
+        width: 90,
+        valueGetter: (_v, row) => `${row.enrolledCount}`,
       },
       {
         field: 'active',
@@ -164,7 +167,7 @@ export function ClassroomsPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Classrooms
+        Kelas
       </Typography>
 
       <DataGridSearchPanel
@@ -172,7 +175,7 @@ export function ClassroomsPage() {
         onKeywordChange={setKeyword}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search label, teacher…"
+        searchPlaceholder="Search label…"
         loading={loading}
       />
 
@@ -221,7 +224,7 @@ export function ClassroomsPage() {
       />
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete classroom"
+        title="Hapus Kelas"
         description={`Delete "${deleteTarget?.label}"? This cannot be undone.`}
         confirmLabel={deleting ? 'Deleting…' : 'Delete'}
         onCancel={() => setDeleteTarget(null)}

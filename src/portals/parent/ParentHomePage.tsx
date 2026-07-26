@@ -36,17 +36,17 @@ export function ParentHomePage() {
       for (const child of childRows ?? []) {
         const { data: enrollment } = await supabase
           .from('children_classrooms')
-          .select('classrooms(label, teachers(full_name))')
+          .select('classroom_teachers(classrooms(label), teachers(full_name))')
           .eq('child_id', child.id)
           .is('ended_at', null)
           .maybeSingle()
-        const classroom = enrollment?.classrooms as unknown as
-          | { label: string; teachers: { full_name: string } | null }
+        const group = enrollment?.classroom_teachers as unknown as
+          | { classrooms: { label: string } | null; teachers: { full_name: string } | null }
           | null
         results.push({
           ...child,
-          classroomLabel: classroom?.label ?? null,
-          teacherName: classroom?.teachers?.full_name ?? null,
+          classroomLabel: group?.classrooms?.label ?? null,
+          teacherName: group?.teachers?.full_name ?? null,
         })
       }
 
@@ -72,7 +72,7 @@ export function ParentHomePage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        My children
+        Anak Saya
       </Typography>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
