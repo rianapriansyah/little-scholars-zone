@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 560, mx: 'auto', mt: { xs: 2, sm: 4 } }}>
           <Typography variant="h6" gutterBottom>
-            Something went wrong
+            Terjadi kesalahan
           </Typography>
           <Alert severity="error" sx={{ mb: 2 }}>
             {this.state.message}

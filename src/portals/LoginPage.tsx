@@ -107,7 +107,7 @@ export function LoginPage() {
     <Container maxWidth="sm" sx={{ mt: { xs: 2, sm: 4, md: 8 }, mb: 4, px: { xs: 2, sm: 3 } }}>
       <Paper sx={{ p: { xs: 2, sm: 3 } }}>
         <Typography variant="h5" gutterBottom>
-          Sign in
+          Masuk
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Admin, teacher, and parent accounts all use this page.

@@ -30,7 +30,7 @@ export function BootstrapAdminPage() {
       <Container maxWidth="sm" sx={{ mt: { xs: 2, sm: 4, md: 8 }, mb: 4, px: { xs: 2, sm: 3 } }}>
         <Paper sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>
-            First-time admin registration is disabled
+            Registrasi admin pertama dinonaktifkan
           </Typography>
           <Alert severity="info" sx={{ mb: 2 }}>
             Set <code>VITE_SHOW_ADMIN_BOOTSTRAP=true</code> in <code>.env</code>, restart the dev server,
@@ -100,7 +100,7 @@ export function BootstrapAdminPage() {
     <Container maxWidth="sm" sx={{ mt: { xs: 2, sm: 4, md: 8 }, mb: 4, px: { xs: 2, sm: 3 } }}>
       <Paper sx={{ p: { xs: 2, sm: 3 } }}>
         <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-          Register first admin (temporary)
+          Daftar admin pertama (sementara)
         </Typography>
         <Alert severity="warning" sx={{ mb: 2 }}>
           Remove <code>VITE_SHOW_ADMIN_BOOTSTRAP</code> from <code>.env</code> (or set it to{' '}

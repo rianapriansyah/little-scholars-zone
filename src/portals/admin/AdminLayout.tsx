@@ -22,11 +22,11 @@ import { useAuth } from '../../contexts/AuthContext'
 const DRAWER_WIDTH = 260
 
 const NAV = [
-  { to: '/admin/families', label: 'Families' },
-  { to: '/admin/children', label: 'Children' },
-  { to: '/admin/teachers', label: 'Teachers' },
-  { to: '/admin/classrooms', label: 'Classrooms' },
-  { to: '/admin/classroom-assignments', label: 'Assignments' },
+  { to: '/admin/families', label: 'Keluarga' },
+  { to: '/admin/children', label: 'Siswa' },
+  { to: '/admin/teachers', label: 'Guru' },
+  { to: '/admin/classrooms', label: 'Kelas' },
+  { to: '/admin/classroom-assignments', label: 'Penugasan' },
 ]
 
 function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

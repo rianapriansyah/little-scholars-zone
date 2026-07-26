@@ -13,7 +13,7 @@ export function ParentLayout() {
       <AppBar position="static" elevation={2}>
         <Toolbar sx={{ gap: 1 }}>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-            Little Schoolars Zone — Parent
+            Little Schoolars Zone — Orang Tua
           </Typography>
           <Button
             color="inherit"

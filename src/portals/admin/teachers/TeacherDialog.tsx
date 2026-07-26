@@ -116,7 +116,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
   return (
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>{isEdit ? 'Edit teacher' : 'Add teacher'}</DialogTitle>
+        <DialogTitle>{isEdit ? 'Edit Guru' : 'Tambah Guru'}</DialogTitle>
         <DialogContent dividers>
           {error ? (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

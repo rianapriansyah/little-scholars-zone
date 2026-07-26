@@ -106,7 +106,7 @@ export function TeachersPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Teachers
+        Guru
       </Typography>
 
       <DataGridSearchPanel
