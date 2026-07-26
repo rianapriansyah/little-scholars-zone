@@ -14,13 +14,11 @@ import {
   List,
   ListItem,
   ListItemText,
-  MenuItem,
   Switch,
   TextField,
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
-import type { TeacherRow } from '../../../types/teacher'
 import { DAYS_OF_WEEK } from '../../../types/enrollment'
 import type { ClassroomRow } from '../../../types/classroom'
 
@@ -36,8 +34,7 @@ type Props = {
 export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
   const isEdit = classroom !== null
 
-  const [teachers, setTeachers] = useState<TeacherRow[]>([])
-  const [teacherId, setTeacherId] = useState('')
+  const [teacherName, setTeacherName] = useState<string | null>(null)
   const [label, setLabel] = useState('')
   const [days, setDays] = useState<string[]>([])
   const [timeStart, setTimeStart] = useState('10:00')
@@ -50,7 +47,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
 
   useEffect(() => {
     if (!open) return
-    setTeacherId(classroom?.teacher_id ?? '')
     setLabel(classroom?.label ?? '')
     setDays(classroom?.days_of_week ?? [])
     setTimeStart(classroom?.time_start.slice(0, 5) ?? '10:00')
@@ -58,8 +54,16 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
     setCapacity(classroom ? String(classroom.capacity) : '6')
     setActive(classroom?.active ?? true)
     setError(null)
+    setTeacherName(null)
 
-    void supabase.from('teachers').select('*').eq('active', true).order('full_name').then(({ data }) => setTeachers(data ?? []))
+    if (classroom?.teacher_id) {
+      void supabase
+        .from('teachers')
+        .select('full_name')
+        .eq('id', classroom.teacher_id)
+        .maybeSingle()
+        .then(({ data }) => setTeacherName(data?.full_name ?? null))
+    }
 
     if (classroom) {
       void supabase
@@ -91,10 +95,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
   async function handleSave() {
     setError(null)
     const capacityNum = Number(capacity)
-    if (!teacherId) {
-      setError('Choose a teacher.')
-      return
-    }
     if (!label.trim()) {
       setError('Enter a classroom label.')
       return
@@ -121,7 +121,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
       const { error: uErr } = await supabase
         .from('classrooms')
         .update({
-          teacher_id: teacherId,
           label: label.trim(),
           days_of_week: days,
           time_start: timeStart,
@@ -137,7 +136,6 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
       }
     } else {
       const { error: iErr } = await supabase.from('classrooms').insert({
-        teacher_id: teacherId,
         label: label.trim(),
         days_of_week: days,
         time_start: timeStart,
@@ -165,21 +163,11 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
           </Alert>
         ) : null}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField
-            size="small"
-            select
-            label="Teacher"
-            value={teacherId}
-            onChange={(e) => setTeacherId(e.target.value)}
-            required
-            fullWidth
-          >
-            {teachers.map((t) => (
-              <MenuItem key={t.id} value={t.id}>
-                {t.full_name}
-              </MenuItem>
-            ))}
-          </TextField>
+          {isEdit ? (
+            <Typography variant="body2" color="text.secondary">
+              Teacher: {teacherName ?? 'Unassigned'} — assign from the Assignments screen.
+            </Typography>
+          ) : null}
           <TextField
             size="small"
             label="Label"

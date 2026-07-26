@@ -26,6 +26,7 @@ const NAV = [
   { to: '/admin/children', label: 'Children' },
   { to: '/admin/teachers', label: 'Teachers' },
   { to: '/admin/classrooms', label: 'Classrooms' },
+  { to: '/admin/classroom-assignments', label: 'Assignments' },
 ]
 
 function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

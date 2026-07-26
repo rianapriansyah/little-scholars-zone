@@ -127,7 +127,7 @@ export type Database = {
       classrooms: {
         Row: {
           id: string
-          teacher_id: string
+          teacher_id: string | null
           label: string
           days_of_week: string[]
           time_start: string
@@ -138,7 +138,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          teacher_id: string
+          teacher_id?: string | null
           label: string
           days_of_week: string[]
           time_start: string
@@ -149,7 +149,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          teacher_id?: string
+          teacher_id?: string | null
           label?: string
           days_of_week?: string[]
           time_start?: string
@@ -202,6 +202,10 @@ export type Database = {
       }
       switch_classroom: {
         Args: { p_child_id: string; p_new_classroom_id: string; p_end_reason?: string | null }
+        Returns: undefined
+      }
+      unenroll_child: {
+        Args: { p_child_id: string; p_end_reason?: string | null }
         Returns: undefined
       }
     }
