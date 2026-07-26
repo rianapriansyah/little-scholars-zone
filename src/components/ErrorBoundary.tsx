@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.state.message}
           </Alert>
           <Button variant="contained" onClick={() => window.location.reload()}>
-            Reload
+            Muat Ulang
           </Button>
         </Box>
       )

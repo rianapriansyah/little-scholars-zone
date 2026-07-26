@@ -54,7 +54,7 @@ export function CredentialsRevealDialog({ open, name, email, password, phone, re
         </Typography>
         <TextField
           size="small"
-          label="Password"
+          label="Kata Sandi"
           value={password}
           fullWidth
           InputProps={{
@@ -62,7 +62,7 @@ export function CredentialsRevealDialog({ open, name, email, password, phone, re
             sx: { fontFamily: 'monospace' },
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={() => void handleCopy()} size="small" aria-label="Copy password">
+                <IconButton onClick={() => void handleCopy()} size="small" aria-label="Salin kata sandi">
                   {copied ? <CheckIcon fontSize="small" color="success" /> : <ContentCopyIcon fontSize="small" />}
                 </IconButton>
               </InputAdornment>
@@ -70,7 +70,7 @@ export function CredentialsRevealDialog({ open, name, email, password, phone, re
           }}
         />
         <Alert severity="warning" sx={{ mt: 2 }}>
-          This password will not be shown again.
+          Kata sandi ini tidak akan ditampilkan lagi.
         </Alert>
         {waUrl ? (
           <Button
@@ -81,18 +81,18 @@ export function CredentialsRevealDialog({ open, name, email, password, phone, re
             sx={{ mt: 2 }}
             onClick={handleSendWhatsApp}
           >
-            Send via WhatsApp
+            Kirim via WhatsApp
           </Button>
         ) : (
           <Alert severity="info" sx={{ mt: 2 }}>
-            No phone number on file — share this password with the account holder directly.
+            Tidak ada nomor telepon tercatat — bagikan kata sandi ini langsung kepada pemilik akun.
           </Alert>
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Box sx={{ flex: 1 }} />
         <Button variant="contained" onClick={onClose}>
-          Done
+          Selesai
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,13 +1,13 @@
 export function buildLoginCredentialsMessage(name: string, email: string, password: string): string {
   const loginUrl = `${window.location.origin}/login`
   return [
-    `Hi ${name},`,
+    `Hai ${name},`,
     ``,
-    `Here are your Little Scholars Zone login details:`,
+    `Berikut detail login Little Scholars Zone Anda:`,
     ``,
     `Email: ${email}`,
-    `Password: ${password}`,
+    `Kata Sandi: ${password}`,
     ``,
-    `Sign in here: ${loginUrl}`,
+    `Masuk di sini: ${loginUrl}`,
   ].join('\n')
 }

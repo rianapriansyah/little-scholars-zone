@@ -89,15 +89,15 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
   async function handleSave() {
     setError(null)
     if (!label.trim()) {
-      setError('Enter a classroom label.')
+      setError('Masukkan nama kelas.')
       return
     }
     if (!timeEnd) {
-      setError('Enter an end time.')
+      setError('Masukkan waktu selesai.')
       return
     }
     if (timeEnd <= timeStart) {
-      setError('End time must be after start time.')
+      setError('Waktu selesai harus setelah waktu mulai.')
       return
     }
 
@@ -146,26 +146,26 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {isEdit ? (
             <Typography variant="body2" color="text.secondary">
-              Teachers: {teacherNames.length > 0 ? teacherNames.join(', ') : 'Unassigned'} — assign from the
-              Assignments screen.
+              Guru: {teacherNames.length > 0 ? teacherNames.join(', ') : 'Belum ditetapkan'} — tetapkan dari layar
+              Penugasan.
             </Typography>
           ) : null}
           <TextField
             size="small"
-            label="Label"
+            label="Nama Kelas"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             required
             fullWidth
-            placeholder='e.g. "Kelas A — 10am"'
+            placeholder='contoh: "Kelas A — 10.00"'
           />
           <Typography variant="body2" color="text.secondary">
-            Runs every weekday, Monday–Friday.
+            Berjalan setiap hari kerja, Senin–Jumat.
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
             <TextField
               size="small"
-              label="Start time"
+              label="Waktu Mulai"
               type="time"
               value={timeStart}
               onChange={(e) => setTimeStart(e.target.value)}
@@ -174,7 +174,7 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
             />
             <TextField
               size="small"
-              label="End time"
+              label="Waktu Selesai"
               type="time"
               value={timeEnd}
               onChange={(e) => setTimeEnd(e.target.value)}
@@ -185,13 +185,13 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
 
           {isEdit ? (
             <>
-              <FormControlLabel control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />} label="Active" />
+              <FormControlLabel control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />} label="Aktif" />
 
               <Divider />
-              <Typography variant="subtitle2">Current roster ({roster.length} total)</Typography>
+              <Typography variant="subtitle2">Daftar Siswa Saat Ini ({roster.length} total)</Typography>
               {roster.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
-                  No children currently enrolled.
+                  Belum ada siswa yang terdaftar.
                 </Typography>
               ) : (
                 <List dense disablePadding>
@@ -208,10 +208,10 @@ export function ClassroomDialog({ open, classroom, onClose, onSaved }: Props) {
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={saving}>
-          Cancel
+          Batal
         </Button>
         <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Menyimpan…' : 'Simpan'}
         </Button>
       </DialogActions>
     </Dialog>

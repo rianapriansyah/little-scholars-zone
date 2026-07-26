@@ -24,7 +24,7 @@ export function ParentLayout() {
               navigate('/login', { replace: true })
             }}
           >
-            Sign out
+            Keluar
           </Button>
         </Toolbar>
       </AppBar>

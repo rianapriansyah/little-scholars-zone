@@ -33,11 +33,11 @@ export function BootstrapAdminPage() {
             Registrasi admin pertama dinonaktifkan
           </Typography>
           <Alert severity="info" sx={{ mb: 2 }}>
-            Set <code>VITE_SHOW_ADMIN_BOOTSTRAP=true</code> in <code>.env</code>, restart the dev server,
-            then open this page again. Turn it off after your admin account exists.
+            Atur <code>VITE_SHOW_ADMIN_BOOTSTRAP=true</code> di <code>.env</code>, mulai ulang server dev,
+            lalu buka halaman ini lagi. Matikan setelah akun admin Anda dibuat.
           </Alert>
           <Button component={RouterLink} to="/login" variant="contained">
-            Back to sign in
+            Kembali ke halaman masuk
           </Button>
         </Paper>
       </Container>
@@ -54,11 +54,11 @@ export function BootstrapAdminPage() {
     setInfo(null)
 
     if (password !== confirm) {
-      setError('Passwords do not match.')
+      setError('Kata sandi tidak cocok.')
       return
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
+      setError('Kata sandi minimal 6 karakter.')
       return
     }
 
@@ -88,8 +88,8 @@ export function BootstrapAdminPage() {
 
     setInfo(
       data.session
-        ? 'Account created, but this project already had Auth users, so you were not auto-promoted to admin. Set role in Supabase Dashboard (raw_app_meta_data.role) or sign in with an existing admin.'
-        : 'Check your email to confirm the account if required. After confirming, sign in. Only the first user in the project is auto-promoted to admin.',
+        ? 'Akun dibuat, tetapi proyek ini sudah memiliki pengguna Auth, sehingga Anda tidak otomatis dijadikan admin. Atur peran di Supabase Dashboard (raw_app_meta_data.role) atau masuk dengan admin yang sudah ada.'
+        : 'Periksa email Anda untuk mengonfirmasi akun jika diperlukan. Setelah konfirmasi, masuk. Hanya pengguna pertama di proyek ini yang otomatis dijadikan admin.',
     )
     setEmail('')
     setPassword('')
@@ -103,9 +103,9 @@ export function BootstrapAdminPage() {
           Daftar admin pertama (sementara)
         </Typography>
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Remove <code>VITE_SHOW_ADMIN_BOOTSTRAP</code> from <code>.env</code> (or set it to{' '}
-          <code>false</code>) and delete this route after onboarding. Only the{' '}
-          <strong>first</strong> Auth user in the project is given <code>role: admin</code> automatically.
+          Hapus <code>VITE_SHOW_ADMIN_BOOTSTRAP</code> dari <code>.env</code> (atau atur ke{' '}
+          <code>false</code>) dan hapus rute ini setelah onboarding selesai. Hanya pengguna{' '}
+          <strong>pertama</strong> Auth di proyek ini yang otomatis diberi <code>role: admin</code>.
         </Alert>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -127,7 +127,7 @@ export function BootstrapAdminPage() {
             autoComplete="email"
           />
           <TextField
-            label="Password"
+            label="Kata Sandi"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -135,7 +135,7 @@ export function BootstrapAdminPage() {
             autoComplete="new-password"
           />
           <TextField
-            label="Confirm password"
+            label="Konfirmasi Kata Sandi"
             type="password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
@@ -143,12 +143,12 @@ export function BootstrapAdminPage() {
             autoComplete="new-password"
           />
           <Button type="submit" variant="contained" disabled={submitting}>
-            Create admin account
+            Buat Akun Admin
           </Button>
         </Box>
         <Typography variant="body2" sx={{ mt: 2 }}>
           <Link component={RouterLink} to="/login">
-            Already have an account? Sign in
+            Sudah punya akun? Masuk
           </Link>
         </Typography>
       </Paper>

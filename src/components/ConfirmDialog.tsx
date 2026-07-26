@@ -22,7 +22,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = 'Confirm',
+  confirmLabel = 'Konfirmasi',
   confirmColor = 'error',
   onCancel,
   onConfirm,
@@ -34,7 +34,7 @@ export function ConfirmDialog({
         <DialogContentText>{description}</DialogContentText>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onCancel}>Cancel</Button>
+        <Button onClick={onCancel}>Batal</Button>
         <Button color={confirmColor} variant="contained" onClick={onConfirm}>
           {confirmLabel}
         </Button>

@@ -106,11 +106,11 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
   async function handleSave() {
     setError(null)
     if (!isEdit && !familyId) {
-      setError('Choose a family.')
+      setError('Pilih keluarga.')
       return
     }
     if (!fullName.trim()) {
-      setError('Enter the child’s full name.')
+      setError('Masukkan nama lengkap siswa.')
       return
     }
 
@@ -200,7 +200,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
             <TextField
               size="small"
               select
-              label="Family"
+              label="Keluarga"
               value={familyId}
               onChange={(e) => setFamilyId(e.target.value)}
               required
@@ -215,7 +215,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
           ) : null}
           <TextField
             size="small"
-            label="Full name"
+            label="Nama Lengkap"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             required
@@ -223,7 +223,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
           />
           <TextField
             size="small"
-            label="Birthdate"
+            label="Tanggal Lahir"
             type="date"
             value={birthdate}
             onChange={(e) => setBirthdate(e.target.value)}
@@ -232,7 +232,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
           />
           <TextField
             size="small"
-            label="Notes"
+            label="Catatan"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             multiline
@@ -242,17 +242,17 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
 
           {isEdit ? (
             <>
-              <FormControlLabel control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />} label="Currently enrolled at center" />
+              <FormControlLabel control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />} label="Saat ini terdaftar di pusat" />
 
               <Divider />
-              <Typography variant="subtitle2">Classroom</Typography>
+              <Typography variant="subtitle2">Kelas</Typography>
               <Typography variant="body2" color="text.secondary">
-                {current ? `Currently in: ${current.groupLabel}` : 'Not enrolled in a classroom.'}
+                {current ? `Saat ini di: ${current.groupLabel}` : 'Belum terdaftar di kelas manapun.'}
               </Typography>
               <TextField
                 size="small"
                 select
-                label={current ? 'Switch to classroom' : 'Enroll in classroom'}
+                label={current ? 'Pindah kelas' : 'Daftarkan ke kelas'}
                 value={selectedGroupId}
                 onChange={(e) => setSelectedGroupId(e.target.value)}
                 fullWidth
@@ -268,7 +268,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
               {current ? (
                 <TextField
                   size="small"
-                  label="Reason for switching (optional)"
+                  label="Alasan pindah (opsional)"
                   value={endReason}
                   onChange={(e) => setEndReason(e.target.value)}
                   fullWidth
@@ -279,7 +279,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
                 disabled={!selectedGroupId || enrolling}
                 onClick={() => void (current ? handleSwitch() : handleEnroll())}
               >
-                {enrolling ? 'Saving…' : current ? 'Switch classroom' : 'Enroll'}
+                {enrolling ? 'Menyimpan…' : current ? 'Pindah Kelas' : 'Daftarkan'}
               </Button>
             </>
           ) : null}
@@ -287,10 +287,10 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={saving || enrolling}>
-          {isEdit ? 'Close' : 'Cancel'}
+          {isEdit ? 'Tutup' : 'Batal'}
         </Button>
         <Button variant="contained" onClick={() => void handleSave()} disabled={saving || enrolling}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Menyimpan…' : 'Simpan'}
         </Button>
       </DialogActions>
     </Dialog>

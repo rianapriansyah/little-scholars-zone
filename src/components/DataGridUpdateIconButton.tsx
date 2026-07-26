@@ -4,13 +4,13 @@ import Tooltip from '@mui/material/Tooltip'
 
 type Props = {
   onClick: (e: React.MouseEvent) => void
-  /** Accessible name / tooltip (default: Update) */
+  /** Accessible name / tooltip (default: Ubah) */
   title?: string
   disabled?: boolean
 }
 
 /** Single "Update" action for DataGrid action columns — icon only. */
-export function DataGridUpdateIconButton({ onClick, title = 'Update', disabled }: Props) {
+export function DataGridUpdateIconButton({ onClick, title = 'Ubah', disabled }: Props) {
   const btn = (
     <IconButton
       size="small"

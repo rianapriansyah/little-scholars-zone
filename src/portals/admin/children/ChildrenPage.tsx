@@ -85,14 +85,14 @@ export function ChildrenPage() {
 
   const columns: GridColDef<ChildView>[] = useMemo(
     () => [
-      { field: 'full_name', headerName: 'Child', flex: 1, minWidth: 160 },
-      { field: 'familyName', headerName: 'Family', flex: 1, minWidth: 160 },
+      { field: 'full_name', headerName: 'Siswa', flex: 1, minWidth: 160 },
+      { field: 'familyName', headerName: 'Keluarga', flex: 1, minWidth: 160 },
       {
         field: 'classroomLabel',
-        headerName: 'Classroom',
+        headerName: 'Kelas',
         flex: 1,
         minWidth: 180,
-        valueGetter: (_v, row) => row.classroomLabel ?? 'Not enrolled',
+        valueGetter: (_v, row) => row.classroomLabel ?? 'Belum Terdaftar',
       },
       {
         field: 'active',
@@ -100,14 +100,14 @@ export function ChildrenPage() {
         width: 110,
         renderCell: (params) =>
           params.row.active ? (
-            <Chip size="small" label="Active" color="success" variant="outlined" />
+            <Chip size="small" label="Aktif" color="success" variant="outlined" />
           ) : (
-            <Chip size="small" label="Inactive" color="default" variant="outlined" />
+            <Chip size="small" label="Nonaktif" color="default" variant="outlined" />
           ),
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: 'Aksi',
         width: 72,
         align: 'right',
         headerAlign: 'right',
@@ -138,7 +138,7 @@ export function ChildrenPage() {
         onKeywordChange={setKeyword}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search name, family, classroom…"
+        searchPlaceholder="Cari nama, keluarga, kelas…"
         loading={loading}
       />
 
@@ -152,17 +152,17 @@ export function ChildrenPage() {
             setDialogOpen(true)
           }}
         >
-          Add child
+          Tambah Siswa
         </Button>
       </Box>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No children yet.</Typography>
+        <Typography color="text.secondary">Belum ada siswa.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Loading…' : `${filteredRows.length} children`}
+            {loading ? 'Memuat…' : `${filteredRows.length} siswa`}
           </Typography>
           <Paper sx={{ width: '100%', minWidth: 0, overflow: 'hidden', mt: error ? 2 : 0 }} variant="outlined">
             <DataGrid

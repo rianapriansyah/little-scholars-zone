@@ -58,10 +58,10 @@ export function LoginPage() {
       <Container maxWidth="sm" sx={{ mt: { xs: 2, sm: 4, md: 8 }, mb: 4, px: { xs: 2, sm: 3 } }}>
         <Paper sx={{ p: { xs: 2, sm: 3 } }}>
           <Alert severity="error" sx={{ mb: 2 }}>
-            No role is linked to this account. Contact an admin.
+            Tidak ada peran yang terhubung ke akun ini. Hubungi admin.
           </Alert>
           <Button variant="contained" onClick={() => void supabase.auth.signOut()}>
-            Sign out
+            Keluar
           </Button>
         </Paper>
       </Container>
@@ -87,14 +87,14 @@ export function LoginPage() {
 
     if (signError || !data.user) {
       setBusy(false)
-      setError(signError?.message ?? 'Sign in failed.')
+      setError(signError?.message ?? 'Gagal masuk.')
       return
     }
 
     const dest = resolveDestination(data.user)
     if (!dest) {
       setBusy(false)
-      setError('No role is linked to this account. Contact an admin.')
+      setError('Tidak ada peran yang terhubung ke akun ini. Hubungi admin.')
       await supabase.auth.signOut()
       return
     }
@@ -110,7 +110,7 @@ export function LoginPage() {
           Masuk
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Admin, teacher, and parent accounts all use this page.
+          Halaman ini digunakan oleh akun admin, guru, dan orang tua.
         </Typography>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -131,7 +131,7 @@ export function LoginPage() {
             autoComplete="email"
           />
           <TextField
-            label="Password"
+            label="Kata Sandi"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -139,13 +139,13 @@ export function LoginPage() {
             autoComplete="current-password"
           />
           <Button type="submit" variant="contained">
-            Sign in
+            Masuk
           </Button>
         </Box>
         {isAdminBootstrapEnabled() ? (
           <Typography variant="body2" sx={{ mt: 2 }}>
             <Link component={RouterLink} to="/bootstrap-admin">
-              Register first admin
+              Daftar admin pertama
             </Link>
           </Typography>
         ) : null}

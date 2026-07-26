@@ -70,7 +70,7 @@ export function AdminLayout() {
               color="inherit"
               edge="start"
               onClick={toggleDrawer}
-              aria-label={drawerOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-label={drawerOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
               sx={{
                 mr: 1,
                 border: 1,
@@ -93,7 +93,7 @@ export function AdminLayout() {
                 navigate('/login', { replace: true })
               }}
             >
-              Sign out
+              Keluar
             </Button>
           </Toolbar>
         </AppBar>

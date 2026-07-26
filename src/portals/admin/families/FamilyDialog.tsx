@@ -75,11 +75,11 @@ export function FamilyDialog({ open, family, onClose, onSaved }: Props) {
   async function handleSave() {
     setError(null)
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Enter a valid email address.')
+      setError('Masukkan alamat email yang valid.')
       return
     }
     if (!phoneDigits) {
-      setError('Enter a contact phone number — used to send login details via WhatsApp.')
+      setError('Masukkan nomor telepon kontak — digunakan untuk mengirim info login melalui WhatsApp.')
       return
     }
 
@@ -133,7 +133,7 @@ export function FamilyDialog({ open, family, onClose, onSaved }: Props) {
     })
     setGenerating(false)
     if (!result.ok) {
-      setError(`Failed to generate login: ${result.message}`)
+      setError(`Gagal membuat info login: ${result.message}`)
       return
     }
     setCredentials({ email: targetEmail, password: result.password, reused: !!family.auth_user_id })
@@ -160,7 +160,7 @@ export function FamilyDialog({ open, family, onClose, onSaved }: Props) {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
               size="small"
-              label="Family name"
+              label="Nama Keluarga"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -168,74 +168,74 @@ export function FamilyDialog({ open, family, onClose, onSaved }: Props) {
             />
             <TextField
               size="small"
-              label="Contact email"
+              label="Email Kontak"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               fullWidth
-              helperText="Used as the parent's login email."
+              helperText="Digunakan sebagai email login orang tua."
             />
             <TextField
               size="small"
-              label="Contact phone"
+              label="Telepon Kontak"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
               fullWidth
-              helperText="Login details are sent to this number via WhatsApp."
+              helperText="Detail login dikirim ke nomor ini melalui WhatsApp."
             />
 
-            <Typography variant="subtitle2" sx={{ mt: 1 }}>Father</Typography>
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>Ayah</Typography>
             <TextField
               size="small"
-              label="Father name"
+              label="Nama Ayah"
               value={fatherName}
               onChange={(e) => setFatherName(e.target.value)}
               fullWidth
             />
             <TextField
               size="small"
-              label="Father occupation"
+              label="Pekerjaan Ayah"
               value={fatherOccupation}
               onChange={(e) => setFatherOccupation(e.target.value)}
               fullWidth
             />
             <TextField
               size="small"
-              label="Father phone number"
+              label="Nomor Telepon Ayah"
               value={fatherPhone}
               onChange={(e) => setFatherPhone(e.target.value)}
               fullWidth
             />
 
-            <Typography variant="subtitle2" sx={{ mt: 1 }}>Mother</Typography>
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>Ibu</Typography>
             <TextField
               size="small"
-              label="Mother name"
+              label="Nama Ibu"
               value={motherName}
               onChange={(e) => setMotherName(e.target.value)}
               fullWidth
             />
             <TextField
               size="small"
-              label="Mother occupation"
+              label="Pekerjaan Ibu"
               value={motherOccupation}
               onChange={(e) => setMotherOccupation(e.target.value)}
               fullWidth
             />
             <TextField
               size="small"
-              label="Mother phone number"
+              label="Nomor Telepon Ibu"
               value={motherPhone}
               onChange={(e) => setMotherPhone(e.target.value)}
               fullWidth
             />
 
-            <Typography variant="subtitle2" sx={{ mt: 1 }}>Address</Typography>
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>Alamat</Typography>
             <TextField
               size="small"
-              label="Address"
+              label="Alamat"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               fullWidth
@@ -249,21 +249,21 @@ export function FamilyDialog({ open, family, onClose, onSaved }: Props) {
                 disabled={generating || saving || !canGenerateCredentials}
                 onClick={() => void handleGenerateCredentials()}
               >
-                {generating ? 'Generating…' : family.auth_user_id ? 'Reset password' : 'Generate login credentials'}
+                {generating ? 'Memproses…' : family.auth_user_id ? 'Reset Kata Sandi' : 'Buat Info Login'}
               </Button>
             ) : null}
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleClose} disabled={saving || generating}>
-            Cancel
+            Batal
           </Button>
           <Button
             variant="contained"
             onClick={() => void handleSave()}
             disabled={saving || generating || !name.trim() || !email.trim() || !phoneDigits}
           >
-            {isEdit ? (saving ? 'Saving…' : 'Save') : saving ? 'Creating…' : 'Save & create login'}
+            {isEdit ? (saving ? 'Menyimpan…' : 'Simpan') : saving ? 'Membuat…' : 'Simpan & Buat Login'}
           </Button>
         </DialogActions>
       </Dialog>

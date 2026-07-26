@@ -56,23 +56,23 @@ export function FamiliesPage() {
 
   const columns: GridColDef<FamilyRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Family', flex: 1, minWidth: 160 },
+      { field: 'name', headerName: 'Keluarga', flex: 1, minWidth: 160 },
       { field: 'contact_email', headerName: 'Email', flex: 1, minWidth: 180, valueGetter: (_v, row) => row.contact_email ?? '—' },
-      { field: 'contact_phone', headerName: 'Phone', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
+      { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
       {
         field: 'auth_user_id',
-        headerName: 'Portal access',
+        headerName: 'Akses Portal',
         width: 150,
         renderCell: (params) =>
           params.row.auth_user_id ? (
-            <Chip size="small" label="Linked" color="success" variant="outlined" />
+            <Chip size="small" label="Terhubung" color="success" variant="outlined" />
           ) : (
-            <Chip size="small" label="Not invited" color="default" variant="outlined" />
+            <Chip size="small" label="Belum Diundang" color="default" variant="outlined" />
           ),
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: 'Aksi',
         width: 72,
         align: 'right',
         headerAlign: 'right',
@@ -103,7 +103,7 @@ export function FamiliesPage() {
         onKeywordChange={setKeyword}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search name, email, phone…"
+        searchPlaceholder="Cari nama, email, telepon…"
         loading={loading}
       />
 
@@ -117,17 +117,17 @@ export function FamiliesPage() {
             setDialogOpen(true)
           }}
         >
-          Add family
+          Tambah Keluarga
         </Button>
       </Box>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No families yet.</Typography>
+        <Typography color="text.secondary">Belum ada keluarga.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Loading…' : `${filteredRows.length} families`}
+            {loading ? 'Memuat…' : `${filteredRows.length} keluarga`}
           </Typography>
           <Paper sx={{ width: '100%', minWidth: 0, overflow: 'hidden', mt: error ? 2 : 0 }} variant="outlined">
             <DataGrid

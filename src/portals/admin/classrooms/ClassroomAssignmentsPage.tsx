@@ -87,28 +87,28 @@ export function ClassroomAssignmentsPage() {
 
   const columns: GridColDef<ClassroomView>[] = useMemo(
     () => [
-      { field: 'label', headerName: 'Classroom', flex: 1, minWidth: 200 },
+      { field: 'label', headerName: 'Kelas', flex: 1, minWidth: 200 },
       {
         field: 'teacherNames',
-        headerName: 'Teachers',
+        headerName: 'Guru',
         flex: 1,
         minWidth: 160,
         renderCell: (params) =>
           params.row.teacherNames.length > 0 ? (
             params.row.teacherNames.join(', ')
           ) : (
-            <Chip size="small" label="Unassigned" color="warning" variant="outlined" />
+            <Chip size="small" label="Belum Ditetapkan" color="warning" variant="outlined" />
           ),
       },
       {
         field: 'enrolledCount',
-        headerName: 'Roster',
+        headerName: 'Jumlah Siswa',
         width: 90,
         valueGetter: (_v, row) => `${row.enrolledCount}`,
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: 'Aksi',
         width: 72,
         align: 'right',
         headerAlign: 'right',
@@ -117,7 +117,7 @@ export function ClassroomAssignmentsPage() {
         disableColumnMenu: true,
         renderCell: (params) => (
           <DataGridUpdateIconButton
-            title="Assign"
+            title="Tetapkan"
             onClick={() => {
               setActiveClassroom(params.row)
               setDialogOpen(true)
@@ -135,7 +135,8 @@ export function ClassroomAssignmentsPage() {
         Penugasan
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Assign teachers and enroll or remove students for each classroom. Each teacher can have up to 6 students.
+        Tetapkan guru dan daftarkan atau keluarkan siswa untuk setiap kelas. Setiap guru dapat menampung maksimal 6
+        siswa.
       </Typography>
 
       <DataGridSearchPanel
@@ -143,17 +144,17 @@ export function ClassroomAssignmentsPage() {
         onKeywordChange={setKeyword}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search label, teacher…"
+        searchPlaceholder="Cari nama kelas, guru…"
         loading={loading}
       />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No classrooms yet.</Typography>
+        <Typography color="text.secondary">Belum ada kelas.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Loading…' : `${filteredRows.length} classrooms`}
+            {loading ? 'Memuat…' : `${filteredRows.length} kelas`}
           </Typography>
           <Paper sx={{ width: '100%', minWidth: 0, overflow: 'hidden', mt: error ? 2 : 0 }} variant="outlined">
             <DataGrid

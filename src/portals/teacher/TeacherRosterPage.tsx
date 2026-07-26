@@ -100,7 +100,7 @@ export function TeacherRosterPage() {
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       {groups.length === 0 ? (
-        <Typography color="text.secondary">No classrooms assigned yet.</Typography>
+        <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {groups.map((group) => {
@@ -125,13 +125,13 @@ export function TeacherRosterPage() {
                     ) : null}
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Mon–Fri · {classroom.time_start.slice(0, 5)}
+                    Sen–Jum · {classroom.time_start.slice(0, 5)}
                     {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
-                    {MAX_STUDENTS_PER_TEACHER} enrolled
+                    {MAX_STUDENTS_PER_TEACHER} siswa
                   </Typography>
                   {group.roster.length === 0 ? (
                     <Typography variant="body2" color="text.secondary">
-                      No children currently enrolled.
+                      Belum ada siswa yang terdaftar.
                     </Typography>
                   ) : (
                     <List dense disablePadding>

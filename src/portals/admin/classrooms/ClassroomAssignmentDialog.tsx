@@ -136,7 +136,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
       .insert({ classroom_id: classroom.id, teacher_id: newTeacherId })
     setBusy(false)
     if (iErr) {
-      setError(iErr.code === '23505' ? 'This teacher is already assigned to this classroom.' : iErr.message)
+      setError(iErr.code === '23505' ? 'Guru ini sudah ditetapkan ke kelas ini.' : iErr.message)
       return
     }
     setNewTeacherId('')
@@ -150,7 +150,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
     const { error: uErr } = await supabase.from('classroom_teachers').update({ teacher_id: teacherId }).eq('id', groupId)
     setBusy(false)
     if (uErr) {
-      setError(uErr.code === '23505' ? 'This teacher is already assigned to this classroom.' : uErr.message)
+      setError(uErr.code === '23505' ? 'Guru ini sudah ditetapkan ke kelas ini.' : uErr.message)
       return
     }
     if (classroom) await loadGroups(classroom.id)
@@ -165,7 +165,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
     if (dErr) {
       setError(
         dErr.code === '23503'
-          ? 'Cannot remove: this teacher has had students in this class. Change the teacher instead.'
+          ? 'Tidak dapat dihapus: guru ini pernah memiliki siswa di kelas ini. Ganti guru sebagai gantinya.'
           : dErr.message,
       )
       return
@@ -220,7 +220,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {groups.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No teachers assigned yet.
+              Belum ada guru yang ditetapkan.
             </Typography>
           ) : (
             groups.map((group) => {
@@ -238,12 +238,12 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
                     <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
                       {classroom.label} ({group.teacherName}
-                      {currentTeacher && !currentTeacher.active ? ' — inactive' : ''})
+                      {currentTeacher && !currentTeacher.active ? ' — nonaktif' : ''})
                     </Typography>
                     <TextField
                       size="small"
                       select
-                      label="Teacher"
+                      label="Guru"
                       value={group.teacherId}
                       onChange={(e) => void handleChangeTeacher(group.id, e.target.value)}
                       disabled={busy}
@@ -252,15 +252,15 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
                       {teacherOptions.map((t) => (
                         <MenuItem key={t.id} value={t.id}>
                           {t.full_name}
-                          {!t.active ? ' (inactive)' : ''}
+                          {!t.active ? ' (nonaktif)' : ''}
                         </MenuItem>
                       ))}
                     </TextField>
-                    <Tooltip title={group.roster.length > 0 ? 'Has active students — change teacher instead' : 'Remove teacher'}>
+                    <Tooltip title={group.roster.length > 0 ? 'Memiliki siswa aktif — ganti guru sebagai gantinya' : 'Hapus guru'}>
                       <span>
                         <IconButton
                           size="small"
-                          aria-label="Remove teacher"
+                          aria-label="Hapus guru"
                           disabled={busy || group.roster.length > 0}
                           onClick={() => void handleRemoveTeacher(group.id)}
                         >
@@ -271,11 +271,11 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
                   </Box>
 
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Students ({group.roster.length}/{MAX_STUDENTS_PER_TEACHER})
+                    Siswa ({group.roster.length}/{MAX_STUDENTS_PER_TEACHER})
                   </Typography>
                   {group.roster.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      No children currently enrolled.
+                      Belum ada siswa yang terdaftar.
                     </Typography>
                   ) : (
                     <List dense disablePadding sx={{ mb: 1 }}>
@@ -285,7 +285,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
                           <ListItemSecondaryAction>
                             <IconButton
                               size="small"
-                              aria-label="Remove student"
+                              aria-label="Hapus siswa"
                               disabled={busy}
                               onClick={() => void handleRemoveStudent(r.childId)}
                             >
@@ -301,7 +301,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
                     <TextField
                       size="small"
                       select
-                      label="Add student"
+                      label="Tambah Siswa"
                       value={addSelections[group.id] ?? ''}
                       onChange={(e) => setAddSelections((prev) => ({ ...prev, [group.id]: e.target.value }))}
                       fullWidth
@@ -312,7 +312,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
                         return (
                           <MenuItem key={c.id} value={c.id}>
                             {c.full_name}
-                            {existing ? ` (currently: ${existing.label})` : ''}
+                            {existing ? ` (saat ini: ${existing.label})` : ''}
                           </MenuItem>
                         )
                       })}
@@ -323,7 +323,7 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
                       onClick={() => void handleAddStudent(group.id)}
                       sx={{ whiteSpace: 'nowrap' }}
                     >
-                      Add
+                      Tambah
                     </Button>
                   </Box>
                 </Paper>
@@ -333,12 +333,12 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
 
           <Divider />
 
-          <Typography variant="subtitle2">Add teacher</Typography>
+          <Typography variant="subtitle2">Tambah Guru</Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <TextField
               size="small"
               select
-              label="Teacher"
+              label="Guru"
               value={newTeacherId}
               onChange={(e) => setNewTeacherId(e.target.value)}
               fullWidth
@@ -355,14 +355,14 @@ export function ClassroomAssignmentDialog({ open, classroom, onClose, onAssigned
               onClick={() => void handleAddTeacher()}
               sx={{ whiteSpace: 'nowrap' }}
             >
-              Add
+              Tambah
             </Button>
           </Box>
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={busy}>
-          Close
+          Tutup
         </Button>
       </DialogActions>
     </Dialog>

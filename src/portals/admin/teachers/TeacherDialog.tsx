@@ -54,15 +54,15 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
   async function handleSave() {
     setError(null)
     if (!isEdit && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Enter a valid email address.')
+      setError('Masukkan alamat email yang valid.')
       return
     }
     if (!fullName.trim()) {
-      setError('Enter a full name.')
+      setError('Masukkan nama lengkap.')
       return
     }
     if (!phoneDigits) {
-      setError('Enter a phone number — used to send login details via WhatsApp.')
+      setError('Masukkan nomor telepon — digunakan untuk mengirim info login melalui WhatsApp.')
       return
     }
 
@@ -101,7 +101,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     })
     setGenerating(false)
     if (!result.ok) {
-      setError(`Failed to generate login: ${result.message}`)
+      setError(`Gagal membuat info login: ${result.message}`)
       return
     }
     setCredentials({ email: teacher.email, password: result.password, reused: !!teacher.auth_user_id })
@@ -135,12 +135,12 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 fullWidth
-                helperText="Used as the teacher's login email."
+                helperText="Digunakan sebagai email login guru."
               />
             )}
             <TextField
               size="small"
-              label="Full name"
+              label="Nama Lengkap"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
@@ -148,25 +148,25 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
             />
             <TextField
               size="small"
-              label="Phone"
+              label="Telepon"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
               fullWidth
-              helperText="Login details are sent to this number via WhatsApp."
+              helperText="Detail login dikirim ke nomor ini melalui WhatsApp."
             />
             {isEdit ? (
               <>
                 <FormControlLabel
                   control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
-                  label="Active"
+                  label="Aktif"
                 />
                 <Button
                   variant="outlined"
                   disabled={generating || saving || !phoneDigits}
                   onClick={() => void handleGenerateCredentials()}
                 >
-                  {generating ? 'Generating…' : teacher.auth_user_id ? 'Reset password' : 'Generate login credentials'}
+                  {generating ? 'Memproses…' : teacher.auth_user_id ? 'Reset Kata Sandi' : 'Buat Info Login'}
                 </Button>
               </>
             ) : null}
@@ -174,14 +174,14 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleClose} disabled={saving || generating}>
-            Cancel
+            Batal
           </Button>
           <Button
             variant="contained"
             onClick={() => void handleSave()}
             disabled={saving || generating || !fullName.trim() || !email.trim() || !phoneDigits}
           >
-            {isEdit ? (saving ? 'Saving…' : 'Save') : saving ? 'Creating…' : 'Save & create login'}
+            {isEdit ? (saving ? 'Menyimpan…' : 'Simpan') : saving ? 'Membuat…' : 'Simpan & Buat Login'}
           </Button>
         </DialogActions>
       </Dialog>

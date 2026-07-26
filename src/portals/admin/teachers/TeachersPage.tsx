@@ -56,34 +56,34 @@ export function TeachersPage() {
 
   const columns: GridColDef<TeacherRow>[] = useMemo(
     () => [
-      { field: 'full_name', headerName: 'Teacher', flex: 1, minWidth: 160 },
+      { field: 'full_name', headerName: 'Guru', flex: 1, minWidth: 160 },
       { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
-      { field: 'contact_phone', headerName: 'Phone', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
+      { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
       {
         field: 'active',
         headerName: 'Status',
         width: 130,
         renderCell: (params) =>
           params.row.active ? (
-            <Chip size="small" label="Active" color="success" variant="outlined" />
+            <Chip size="small" label="Aktif" color="success" variant="outlined" />
           ) : (
-            <Chip size="small" label="Inactive" color="default" variant="outlined" />
+            <Chip size="small" label="Nonaktif" color="default" variant="outlined" />
           ),
       },
       {
         field: 'auth_user_id',
-        headerName: 'Portal access',
+        headerName: 'Akses Portal',
         width: 150,
         renderCell: (params) =>
           params.row.auth_user_id ? (
-            <Chip size="small" label="Linked" color="success" variant="outlined" />
+            <Chip size="small" label="Terhubung" color="success" variant="outlined" />
           ) : (
-            <Chip size="small" label="Not invited" color="default" variant="outlined" />
+            <Chip size="small" label="Belum Diundang" color="default" variant="outlined" />
           ),
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: 'Aksi',
         width: 72,
         align: 'right',
         headerAlign: 'right',
@@ -114,7 +114,7 @@ export function TeachersPage() {
         onKeywordChange={setKeyword}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search name, email, phone…"
+        searchPlaceholder="Cari nama, email, telepon…"
         loading={loading}
       />
 
@@ -128,17 +128,17 @@ export function TeachersPage() {
             setDialogOpen(true)
           }}
         >
-          Add teacher
+          Tambah Guru
         </Button>
       </Box>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No teachers yet.</Typography>
+        <Typography color="text.secondary">Belum ada guru.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Loading…' : `${filteredRows.length} teachers`}
+            {loading ? 'Memuat…' : `${filteredRows.length} guru`}
           </Typography>
           <Paper sx={{ width: '100%', minWidth: 0, overflow: 'hidden', mt: error ? 2 : 0 }} variant="outlined">
             <DataGrid

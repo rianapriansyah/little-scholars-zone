@@ -26,8 +26,8 @@ export function DataGridSearchPanel({
   onClear,
   searchPlaceholder,
   loading = false,
-  submitLabel = 'Search',
-  clearLabel = 'Clear filters',
+  submitLabel = 'Cari',
+  clearLabel = 'Hapus Filter',
 }: DataGridSearchPanelProps) {
   return (
     <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -60,7 +60,7 @@ export function DataGridSearchPanel({
           />
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button type="submit" variant="contained" disabled={loading} sx={{ minWidth: 100 }}>
-              {loading ? 'Searching…' : submitLabel}
+              {loading ? 'Mencari…' : submitLabel}
             </Button>
             <Button
               type="button"

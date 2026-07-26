@@ -78,7 +78,7 @@ export function ParentHomePage() {
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       {children.length === 0 ? (
-        <Typography color="text.secondary">No children on file yet.</Typography>
+        <Typography color="text.secondary">Belum ada data anak.</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {children.map((child) => (
@@ -89,12 +89,12 @@ export function ParentHomePage() {
                 </Typography>
                 {child.classroomLabel ? (
                   <Typography variant="body2" color="text.secondary">
-                    Classroom: {child.classroomLabel}
-                    {child.teacherName ? ` (Teacher ${child.teacherName})` : ''}
+                    Kelas: {child.classroomLabel}
+                    {child.teacherName ? ` (Guru ${child.teacherName})` : ''}
                   </Typography>
                 ) : (
                   <Typography variant="body2" color="text.secondary">
-                    Not currently enrolled in a classroom.
+                    Belum terdaftar di kelas manapun.
                   </Typography>
                 )}
               </CardContent>

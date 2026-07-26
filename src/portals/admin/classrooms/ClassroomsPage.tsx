@@ -92,7 +92,7 @@ export function ClassroomsPage() {
     if (dErr) {
       setError(
         dErr.code === '23503'
-          ? 'Cannot delete: this classroom has enrollment history. Mark it inactive instead.'
+          ? 'Tidak dapat dihapus: kelas ini memiliki riwayat pendaftaran siswa. Nonaktifkan saja.'
           : dErr.message,
       )
       return
@@ -102,17 +102,17 @@ export function ClassroomsPage() {
 
   const columns: GridColDef<ClassroomView>[] = useMemo(
     () => [
-      { field: 'label', headerName: 'Classroom', flex: 1, minWidth: 200 },
+      { field: 'label', headerName: 'Kelas', flex: 1, minWidth: 200 },
       {
         field: 'time_start',
-        headerName: 'Time',
+        headerName: 'Waktu',
         width: 110,
         valueGetter: (_v, row) =>
           row.time_end ? `${row.time_start.slice(0, 5)}–${row.time_end.slice(0, 5)}` : row.time_start.slice(0, 5),
       },
       {
         field: 'enrolledCount',
-        headerName: 'Roster',
+        headerName: 'Jumlah Siswa',
         width: 90,
         valueGetter: (_v, row) => `${row.enrolledCount}`,
       },
@@ -122,14 +122,14 @@ export function ClassroomsPage() {
         width: 110,
         renderCell: (params) =>
           params.row.active ? (
-            <Chip size="small" label="Active" color="success" variant="outlined" />
+            <Chip size="small" label="Aktif" color="success" variant="outlined" />
           ) : (
-            <Chip size="small" label="Inactive" color="default" variant="outlined" />
+            <Chip size="small" label="Nonaktif" color="default" variant="outlined" />
           ),
       },
       {
         field: 'actions',
-        headerName: 'Actions',
+        headerName: 'Aksi',
         width: 104,
         align: 'right',
         headerAlign: 'right',
@@ -144,7 +144,7 @@ export function ClassroomsPage() {
                 setDialogOpen(true)
               }}
             />
-            <Tooltip title="Delete">
+            <Tooltip title="Hapus">
               <IconButton
                 size="small"
                 aria-label="Delete"
@@ -175,7 +175,7 @@ export function ClassroomsPage() {
         onKeywordChange={setKeyword}
         onSubmit={handleSearch}
         onClear={handleClear}
-        searchPlaceholder="Search label…"
+        searchPlaceholder="Cari nama kelas…"
         loading={loading}
       />
 
@@ -189,17 +189,17 @@ export function ClassroomsPage() {
             setDialogOpen(true)
           }}
         >
-          Add classroom
+          Tambah Kelas
         </Button>
       </Box>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">No classrooms yet.</Typography>
+        <Typography color="text.secondary">Belum ada kelas.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Loading…' : `${filteredRows.length} classrooms`}
+            {loading ? 'Memuat…' : `${filteredRows.length} kelas`}
           </Typography>
           <Paper sx={{ width: '100%', minWidth: 0, overflow: 'hidden', mt: error ? 2 : 0 }} variant="outlined">
             <DataGrid
@@ -225,8 +225,8 @@ export function ClassroomsPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         title="Hapus Kelas"
-        description={`Delete "${deleteTarget?.label}"? This cannot be undone.`}
-        confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+        description={`Hapus "${deleteTarget?.label}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void handleDelete()}
       />

@@ -30,11 +30,11 @@ function PreferenceIcon({ preference }: { preference: ColorModePreference }) {
 function preferenceLabel(p: ColorModePreference): string {
   switch (p) {
     case 'light':
-      return 'Light theme'
+      return 'Tema Terang'
     case 'dark':
-      return 'Dark theme'
+      return 'Tema Gelap'
     default:
-      return 'Match system'
+      return 'Ikuti Sistem'
   }
 }
 
@@ -62,12 +62,12 @@ export function AppearanceBar() {
   if (!expanded) {
     return (
       <Box sx={{ mb: 1.25 }}>
-        <Tooltip title={`${preferenceLabel(preference)} — choose theme`} placement="bottom-start">
+        <Tooltip title={`${preferenceLabel(preference)} — pilih tema`} placement="bottom-start">
           <IconButton
             onClick={toggleExpanded}
             aria-expanded={false}
             aria-haspopup="true"
-            aria-label={`${preferenceLabel(preference)}, open theme options`}
+            aria-label={`${preferenceLabel(preference)}, buka opsi tema`}
             color="inherit"
             size="small"
             sx={{
@@ -104,11 +104,11 @@ export function AppearanceBar() {
           pb: 0.35,
         }}
       >
-        <Tooltip title="Close theme options">
+        <Tooltip title="Tutup opsi tema">
           <IconButton
             onClick={toggleExpanded}
             aria-expanded
-            aria-label="Close theme options"
+            aria-label="Tutup opsi tema"
             color="inherit"
             size="small"
             sx={{ color: 'text.primary', width: 30, height: 30, p: 0.4 }}
@@ -117,7 +117,7 @@ export function AppearanceBar() {
           </IconButton>
         </Tooltip>
         <Typography variant="subtitle1" fontWeight={600} sx={{ lineHeight: 1.3 }}>
-          Appearance
+          Tampilan
         </Typography>
       </Box>
 
@@ -129,14 +129,14 @@ export function AppearanceBar() {
         }}
       >
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, fontSize: '0.8125rem', lineHeight: 1.4 }}>
-          Light, dark, or match your system setting.
+          Terang, gelap, atau ikuti pengaturan sistem Anda.
         </Typography>
         <ToggleButtonGroup
           exclusive
           fullWidth
           value={preference}
           onChange={handleChange}
-          aria-label="Theme"
+          aria-label="Tema"
           sx={{
             display: 'flex',
             gap: 0,
@@ -173,13 +173,13 @@ export function AppearanceBar() {
             },
           }}
         >
-          <ToggleButton value="light" aria-label="Light mode" disableRipple>
+          <ToggleButton value="light" aria-label="Mode Terang" disableRipple>
             <LightMode />
           </ToggleButton>
-          <ToggleButton value="dark" aria-label="Dark mode" disableRipple>
+          <ToggleButton value="dark" aria-label="Mode Gelap" disableRipple>
             <DarkMode />
           </ToggleButton>
-          <ToggleButton value="system" aria-label="System theme" disableRipple>
+          <ToggleButton value="system" aria-label="Tema Sistem" disableRipple>
             <Monitor />
           </ToggleButton>
         </ToggleButtonGroup>
