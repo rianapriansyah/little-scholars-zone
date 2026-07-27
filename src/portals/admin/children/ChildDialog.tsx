@@ -157,6 +157,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
         return
       }
       onSaved()
+      onClose()
     } else {
       const { error: iErr } = await supabase.from('children').insert({
         family_id: familyId,

@@ -1,19 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  Alert,
-  Avatar,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Alert, Avatar, Box, Button, Card, CardContent, CircularProgress, Divider, TextField, Typography } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
 import { useTeacherProfile } from '../hooks/useTeacherProfile'
 import { useFamilyProfile } from '../hooks/useFamilyProfile'
@@ -149,19 +135,26 @@ function ParentAccountInfo({ authUserId }: { authUserId: string | undefined }) {
             Belum ada data anak.
           </Typography>
         ) : (
-          <List dense disablePadding>
-            {children.map((c) => (
-              <ListItem key={c.id} disableGutters>
-                <ListItemAvatar>
-                  <Avatar src={c.photo_url ?? undefined}>{c.full_name.charAt(0).toUpperCase()}</Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={c.full_name}
-                  secondary={c.birthdate ? `Tanggal lahir: ${c.birthdate}` : undefined}
-                />
-              </ListItem>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {children.map((c, i) => (
+              <Box key={c.id}>
+                {i > 0 ? <Divider sx={{ mb: 2 }} /> : null}
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                  <Avatar src={c.photo_url ?? undefined} sx={{ width: 150, height: 150, fontSize: '3rem' }}>
+                    {c.full_name.charAt(0).toUpperCase()}
+                  </Avatar>
+                  <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
+                    {c.full_name}
+                  </Typography>
+                  {c.birthdate ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Tanggal lahir: {c.birthdate}
+                    </Typography>
+                  ) : null}
+                </Box>
+              </Box>
             ))}
-          </List>
+          </Box>
         )}
       </CardContent>
     </Card>
@@ -190,18 +183,16 @@ function TeacherAccountInfo({ authUserId }: { authUserId: string | undefined }) 
   return (
     <Card variant="outlined">
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <Avatar src={teacher.photo_url ?? undefined} sx={{ width: 64, height: 64 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Avatar src={teacher.photo_url ?? undefined} sx={{ width: 150, height: 150, fontSize: '3rem' }}>
             {teacher.full_name.charAt(0).toUpperCase()}
           </Avatar>
-          <Box>
-            <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
-              {teacher.full_name}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {teacher.email}
-            </Typography>
-          </Box>
+          <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
+            {teacher.full_name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {teacher.email}
+          </Typography>
         </Box>
         <Typography variant="body2" color="text.secondary">
           Telepon: {teacher.contact_phone ?? '—'}
