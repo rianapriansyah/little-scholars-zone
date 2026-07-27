@@ -6,6 +6,7 @@ import { TeacherRoute } from './components/routing/TeacherRoute'
 import { ParentRoute } from './components/routing/ParentRoute'
 import { LoginPage } from './portals/LoginPage'
 import { BootstrapAdminPage } from './portals/BootstrapAdminPage'
+import { ManageAccountPage } from './portals/ManageAccountPage'
 import { AdminLayout } from './portals/admin/AdminLayout'
 import { FamiliesPage } from './portals/admin/families/FamiliesPage'
 import { ChildrenPage } from './portals/admin/children/ChildrenPage'
@@ -34,18 +35,21 @@ export default function App() {
               <Route path="teachers" element={<TeachersPage />} />
               <Route path="classrooms" element={<ClassroomsPage />} />
               <Route path="classroom-assignments" element={<ClassroomAssignmentsPage />} />
+              <Route path="kelola-akun" element={<ManageAccountPage />} />
             </Route>
           </Route>
 
           <Route path="/teacher" element={<TeacherRoute />}>
             <Route element={<TeacherLayout />}>
               <Route index element={<TeacherRosterPage />} />
+              <Route path="kelola-akun" element={<ManageAccountPage />} />
             </Route>
           </Route>
 
           <Route path="/parent" element={<ParentRoute />}>
             <Route element={<ParentLayout />}>
               <Route index element={<ParentHomePage />} />
+              <Route path="kelola-akun" element={<ManageAccountPage />} />
             </Route>
           </Route>
 

@@ -18,20 +18,13 @@ import { supabase } from '../../../lib/supabase'
 import { createTeacherAccount } from '../../../lib/createTeacherAccount'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { TeacherRow } from '../../../types/teacher'
+import { composeEducation, splitEducation } from '../../../lib/teacherEducation'
 
 type Props = {
   open: boolean
   teacher: TeacherRow | null
   onClose: () => void
   onSaved: () => void
-}
-
-const EDUCATION_DELIMITER = ' | '
-
-function splitEducation(education: string | null): [string, string, string] {
-  if (!education) return ['', '', '']
-  const parts = education.split(EDUCATION_DELIMITER)
-  return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? '']
 }
 
 function todayIsoDate(): string {
@@ -99,11 +92,6 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     return supabase.storage.from('teacher-photos').getPublicUrl(path).data.publicUrl
   }
 
-  function composeEducation(): string | null {
-    if (!educationLevel.trim() && !educationSchool.trim() && !educationYear.trim()) return null
-    return [educationLevel.trim(), educationSchool.trim(), educationYear.trim()].join(EDUCATION_DELIMITER)
-  }
-
   async function handleSave() {
     setError(null)
     if (!isEdit && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -133,7 +121,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     }
 
     const extras = {
-      education: composeEducation(),
+      education: composeEducation(educationLevel, educationSchool, educationYear),
       photo_url: photoUrl,
       start_working_at: startWorkingAt || todayIsoDate(),
       end_working_at: endWorkingAt || null,
