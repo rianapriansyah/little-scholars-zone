@@ -9,6 +9,7 @@ import {
   CircularProgress,
   List,
   ListItem,
+  ListItemAvatar,
   ListItemText,
   TextField,
   Typography,
@@ -151,6 +152,9 @@ function ParentAccountInfo({ authUserId }: { authUserId: string | undefined }) {
           <List dense disablePadding>
             {children.map((c) => (
               <ListItem key={c.id} disableGutters>
+                <ListItemAvatar>
+                  <Avatar src={c.photo_url ?? undefined}>{c.full_name.charAt(0).toUpperCase()}</Avatar>
+                </ListItemAvatar>
                 <ListItemText
                   primary={c.full_name}
                   secondary={c.birthdate ? `Tanggal lahir: ${c.birthdate}` : undefined}

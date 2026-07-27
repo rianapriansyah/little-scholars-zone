@@ -19,6 +19,7 @@ import { createTeacherAccount } from '../../../lib/createTeacherAccount'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { TeacherRow } from '../../../types/teacher'
 import { composeEducation, splitEducation } from '../../../lib/teacherEducation'
+import { uploadProfilePhoto } from '../../../lib/uploadProfilePhoto'
 
 type Props = {
   open: boolean
@@ -83,15 +84,6 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     setPhotoPreviewUrl(URL.createObjectURL(file))
   }
 
-  async function uploadPhoto(): Promise<string> {
-    if (!photoFile) throw new Error('No photo selected')
-    const ext = photoFile.name.split('.').pop() ?? 'jpg'
-    const path = `teachers/${crypto.randomUUID()}.${ext}`
-    const { error: upErr } = await supabase.storage.from('teacher-photos').upload(path, photoFile)
-    if (upErr) throw upErr
-    return supabase.storage.from('teacher-photos').getPublicUrl(path).data.publicUrl
-  }
-
   async function handleSave() {
     setError(null)
     if (!isEdit && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -112,7 +104,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     let photoUrl = teacher?.photo_url ?? null
     if (photoFile) {
       try {
-        photoUrl = await uploadPhoto()
+        photoUrl = await uploadProfilePhoto('teacher-photos', 'teachers', photoFile)
       } catch (e) {
         setSaving(false)
         setError(e instanceof Error ? e.message : 'Gagal mengunggah foto.')

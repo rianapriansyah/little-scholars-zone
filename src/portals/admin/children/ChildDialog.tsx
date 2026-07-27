@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Dialog,
@@ -17,6 +18,7 @@ import {
 import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
+import { uploadProfilePhoto } from '../../../lib/uploadProfilePhoto'
 
 type Group = { id: string; label: string }
 type CurrentEnrollment = { enrollmentId: string; groupId: string; groupLabel: string }
@@ -37,6 +39,8 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
   const [birthdate, setBirthdate] = useState('')
   const [notes, setNotes] = useState('')
   const [active, setActive] = useState(true)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -74,6 +78,8 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
     setNotes(child?.notes ?? '')
     setActive(child?.active ?? true)
     setFamilyId('')
+    setPhotoFile(null)
+    setPhotoPreviewUrl(child?.photo_url ?? null)
     setError(null)
     setSelectedGroupId('')
     setEndReason('')
@@ -103,6 +109,13 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
     onClose()
   }
 
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreviewUrl(URL.createObjectURL(file))
+  }
+
   async function handleSave() {
     setError(null)
     if (!isEdit && !familyId) {
@@ -115,6 +128,18 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
     }
 
     setSaving(true)
+
+    let photoUrl = child?.photo_url ?? null
+    if (photoFile) {
+      try {
+        photoUrl = await uploadProfilePhoto('child-photos', 'children', photoFile)
+      } catch (e) {
+        setSaving(false)
+        setError(e instanceof Error ? e.message : 'Gagal mengunggah foto.')
+        return
+      }
+    }
+
     if (isEdit) {
       const { error: uErr } = await supabase
         .from('children')
@@ -123,6 +148,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
           birthdate: birthdate || null,
           notes: notes.trim() || null,
           active,
+          photo_url: photoUrl,
         })
         .eq('id', child.id)
       setSaving(false)
@@ -137,6 +163,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
         full_name: fullName.trim(),
         birthdate: birthdate || null,
         notes: notes.trim() || null,
+        photo_url: photoUrl,
       })
       setSaving(false)
       if (iErr) {
@@ -196,6 +223,16 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
           </Alert>
         ) : null}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar src={photoPreviewUrl ?? undefined} sx={{ width: 64, height: 64 }}>
+              {fullName ? fullName.charAt(0).toUpperCase() : '?'}
+            </Avatar>
+            <Button variant="outlined" component="label" size="small">
+              Unggah Foto
+              <input type="file" accept="image/*" hidden onChange={handlePhotoChange} />
+            </Button>
+          </Box>
+
           {!isEdit ? (
             <TextField
               size="small"

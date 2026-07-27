@@ -73,6 +73,7 @@ export type Database = {
           notes: string | null
           active: boolean
           created_at: string | null
+          photo_url: string | null
         }
         Insert: {
           id?: string
@@ -82,6 +83,7 @@ export type Database = {
           notes?: string | null
           active?: boolean
           created_at?: string | null
+          photo_url?: string | null
         }
         Update: {
           id?: string
@@ -91,6 +93,7 @@ export type Database = {
           notes?: string | null
           active?: boolean
           created_at?: string | null
+          photo_url?: string | null
         }
         Relationships: []
       }
