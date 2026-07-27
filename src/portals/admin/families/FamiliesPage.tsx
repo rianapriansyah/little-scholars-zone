@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
@@ -15,11 +16,11 @@ function familySearchBlob(row: FamilyRow): string {
 }
 
 export function FamiliesPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<FamilyRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editFamily, setEditFamily] = useState<FamilyRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -82,14 +83,13 @@ export function FamiliesPage() {
         renderCell: (params) => (
           <DataGridUpdateIconButton
             onClick={() => {
-              setEditFamily(params.row)
-              setDialogOpen(true)
+              navigate(`/admin/families/${params.row.id}`)
             }}
           />
         ),
       },
     ],
-    [],
+    [navigate],
   )
 
   return (
@@ -112,10 +112,7 @@ export function FamiliesPage() {
           variant="contained"
           fullWidth
           sx={{ maxWidth: { xs: '100%', sm: 200 } }}
-          onClick={() => {
-            setEditFamily(null)
-            setDialogOpen(true)
-          }}
+          onClick={() => setDialogOpen(true)}
         >
           Tambah Keluarga
         </Button>
@@ -139,17 +136,13 @@ export function FamiliesPage() {
               pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
               disableRowSelectionOnClick
               autoHeight
-              sx={{ border: 'none' }}
+              onRowClick={(params) => navigate(`/admin/families/${params.id}`)}
+              sx={{ border: 'none', '& .MuiDataGrid-row': { cursor: 'pointer' } }}
             />
           </Paper>
         </Box>
       )}
-      <FamilyDialog
-        open={dialogOpen}
-        family={editFamily}
-        onClose={() => setDialogOpen(false)}
-        onSaved={() => void load()}
-      />
+      <FamilyDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
     </Box>
   )
 }

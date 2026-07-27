@@ -9,6 +9,7 @@ import { BootstrapAdminPage } from './portals/BootstrapAdminPage'
 import { ManageAccountPage } from './portals/ManageAccountPage'
 import { AdminLayout } from './portals/admin/AdminLayout'
 import { FamiliesPage } from './portals/admin/families/FamiliesPage'
+import { FamilyDetailPage } from './portals/admin/families/FamilyDetailPage'
 import { ChildrenPage } from './portals/admin/children/ChildrenPage'
 import { TeachersPage } from './portals/admin/teachers/TeachersPage'
 import { ClassroomsPage } from './portals/admin/classrooms/ClassroomsPage'
@@ -31,6 +32,7 @@ export default function App() {
             <Route element={<AdminLayout />}>
               <Route index element={<Navigate to="families" replace />} />
               <Route path="families" element={<FamiliesPage />} />
+              <Route path="families/:familyId" element={<FamilyDetailPage />} />
               <Route path="children" element={<ChildrenPage />} />
               <Route path="teachers" element={<TeachersPage />} />
               <Route path="classrooms" element={<ClassroomsPage />} />

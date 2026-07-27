@@ -26,15 +26,17 @@ type CurrentEnrollment = { enrollmentId: string; groupId: string; groupLabel: st
 type Props = {
   open: boolean
   child: ChildRow | null
+  /** When provided (embedded in a Family's detail tab), the family picker is hidden and locked to this family. */
+  familyId?: string
   onClose: () => void
   onSaved: () => void
 }
 
-export function ChildDialog({ open, child, onClose, onSaved }: Props) {
+export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, onSaved }: Props) {
   const isEdit = child !== null
 
   const [families, setFamilies] = useState<FamilyRow[]>([])
-  const [familyId, setFamilyId] = useState('')
+  const [selectedFamilyId, setSelectedFamilyId] = useState('')
   const [fullName, setFullName] = useState('')
   const [birthdate, setBirthdate] = useState('')
   const [notes, setNotes] = useState('')
@@ -77,7 +79,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
     setBirthdate(child?.birthdate ?? '')
     setNotes(child?.notes ?? '')
     setActive(child?.active ?? true)
-    setFamilyId('')
+    setSelectedFamilyId(lockedFamilyId ?? '')
     setPhotoFile(null)
     setPhotoPreviewUrl(child?.photo_url ?? null)
     setError(null)
@@ -86,7 +88,9 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
     setCurrent(null)
 
     if (!child) {
-      void supabase.from('families').select('*').order('name').then(({ data }) => setFamilies(data ?? []))
+      if (!lockedFamilyId) {
+        void supabase.from('families').select('*').order('name').then(({ data }) => setFamilies(data ?? []))
+      }
       return
     }
 
@@ -102,7 +106,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
         setGroups(options)
       })
     void loadEnrollment(child.id)
-  }, [open, child])
+  }, [open, child, lockedFamilyId])
 
   const handleClose = () => {
     if (saving || enrolling) return
@@ -118,7 +122,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
 
   async function handleSave() {
     setError(null)
-    if (!isEdit && !familyId) {
+    if (!isEdit && !selectedFamilyId) {
       setError('Pilih keluarga.')
       return
     }
@@ -160,7 +164,7 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
       onClose()
     } else {
       const { error: iErr } = await supabase.from('children').insert({
-        family_id: familyId,
+        family_id: selectedFamilyId,
         full_name: fullName.trim(),
         birthdate: birthdate || null,
         notes: notes.trim() || null,
@@ -234,13 +238,13 @@ export function ChildDialog({ open, child, onClose, onSaved }: Props) {
             </Button>
           </Box>
 
-          {!isEdit ? (
+          {!isEdit && !lockedFamilyId ? (
             <TextField
               size="small"
               select
               label="Keluarga"
-              value={familyId}
-              onChange={(e) => setFamilyId(e.target.value)}
+              value={selectedFamilyId}
+              onChange={(e) => setSelectedFamilyId(e.target.value)}
               required
               fullWidth
             >

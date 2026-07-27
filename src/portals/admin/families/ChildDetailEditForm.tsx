@@ -1,0 +1,292 @@
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Divider,
+  FormControlLabel,
+  MenuItem,
+  Switch,
+  TextField,
+  Typography,
+} from '@mui/material'
+import { supabase } from '../../../lib/supabase'
+import type { ChildRow } from '../../../types/child'
+import { uploadProfilePhoto } from '../../../lib/uploadProfilePhoto'
+
+export type ChildDetailEditFormHandle = {
+  save: () => Promise<void>
+}
+
+type Group = { id: string; label: string }
+type CurrentEnrollment = { enrollmentId: string; groupId: string; groupLabel: string }
+
+type Props = {
+  child: ChildRow
+  onSaved: () => void
+  hideActions?: boolean
+  onBusyChange?: (busy: { saving: boolean }) => void
+}
+
+export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(function ChildDetailEditForm(
+  { child, onSaved, hideActions = false, onBusyChange },
+  ref,
+) {
+  const [fullName, setFullName] = useState('')
+  const [birthdate, setBirthdate] = useState('')
+  const [notes, setNotes] = useState('')
+  const [active, setActive] = useState(true)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const [groups, setGroups] = useState<Group[]>([])
+  const [current, setCurrent] = useState<CurrentEnrollment | null>(null)
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [endReason, setEndReason] = useState('')
+  const [enrolling, setEnrolling] = useState(false)
+
+  const loadEnrollment = async (childId: string) => {
+    const { data } = await supabase
+      .from('children_classrooms')
+      .select('id, classroom_teacher_id, classroom_teachers(classrooms(label), teachers(full_name))')
+      .eq('child_id', childId)
+      .is('ended_at', null)
+      .maybeSingle()
+    if (!data) {
+      setCurrent(null)
+      return
+    }
+    const group = data.classroom_teachers as unknown as
+      | { classrooms: { label: string } | null; teachers: { full_name: string } | null }
+      | null
+    setCurrent({
+      enrollmentId: data.id,
+      groupId: data.classroom_teacher_id,
+      groupLabel: group ? `${group.classrooms?.label ?? '—'} (${group.teachers?.full_name ?? '—'})` : '—',
+    })
+  }
+
+  useEffect(() => {
+    setFullName(child.full_name)
+    setBirthdate(child.birthdate ?? '')
+    setNotes(child.notes ?? '')
+    setActive(child.active)
+    setPhotoFile(null)
+    setPhotoPreviewUrl(child.photo_url ?? null)
+    setError(null)
+    setSelectedGroupId('')
+    setEndReason('')
+    setCurrent(null)
+
+    void supabase
+      .from('classroom_teachers')
+      .select('id, classrooms(label), teachers(full_name)')
+      .then(({ data }) => {
+        const options: Group[] = (data ?? []).map((row) => {
+          const classroom = row.classrooms as unknown as { label: string } | null
+          const teacher = row.teachers as unknown as { full_name: string } | null
+          return { id: row.id, label: `${classroom?.label ?? '—'} (${teacher?.full_name ?? '—'})` }
+        })
+        setGroups(options)
+      })
+    void loadEnrollment(child.id)
+  }, [child])
+
+  useEffect(() => {
+    onBusyChange?.({ saving })
+  }, [saving, onBusyChange])
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreviewUrl(URL.createObjectURL(file))
+  }
+
+  async function handleSave() {
+    setError(null)
+    if (!fullName.trim()) {
+      setError('Masukkan nama lengkap siswa.')
+      return
+    }
+
+    setSaving(true)
+
+    let photoUrl = child.photo_url
+    if (photoFile) {
+      try {
+        photoUrl = await uploadProfilePhoto('child-photos', 'children', photoFile)
+      } catch (e) {
+        setSaving(false)
+        setError(e instanceof Error ? e.message : 'Gagal mengunggah foto.')
+        return
+      }
+    }
+
+    const { error: uErr } = await supabase
+      .from('children')
+      .update({
+        full_name: fullName.trim(),
+        birthdate: birthdate || null,
+        notes: notes.trim() || null,
+        active,
+        photo_url: photoUrl,
+      })
+      .eq('id', child.id)
+    setSaving(false)
+    if (uErr) {
+      setError(uErr.message)
+      return
+    }
+    onSaved()
+  }
+
+  useImperativeHandle(ref, () => ({
+    save: () => handleSave(),
+  }))
+
+  async function handleEnroll() {
+    if (!selectedGroupId) return
+    setEnrolling(true)
+    setError(null)
+    const { error: rpcErr } = await supabase.rpc('enroll_child_in_classroom', {
+      p_child_id: child.id,
+      p_classroom_teacher_id: selectedGroupId,
+    })
+    setEnrolling(false)
+    if (rpcErr) {
+      setError(rpcErr.message)
+      return
+    }
+    setSelectedGroupId('')
+    await loadEnrollment(child.id)
+    onSaved()
+  }
+
+  async function handleSwitch() {
+    if (!selectedGroupId) return
+    setEnrolling(true)
+    setError(null)
+    const { error: rpcErr } = await supabase.rpc('switch_classroom', {
+      p_child_id: child.id,
+      p_new_classroom_teacher_id: selectedGroupId,
+      p_end_reason: endReason.trim() || null,
+    })
+    setEnrolling(false)
+    if (rpcErr) {
+      setError(rpcErr.message)
+      return
+    }
+    setSelectedGroupId('')
+    setEndReason('')
+    await loadEnrollment(child.id)
+    onSaved()
+  }
+
+  return (
+    <Box>
+      {error ? (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      ) : null}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Avatar src={photoPreviewUrl ?? undefined} sx={{ width: 64, height: 64 }}>
+            {fullName ? fullName.charAt(0).toUpperCase() : '?'}
+          </Avatar>
+          <Button variant="outlined" component="label" size="small">
+            Unggah Foto
+            <input type="file" accept="image/*" hidden onChange={handlePhotoChange} />
+          </Button>
+        </Box>
+
+        <TextField
+          size="small"
+          label="Nama Lengkap"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          required
+          fullWidth
+        />
+        <TextField
+          size="small"
+          label="Tanggal Lahir"
+          type="date"
+          value={birthdate}
+          onChange={(e) => setBirthdate(e.target.value)}
+          fullWidth
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+        <TextField
+          size="small"
+          label="Catatan"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          multiline
+          minRows={3}
+          fullWidth
+        />
+
+        <FormControlLabel
+          control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
+          label="Saat ini terdaftar di pusat"
+        />
+
+        <Divider />
+        <Typography variant="subtitle2">Kelas</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {current ? `Saat ini di: ${current.groupLabel}` : 'Belum terdaftar di kelas manapun.'}
+        </Typography>
+        <TextField
+          size="small"
+          select
+          label={current ? 'Pindah kelas' : 'Daftarkan ke kelas'}
+          value={selectedGroupId}
+          onChange={(e) => setSelectedGroupId(e.target.value)}
+          fullWidth
+        >
+          {groups
+            .filter((g) => g.id !== current?.groupId)
+            .map((g) => (
+              <MenuItem key={g.id} value={g.id}>
+                {g.label}
+              </MenuItem>
+            ))}
+        </TextField>
+        {current ? (
+          <TextField
+            size="small"
+            label="Alasan pindah (opsional)"
+            value={endReason}
+            onChange={(e) => setEndReason(e.target.value)}
+            fullWidth
+          />
+        ) : null}
+        <Button
+          variant="outlined"
+          disabled={!selectedGroupId || enrolling}
+          onClick={() => void (current ? handleSwitch() : handleEnroll())}
+          sx={{ alignSelf: 'flex-start' }}
+        >
+          {enrolling ? 'Menyimpan…' : current ? 'Pindah Kelas' : 'Daftarkan'}
+        </Button>
+
+        {hideActions ? null : (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+            <Button
+              variant="contained"
+              onClick={() => void handleSave()}
+              disabled={saving || enrolling || !fullName.trim()}
+            >
+              {saving ? 'Menyimpan…' : 'Simpan'}
+            </Button>
+          </Box>
+        )}
+      </Box>
+    </Box>
+  )
+})
