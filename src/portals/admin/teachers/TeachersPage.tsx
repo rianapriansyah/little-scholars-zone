@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
@@ -56,6 +56,19 @@ export function TeachersPage() {
 
   const columns: GridColDef<TeacherRow>[] = useMemo(
     () => [
+      {
+        field: 'photo_url',
+        headerName: 'Foto',
+        width: 64,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: (params) => (
+          <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
+            {params.row.full_name.charAt(0).toUpperCase()}
+          </Avatar>
+        ),
+      },
       { field: 'full_name', headerName: 'Guru', flex: 1, minWidth: 160 },
       { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
       { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },

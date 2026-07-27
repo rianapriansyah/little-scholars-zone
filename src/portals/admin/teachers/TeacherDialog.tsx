@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   Switch,
   TextField,
+  Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { createTeacherAccount } from '../../../lib/createTeacherAccount'
@@ -21,6 +24,18 @@ type Props = {
   teacher: TeacherRow | null
   onClose: () => void
   onSaved: () => void
+}
+
+const EDUCATION_DELIMITER = ' | '
+
+function splitEducation(education: string | null): [string, string, string] {
+  if (!education) return ['', '', '']
+  const parts = education.split(EDUCATION_DELIMITER)
+  return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? '']
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10)
 }
 
 export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
@@ -35,6 +50,14 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
   const [generating, setGenerating] = useState(false)
   const [credentials, setCredentials] = useState<{ email: string; password: string; reused?: boolean } | null>(null)
 
+  const [educationLevel, setEducationLevel] = useState('')
+  const [educationSchool, setEducationSchool] = useState('')
+  const [educationYear, setEducationYear] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [startWorkingAt, setStartWorkingAt] = useState('')
+  const [endWorkingAt, setEndWorkingAt] = useState('')
+
   const phoneDigits = phone.replace(/\D/g, '')
 
   useEffect(() => {
@@ -44,11 +67,41 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     setPhone(teacher?.contact_phone ?? '')
     setActive(teacher?.active ?? true)
     setError(null)
+
+    const [level, school, year] = splitEducation(teacher?.education ?? null)
+    setEducationLevel(level)
+    setEducationSchool(school)
+    setEducationYear(year)
+    setPhotoFile(null)
+    setPhotoPreviewUrl(teacher?.photo_url ?? null)
+    setStartWorkingAt(teacher?.start_working_at ?? todayIsoDate())
+    setEndWorkingAt(teacher?.end_working_at ?? '')
   }, [open, teacher])
 
   const handleClose = () => {
     if (saving || generating) return
     onClose()
+  }
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreviewUrl(URL.createObjectURL(file))
+  }
+
+  async function uploadPhoto(): Promise<string> {
+    if (!photoFile) throw new Error('No photo selected')
+    const ext = photoFile.name.split('.').pop() ?? 'jpg'
+    const path = `teachers/${crypto.randomUUID()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('teacher-photos').upload(path, photoFile)
+    if (upErr) throw upErr
+    return supabase.storage.from('teacher-photos').getPublicUrl(path).data.publicUrl
+  }
+
+  function composeEducation(): string | null {
+    if (!educationLevel.trim() && !educationSchool.trim() && !educationYear.trim()) return null
+    return [educationLevel.trim(), educationSchool.trim(), educationYear.trim()].join(EDUCATION_DELIMITER)
   }
 
   async function handleSave() {
@@ -67,10 +120,29 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     }
 
     setSaving(true)
+
+    let photoUrl = teacher?.photo_url ?? null
+    if (photoFile) {
+      try {
+        photoUrl = await uploadPhoto()
+      } catch (e) {
+        setSaving(false)
+        setError(e instanceof Error ? e.message : 'Gagal mengunggah foto.')
+        return
+      }
+    }
+
+    const extras = {
+      education: composeEducation(),
+      photo_url: photoUrl,
+      start_working_at: startWorkingAt || todayIsoDate(),
+      end_working_at: endWorkingAt || null,
+    }
+
     if (isEdit) {
       const { error: uErr } = await supabase
         .from('teachers')
-        .update({ full_name: fullName.trim(), contact_phone: phone.trim() || null, active })
+        .update({ full_name: fullName.trim(), contact_phone: phone.trim() || null, active, ...extras })
         .eq('id', teacher.id)
       setSaving(false)
       if (uErr) {
@@ -81,11 +153,13 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
       onClose()
     } else {
       const result = await createTeacherAccount({ fullName, email, phone })
-      setSaving(false)
       if (!result.ok) {
+        setSaving(false)
         setError(result.message)
         return
       }
+      await supabase.from('teachers').update(extras).eq('email', email.trim().toLowerCase())
+      setSaving(false)
       setCredentials({ email: email.trim().toLowerCase(), password: result.password })
     }
   }
@@ -124,6 +198,16 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
             </Alert>
           ) : null}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar src={photoPreviewUrl ?? undefined} sx={{ width: 64, height: 64 }}>
+                {fullName ? fullName.charAt(0).toUpperCase() : '?'}
+              </Avatar>
+              <Button variant="outlined" component="label" size="small">
+                Unggah Foto
+                <input type="file" accept="image/*" hidden onChange={handlePhotoChange} />
+              </Button>
+            </Box>
+
             {isEdit ? (
               <TextField size="small" label="Email" value={teacher.email} disabled fullWidth />
             ) : (
@@ -155,6 +239,55 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
               fullWidth
               helperText="Detail login dikirim ke nomor ini melalui WhatsApp."
             />
+
+            <Divider />
+            <Typography variant="subtitle2">Pendidikan</Typography>
+            <TextField
+              size="small"
+              label="Pendidikan Terakhir"
+              value={educationLevel}
+              onChange={(e) => setEducationLevel(e.target.value)}
+              placeholder="SMA, S1, S2, ..."
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Sekolah/Universitas"
+              value={educationSchool}
+              onChange={(e) => setEducationSchool(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Tahun Lulus"
+              value={educationYear}
+              onChange={(e) => setEducationYear(e.target.value)}
+              fullWidth
+            />
+
+            <Divider />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <TextField
+                size="small"
+                label="Mulai Bekerja"
+                type="date"
+                value={startWorkingAt}
+                onChange={(e) => setStartWorkingAt(e.target.value)}
+                fullWidth
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                size="small"
+                label="Selesai Bekerja"
+                type="date"
+                value={endWorkingAt}
+                onChange={(e) => setEndWorkingAt(e.target.value)}
+                fullWidth
+                helperText="Kosongkan jika guru masih aktif bekerja."
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Box>
+
             {isEdit ? (
               <>
                 <FormControlLabel

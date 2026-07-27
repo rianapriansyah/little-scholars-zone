@@ -103,6 +103,10 @@ export type Database = {
           auth_user_id: string | null
           active: boolean
           created_at: string | null
+          education: string | null
+          photo_url: string | null
+          start_working_at: string
+          end_working_at: string | null
         }
         Insert: {
           id?: string
@@ -112,6 +116,10 @@ export type Database = {
           auth_user_id?: string | null
           active?: boolean
           created_at?: string | null
+          education?: string | null
+          photo_url?: string | null
+          start_working_at?: string
+          end_working_at?: string | null
         }
         Update: {
           id?: string
@@ -121,6 +129,10 @@ export type Database = {
           auth_user_id?: string | null
           active?: boolean
           created_at?: string | null
+          education?: string | null
+          photo_url?: string | null
+          start_working_at?: string
+          end_working_at?: string | null
         }
         Relationships: []
       }
