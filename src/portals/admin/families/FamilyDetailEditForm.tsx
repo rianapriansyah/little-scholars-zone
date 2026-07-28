@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { Alert, Box, Button, TextField, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { createFamilyAccount } from '../../../lib/createFamilyAccount'
+import { familyEmailDomain, familyEmailLocalPart, generateUniqueFamilyEmail } from '../../../lib/familyEmail'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { FamilyRow } from '../../../types/family'
 
@@ -75,12 +76,16 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
 
   async function handleSave() {
     setError(null)
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (isEdit && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Masukkan alamat email yang valid.')
       return
     }
     if (!phoneDigits) {
       setError('Masukkan nomor telepon kontak — digunakan untuk mengirim info login melalui WhatsApp.')
+      return
+    }
+    if (!isEdit && !familyEmailLocalPart(name)) {
+      setError('Masukkan nama keluarga untuk membuat email login.')
       return
     }
 
@@ -102,7 +107,8 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       }
       onSaved()
     } else {
-      const result = await createFamilyAccount({ name, email, phone })
+      const generatedEmail = await generateUniqueFamilyEmail(name)
+      const result = await createFamilyAccount({ name, email: generatedEmail, phone })
       if (!result.ok) {
         setSaving(false)
         setError(result.message)
@@ -112,11 +118,11 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       // Patch the extra fields onto the newly created family row (looked up by email).
       const hasExtras = Object.values(extras).some((v) => v !== null)
       if (hasExtras) {
-        await supabase.from('families').update(extras).eq('contact_email', email.trim().toLowerCase())
+        await supabase.from('families').update(extras).eq('contact_email', generatedEmail)
       }
 
       setSaving(false)
-      setCredentials({ email: email.trim().toLowerCase(), password: result.password })
+      setCredentials({ email: generatedEmail, password: result.password })
     }
   }
 
@@ -166,16 +172,27 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           required
           fullWidth
         />
-        <TextField
-          size="small"
-          label="Email Kontak"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          fullWidth
-          helperText="Digunakan sebagai email login orang tua."
-        />
+        {isEdit ? (
+          <TextField
+            size="small"
+            label="Email Kontak"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            fullWidth
+            helperText="Digunakan sebagai email login orang tua."
+          />
+        ) : (
+          <TextField
+            size="small"
+            label="Email Login (Otomatis)"
+            value={name.trim() ? `${familyEmailLocalPart(name)}@${familyEmailDomain()}` : ''}
+            fullWidth
+            disabled
+            helperText="Dibuat otomatis dari Nama Keluarga (mis. Rian Apriansyah → rianapr@lsz.id)."
+          />
+        )}
         <TextField
           size="small"
           label="Telepon Kontak"
@@ -264,7 +281,13 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
             <Button
               variant="contained"
               onClick={() => void handleSave()}
-              disabled={saving || generating || !name.trim() || !email.trim() || !phoneDigits}
+              disabled={
+                saving ||
+                generating ||
+                !name.trim() ||
+                !phoneDigits ||
+                (isEdit ? !email.trim() : !familyEmailLocalPart(name))
+              }
             >
               {isEdit ? (saving ? 'Menyimpan…' : 'Simpan') : saving ? 'Membuat…' : 'Simpan & Buat Login'}
             </Button>
