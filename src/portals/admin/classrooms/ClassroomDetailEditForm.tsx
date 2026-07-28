@@ -202,7 +202,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
               value={timeStart}
               onChange={(e) => setTimeStart(e.target.value)}
               fullWidth
-              slotProps={{ inputLabel: { shrink: true } }}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 1800 } }}
             />
             <TextField
               size="small"
@@ -211,7 +211,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
               value={timeEnd}
               onChange={(e) => setTimeEnd(e.target.value)}
               fullWidth
-              slotProps={{ inputLabel: { shrink: true } }}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 1800 } }}
             />
           </Box>
 
