@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Avatar, Box, Button, Chip, Paper, Typography } from '@mui/material'
-import { DataGrid, type GridColDef } from '@mui/x-data-grid'
+import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
+import { SendWhatsAppDialog } from '../../../components/SendWhatsAppDialog'
 import { supabase } from '../../../lib/supabase'
 import type { TeacherRow } from '../../../types/teacher'
-import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { TeacherDialog } from './TeacherDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
@@ -20,6 +20,7 @@ export function TeachersPage() {
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTeacher, setEditTeacher] = useState<TeacherRow | null>(null)
+  const [waTeacher, setWaTeacher] = useState<TeacherRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -54,24 +55,33 @@ export function TeachersPage() {
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
+  const handleCellClick = (params: GridCellParams<TeacherRow>) => {
+    if (params.field === 'contact_phone') {
+      setWaTeacher(params.row)
+      return
+    }
+    setEditTeacher(params.row)
+    setDialogOpen(true)
+  }
+
   const columns: GridColDef<TeacherRow>[] = useMemo(
     () => [
       {
-        field: 'photo_url',
-        headerName: 'Foto',
-        width: 64,
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
+        field: 'full_name',
+        headerName: 'Guru',
+        flex: 1,
+        minWidth: 200,
         renderCell: (params) => (
-          <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
-            {params.row.full_name.charAt(0).toUpperCase()}
-          </Avatar>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
+            <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
+              {params.row.full_name.charAt(0).toUpperCase()}
+            </Avatar>
+            <Typography variant="body2">{params.row.full_name}</Typography>
+          </Box>
         ),
       },
-      { field: 'full_name', headerName: 'Guru', flex: 1, minWidth: 160 },
-      { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
       { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
+      { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
       {
         field: 'active',
         headerName: 'Status',
@@ -93,24 +103,6 @@ export function TeachersPage() {
           ) : (
             <Chip size="small" label="Belum Diundang" color="default" variant="outlined" />
           ),
-      },
-      {
-        field: 'actions',
-        headerName: 'Aksi',
-        width: 72,
-        align: 'right',
-        headerAlign: 'right',
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        renderCell: (params) => (
-          <DataGridUpdateIconButton
-            onClick={() => {
-              setEditTeacher(params.row)
-              setDialogOpen(true)
-            }}
-          />
-        ),
       },
     ],
     [],
@@ -163,7 +155,8 @@ export function TeachersPage() {
               pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
               disableRowSelectionOnClick
               autoHeight
-              sx={{ border: 'none' }}
+              onCellClick={handleCellClick}
+              sx={{ border: 'none', '& .MuiDataGrid-cell': { cursor: 'pointer' } }}
             />
           </Paper>
         </Box>
@@ -173,6 +166,12 @@ export function TeachersPage() {
         teacher={editTeacher}
         onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
+      />
+      <SendWhatsAppDialog
+        open={waTeacher !== null}
+        name={waTeacher?.full_name ?? ''}
+        phone={waTeacher?.contact_phone ?? null}
+        onClose={() => setWaTeacher(null)}
       />
     </Box>
   )
