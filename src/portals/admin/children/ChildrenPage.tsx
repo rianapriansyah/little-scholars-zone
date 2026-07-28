@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Avatar, Box, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
+import dayjs from 'dayjs'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
+import { formatAge } from '../../../lib/calculateAge'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
@@ -88,14 +90,26 @@ export function ChildrenPage() {
         headerName: 'Siswa',
         flex: 1,
         minWidth: 200,
-        renderCell: (params) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
-            <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
-              {params.row.full_name.charAt(0).toUpperCase()}
-            </Avatar>
-            <Typography variant="body2">{params.row.full_name}</Typography>
-          </Box>
-        ),
+        renderCell: (params) => {
+          const age = params.row.birthdate ? formatAge(dayjs(params.row.birthdate)) : null
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
+              <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
+                {params.row.full_name.charAt(0).toUpperCase()}
+              </Avatar>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
+                <Typography variant="body2" noWrap>
+                  {params.row.full_name}
+                </Typography>
+                {age ? (
+                  <Typography variant="caption" color="text.secondary" noWrap>
+                    ({age})
+                  </Typography>
+                ) : null}
+              </Box>
+            </Box>
+          )
+        },
       },
       {
         field: 'classroomLabel',
