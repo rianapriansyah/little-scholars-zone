@@ -3,6 +3,7 @@ import { Alert, Box, Button, TextField, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { createFamilyAccount } from '../../../lib/createFamilyAccount'
 import { familyEmailDomain, familyEmailLocalPart, generateUniqueFamilyEmail } from '../../../lib/familyEmail'
+import { toTitleCase } from '../../../lib/textCase'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { FamilyRow } from '../../../types/family'
 
@@ -169,6 +170,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           label="Nama Keluarga"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onBlur={() => setName((v) => toTitleCase(v))}
           required
           fullWidth
         />
@@ -209,6 +211,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           label="Nama Ayah"
           value={fatherName}
           onChange={(e) => setFatherName(e.target.value)}
+          onBlur={() => setFatherName((v) => toTitleCase(v))}
           fullWidth
         />
         <TextField
@@ -216,6 +219,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           label="Pekerjaan Ayah"
           value={fatherOccupation}
           onChange={(e) => setFatherOccupation(e.target.value)}
+          onBlur={() => setFatherOccupation((v) => toTitleCase(v))}
           fullWidth
         />
         <TextField
@@ -232,6 +236,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           label="Nama Ibu"
           value={motherName}
           onChange={(e) => setMotherName(e.target.value)}
+          onBlur={() => setMotherName((v) => toTitleCase(v))}
           fullWidth
         />
         <TextField
@@ -239,6 +244,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           label="Pekerjaan Ibu"
           value={motherOccupation}
           onChange={(e) => setMotherOccupation(e.target.value)}
+          onBlur={() => setMotherOccupation((v) => toTitleCase(v))}
           fullWidth
         />
         <TextField
@@ -255,6 +261,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           label="Alamat"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
+          onBlur={() => setAddress((v) => toTitleCase(v))}
           fullWidth
           multiline
           rows={2}

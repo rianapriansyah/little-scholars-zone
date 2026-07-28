@@ -15,10 +15,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import dayjs, { type Dayjs } from 'dayjs'
 import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { uploadProfilePhoto } from '../../../lib/uploadProfilePhoto'
+import { formatAge } from '../../../lib/calculateAge'
 
 type Group = { id: string; label: string }
 type CurrentEnrollment = { enrollmentId: string; groupId: string; groupLabel: string }
@@ -38,7 +41,8 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
   const [families, setFamilies] = useState<FamilyRow[]>([])
   const [selectedFamilyId, setSelectedFamilyId] = useState('')
   const [fullName, setFullName] = useState('')
-  const [birthdate, setBirthdate] = useState('')
+  const [birthPlace, setBirthPlace] = useState('')
+  const [birthdate, setBirthdate] = useState<Dayjs | null>(null)
   const [notes, setNotes] = useState('')
   const [active, setActive] = useState(true)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -76,7 +80,8 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
   useEffect(() => {
     if (!open) return
     setFullName(child?.full_name ?? '')
-    setBirthdate(child?.birthdate ?? '')
+    setBirthPlace(child?.birth_place ?? '')
+    setBirthdate(child?.birthdate ? dayjs(child.birthdate) : null)
     setNotes(child?.notes ?? '')
     setActive(child?.active ?? true)
     setSelectedFamilyId(lockedFamilyId ?? '')
@@ -149,7 +154,8 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
         .from('children')
         .update({
           full_name: fullName.trim(),
-          birthdate: birthdate || null,
+          birth_place: birthPlace.trim() || null,
+          birthdate: birthdate?.isValid() ? birthdate.format('YYYY-MM-DD') : null,
           notes: notes.trim() || null,
           active,
           photo_url: photoUrl,
@@ -166,7 +172,8 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
       const { error: iErr } = await supabase.from('children').insert({
         family_id: selectedFamilyId,
         full_name: fullName.trim(),
-        birthdate: birthdate || null,
+        birth_place: birthPlace.trim() || null,
+        birthdate: birthdate?.isValid() ? birthdate.format('YYYY-MM-DD') : null,
         notes: notes.trim() || null,
         photo_url: photoUrl,
       })
@@ -265,13 +272,23 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
           />
           <TextField
             size="small"
-            label="Tanggal Lahir"
-            type="date"
-            value={birthdate}
-            onChange={(e) => setBirthdate(e.target.value)}
+            label="Tempat Lahir"
+            value={birthPlace}
+            onChange={(e) => setBirthPlace(e.target.value)}
             fullWidth
-            slotProps={{ inputLabel: { shrink: true } }}
           />
+          <DatePicker
+            label="Tanggal Lahir"
+            value={birthdate}
+            onChange={setBirthdate}
+            format="DD-MM-YYYY"
+            slotProps={{ textField: { size: 'small', fullWidth: true } }}
+          />
+          {formatAge(birthdate) ? (
+            <Typography variant="body2" color="text.secondary">
+              Usia: {formatAge(birthdate)}
+            </Typography>
+          ) : null}
           <TextField
             size="small"
             label="Catatan"

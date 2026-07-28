@@ -70,6 +70,7 @@ export type Database = {
           family_id: string
           full_name: string
           birthdate: string | null
+          birth_place: string | null
           notes: string | null
           active: boolean
           created_at: string | null
@@ -80,6 +81,7 @@ export type Database = {
           family_id: string
           full_name: string
           birthdate?: string | null
+          birth_place?: string | null
           notes?: string | null
           active?: boolean
           created_at?: string | null
@@ -90,6 +92,7 @@ export type Database = {
           family_id?: string
           full_name?: string
           birthdate?: string | null
+          birth_place?: string | null
           notes?: string | null
           active?: boolean
           created_at?: string | null
