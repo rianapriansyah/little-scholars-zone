@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import DeleteIcon from '@mui/icons-material/DeleteOutline'
-import { Alert, Box, Button, Chip, IconButton, Paper, Tooltip, Typography } from '@mui/material'
+import { useNavigate } from 'react-router-dom'
+import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { ClassroomRow } from '../../../types/classroom'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
-import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ClassroomDialog } from './ClassroomDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
@@ -19,15 +18,13 @@ function classroomSearchBlob(row: ClassroomView): string {
 }
 
 export function ClassroomsPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<ClassroomView[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editClassroom, setEditClassroom] = useState<ClassroomRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<ClassroomView | null>(null)
-  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,23 +80,6 @@ export function ClassroomsPage() {
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return
-    setDeleting(true)
-    const { error: dErr } = await supabase.from('classrooms').delete().eq('id', deleteTarget.id)
-    setDeleting(false)
-    setDeleteTarget(null)
-    if (dErr) {
-      setError(
-        dErr.code === '23503'
-          ? 'Tidak dapat dihapus: kelas ini memiliki riwayat pendaftaran siswa. Nonaktifkan saja.'
-          : dErr.message,
-      )
-      return
-    }
-    void load()
-  }
-
   const columns: GridColDef<ClassroomView>[] = useMemo(
     () => [
       { field: 'label', headerName: 'Kelas', flex: 1, minWidth: 200 },
@@ -130,38 +110,22 @@ export function ClassroomsPage() {
       {
         field: 'actions',
         headerName: 'Aksi',
-        width: 104,
+        width: 72,
         align: 'right',
         headerAlign: 'right',
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
         renderCell: (params) => (
-          <>
-            <DataGridUpdateIconButton
-              onClick={() => {
-                setEditClassroom(params.row)
-                setDialogOpen(true)
-              }}
-            />
-            <Tooltip title="Hapus">
-              <IconButton
-                size="small"
-                aria-label="Delete"
-                sx={{ my: 0.5 }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDeleteTarget(params.row)
-                }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </>
+          <DataGridUpdateIconButton
+            onClick={() => {
+              navigate(`/admin/classrooms/${params.row.id}`)
+            }}
+          />
         ),
       },
     ],
-    [],
+    [navigate],
   )
 
   return (
@@ -184,10 +148,7 @@ export function ClassroomsPage() {
           variant="contained"
           fullWidth
           sx={{ maxWidth: { xs: '100%', sm: 200 } }}
-          onClick={() => {
-            setEditClassroom(null)
-            setDialogOpen(true)
-          }}
+          onClick={() => setDialogOpen(true)}
         >
           Tambah Kelas
         </Button>
@@ -211,25 +172,13 @@ export function ClassroomsPage() {
               pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
               disableRowSelectionOnClick
               autoHeight
-              sx={{ border: 'none' }}
+              onRowClick={(params) => navigate(`/admin/classrooms/${params.id}`)}
+              sx={{ border: 'none', '& .MuiDataGrid-row': { cursor: 'pointer' } }}
             />
           </Paper>
         </Box>
       )}
-      <ClassroomDialog
-        open={dialogOpen}
-        classroom={editClassroom}
-        onClose={() => setDialogOpen(false)}
-        onSaved={() => void load()}
-      />
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title="Hapus Kelas"
-        description={`Hapus "${deleteTarget?.label}"? Tindakan ini tidak dapat dibatalkan.`}
-        confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={() => void handleDelete()}
-      />
+      <ClassroomDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
     </Box>
   )
 }
