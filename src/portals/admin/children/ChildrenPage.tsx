@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Avatar, Box, Button, Chip, Paper, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
-import { ChildDialog } from './ChildDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -22,7 +21,6 @@ export function ChildrenPage() {
   const [rows, setRows] = useState<ChildView[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -136,17 +134,6 @@ export function ChildrenPage() {
         loading={loading}
       />
 
-      <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' }, mb: 2 }}>
-        <Button
-          variant="contained"
-          fullWidth
-          sx={{ maxWidth: { xs: '100%', sm: 200 } }}
-          onClick={() => setDialogOpen(true)}
-        >
-          Tambah Siswa
-        </Button>
-      </Box>
-
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!loading && rows.length === 0 ? (
         <Typography color="text.secondary">Belum ada siswa.</Typography>
@@ -173,7 +160,6 @@ export function ChildrenPage() {
           </Paper>
         </Box>
       )}
-      <ChildDialog open={dialogOpen} child={null} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
     </Box>
   )
 }

@@ -5,7 +5,6 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { ClassroomRow } from '../../../types/classroom'
-import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { ClassroomDialog } from './ClassroomDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
@@ -107,25 +106,8 @@ export function ClassroomsPage() {
             <Chip size="small" label="Nonaktif" color="default" variant="outlined" />
           ),
       },
-      {
-        field: 'actions',
-        headerName: 'Aksi',
-        width: 72,
-        align: 'right',
-        headerAlign: 'right',
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        renderCell: (params) => (
-          <DataGridUpdateIconButton
-            onClick={() => {
-              navigate(`/admin/classrooms/${params.row.id}`)
-            }}
-          />
-        ),
-      },
     ],
-    [navigate],
+    [],
   )
 
   return (

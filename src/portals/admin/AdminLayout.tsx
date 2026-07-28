@@ -7,15 +7,13 @@ const NAV: PortalNavItem[] = [
   { to: '/admin/children', label: 'Siswa' },
   { to: '/admin/teachers', label: 'Guru' },
   { to: '/admin/classrooms', label: 'Kelas' },
-  { to: '/admin/classroom-assignments', label: 'Penugasan' },
+  { to: '/admin/kelola-akun', label: 'Kelola Akun' },
 ]
-
-const BOTTOM_NAV: PortalNavItem[] = [{ to: '/admin/kelola-akun', label: 'Kelola Akun' }]
 
 export function AdminLayout() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <PortalLayout title="Little Schoolars Zone — Admin" navItems={NAV} bottomNavItems={BOTTOM_NAV} />
+      <PortalLayout title="Little Schoolars Zone — Admin" navItems={NAV} />
     </LocalizationProvider>
   )
 }

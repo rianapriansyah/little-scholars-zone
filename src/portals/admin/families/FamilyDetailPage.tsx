@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom'
-import { Alert, Box, Breadcrumbs, CircularProgress, Link, Paper, Tab, Tabs, Typography } from '@mui/material'
+import { Alert, Box, Breadcrumbs, Button, CircularProgress, Link, Paper, Tab, Tabs, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import type { FamilyRow } from '../../../types/family'
 import { FamilyDetailEditForm } from './FamilyDetailEditForm'
 import { FamilyChildrenTab } from './FamilyChildrenTab'
+import { ChildDialog } from '../children/ChildDialog'
 
 export function FamilyDetailPage() {
   const { familyId } = useParams<{ familyId: string }>()
@@ -14,6 +15,8 @@ export function FamilyDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState(0)
+  const [addChildOpen, setAddChildOpen] = useState(false)
+  const [childrenRefreshKey, setChildrenRefreshKey] = useState(0)
 
   const load = useCallback(async () => {
     if (!familyId) {
@@ -88,6 +91,12 @@ export function FamilyDetailPage() {
         {family.name}
       </Typography>
 
+      <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
+        <Button variant="contained" onClick={() => setAddChildOpen(true)}>
+          Tambah Data Anak
+        </Button>
+      </Box>
+
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
         <Tabs
           value={tab}
@@ -100,10 +109,19 @@ export function FamilyDetailPage() {
           <Tab label="Data Keluarga" />
         </Tabs>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          {tab === 0 ? <FamilyChildrenTab familyId={familyId} initialExpandedId={focusChildId} /> : null}
+          {tab === 0 ? (
+            <FamilyChildrenTab familyId={familyId} initialExpandedId={focusChildId} refreshKey={childrenRefreshKey} />
+          ) : null}
           {tab === 1 ? <FamilyDetailEditForm family={family} onSaved={() => void load()} /> : null}
         </Box>
       </Paper>
+      <ChildDialog
+        open={addChildOpen}
+        child={null}
+        familyId={familyId}
+        onClose={() => setAddChildOpen(false)}
+        onSaved={() => setChildrenRefreshKey((k) => k + 1)}
+      />
     </Box>
   )
 }

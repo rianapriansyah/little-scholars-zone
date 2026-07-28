@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Avatar, Box, Button, Typography } from '@mui/material'
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Avatar, Box, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import { ChildDetailEditForm } from './ChildDetailEditForm'
-import { ChildDialog } from '../children/ChildDialog'
 
 type Props = {
   familyId: string
   /** Pre-expands this child's accordion (e.g. arriving from the Siswa grid). */
   initialExpandedId?: string
+  /** Bump to force a re-fetch (e.g. after adding a child from the page-level button). */
+  refreshKey?: number
 }
 
-export function FamilyChildrenTab({ familyId, initialExpandedId }: Props) {
+export function FamilyChildrenTab({ familyId, initialExpandedId, refreshKey }: Props) {
   const [children, setChildren] = useState<ChildRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | false>(initialExpandedId ?? false)
-  const [addOpen, setAddOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -37,16 +37,10 @@ export function FamilyChildrenTab({ familyId, initialExpandedId }: Props) {
 
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, refreshKey])
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button variant="contained" onClick={() => setAddOpen(true)}>
-          Tambah Anak
-        </Button>
-      </Box>
-
       {error ? (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
@@ -79,14 +73,6 @@ export function FamilyChildrenTab({ familyId, initialExpandedId }: Props) {
           </Accordion>
         ))
       )}
-
-      <ChildDialog
-        open={addOpen}
-        child={null}
-        familyId={familyId}
-        onClose={() => setAddOpen(false)}
-        onSaved={() => void load()}
-      />
     </Box>
   )
 }

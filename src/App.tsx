@@ -14,7 +14,6 @@ import { ChildrenPage } from './portals/admin/children/ChildrenPage'
 import { TeachersPage } from './portals/admin/teachers/TeachersPage'
 import { ClassroomsPage } from './portals/admin/classrooms/ClassroomsPage'
 import { ClassroomDetailPage } from './portals/admin/classrooms/ClassroomDetailPage'
-import { ClassroomAssignmentsPage } from './portals/admin/classrooms/ClassroomAssignmentsPage'
 import { TeacherLayout } from './portals/teacher/TeacherLayout'
 import { TeacherRosterPage } from './portals/teacher/TeacherRosterPage'
 import { ParentLayout } from './portals/parent/ParentLayout'
@@ -38,7 +37,6 @@ export default function App() {
               <Route path="teachers" element={<TeachersPage />} />
               <Route path="classrooms" element={<ClassroomsPage />} />
               <Route path="classrooms/:classroomId" element={<ClassroomDetailPage />} />
-              <Route path="classroom-assignments" element={<ClassroomAssignmentsPage />} />
               <Route path="kelola-akun" element={<ManageAccountPage />} />
             </Route>
           </Route>

@@ -15,7 +15,6 @@ import {
 } from '@mui/material'
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { AppearanceBar } from './AppearanceBar'
 import { useAuth } from '../contexts/AuthContext'
 
 const DRAWER_WIDTH = 260
@@ -25,8 +24,6 @@ export type PortalNavItem = { to: string; label: string }
 type Props = {
   title: string
   navItems: PortalNavItem[]
-  /** Rendered at the bottom of the drawer, separated from navItems by a divider. */
-  bottomNavItems: PortalNavItem[]
 }
 
 /**
@@ -67,7 +64,7 @@ function NavList({
   )
 }
 
-export function PortalLayout({ title, navItems, bottomNavItems }: Props) {
+export function PortalLayout({ title, navItems }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { signOut } = useAuth()
   const navigate = useNavigate()
@@ -76,8 +73,11 @@ export function PortalLayout({ title, navItems, bottomNavItems }: Props) {
   const toggleDrawer = () => setDrawerOpen((open) => !open)
   const closeDrawer = () => setDrawerOpen(false)
 
-  const allTos = [...navItems, ...bottomNavItems].map((item) => item.to)
+  const allTos = navItems.map((item) => item.to)
   const selectedTo = findSelectedTo(pathname, allTos)
+
+  const mainNavItems = navItems.slice(0, -1)
+  const lastNavItem = navItems[navItems.length - 1]
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -132,13 +132,14 @@ export function PortalLayout({ title, navItems, bottomNavItems }: Props) {
           },
         }}
       >
-        <Box sx={{ pt: 1, overflowY: 'auto' }}>
-          <NavList items={navItems} selectedTo={selectedTo} onNavigate={closeDrawer} />
-        </Box>
-        <Box sx={{ flexGrow: 1 }} />
-        <Divider />
-        <Box sx={{ py: 1 }}>
-          <NavList items={bottomNavItems} selectedTo={selectedTo} onNavigate={closeDrawer} />
+        <Box sx={{ py: 1, overflowY: 'auto' }}>
+          <NavList items={mainNavItems} selectedTo={selectedTo} onNavigate={closeDrawer} />
+          {lastNavItem ? (
+            <>
+              <Divider sx={{ my: 1 }} />
+              <NavList items={[lastNavItem]} selectedTo={selectedTo} onNavigate={closeDrawer} />
+            </>
+          ) : null}
         </Box>
       </Drawer>
 
@@ -154,7 +155,6 @@ export function PortalLayout({ title, navItems, bottomNavItems }: Props) {
         }}
       >
         <Toolbar />
-        <AppearanceBar />
         <Outlet />
       </Box>
     </Box>

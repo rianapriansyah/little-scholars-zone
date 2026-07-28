@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Alert, Avatar, Box, Button, Card, CardContent, CircularProgress, Divider, TextField, Typography } from '@mui/material'
+import { AppearanceBar } from '../components/AppearanceBar'
 import { useAuth } from '../contexts/AuthContext'
 import { useTeacherProfile } from '../hooks/useTeacherProfile'
 import { useFamilyProfile } from '../hooks/useFamilyProfile'
@@ -219,6 +220,7 @@ export function ManageAccountPage() {
         Kelola Akun
       </Typography>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <AppearanceBar />
         {role === 'parent' ? <ParentAccountInfo authUserId={user?.id} /> : null}
         {role === 'teacher' ? <TeacherAccountInfo authUserId={user?.id} /> : null}
         {role === 'admin' ? (
