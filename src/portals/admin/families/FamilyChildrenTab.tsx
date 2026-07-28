@@ -8,13 +8,15 @@ import { ChildDialog } from '../children/ChildDialog'
 
 type Props = {
   familyId: string
+  /** Pre-expands this child's accordion (e.g. arriving from the Siswa grid). */
+  initialExpandedId?: string
 }
 
-export function FamilyChildrenTab({ familyId }: Props) {
+export function FamilyChildrenTab({ familyId, initialExpandedId }: Props) {
   const [children, setChildren] = useState<ChildRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<string | false>(false)
+  const [expandedId, setExpandedId] = useState<string | false>(initialExpandedId ?? false)
   const [addOpen, setAddOpen] = useState(false)
 
   const load = useCallback(async () => {

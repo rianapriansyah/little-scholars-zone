@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Alert, Avatar, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
-import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { ChildDialog } from './ChildDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
@@ -18,11 +18,11 @@ function childSearchBlob(row: ChildView): string {
 }
 
 export function ChildrenPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<ChildView[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editChild, setEditChild] = useState<ChildRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -86,20 +86,19 @@ export function ChildrenPage() {
   const columns: GridColDef<ChildView>[] = useMemo(
     () => [
       {
-        field: 'photo_url',
-        headerName: 'Foto',
-        width: 64,
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
+        field: 'full_name',
+        headerName: 'Siswa',
+        flex: 1,
+        minWidth: 200,
         renderCell: (params) => (
-          <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
-            {params.row.full_name.charAt(0).toUpperCase()}
-          </Avatar>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
+            <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
+              {params.row.full_name.charAt(0).toUpperCase()}
+            </Avatar>
+            <Typography variant="body2">{params.row.full_name}</Typography>
+          </Box>
         ),
       },
-      { field: 'full_name', headerName: 'Siswa', flex: 1, minWidth: 160 },
-      { field: 'familyName', headerName: 'Keluarga', flex: 1, minWidth: 160 },
       {
         field: 'classroomLabel',
         headerName: 'Kelas',
@@ -117,24 +116,6 @@ export function ChildrenPage() {
           ) : (
             <Chip size="small" label="Nonaktif" color="default" variant="outlined" />
           ),
-      },
-      {
-        field: 'actions',
-        headerName: 'Aksi',
-        width: 72,
-        align: 'right',
-        headerAlign: 'right',
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        renderCell: (params) => (
-          <DataGridUpdateIconButton
-            onClick={() => {
-              setEditChild(params.row)
-              setDialogOpen(true)
-            }}
-          />
-        ),
       },
     ],
     [],
@@ -160,10 +141,7 @@ export function ChildrenPage() {
           variant="contained"
           fullWidth
           sx={{ maxWidth: { xs: '100%', sm: 200 } }}
-          onClick={() => {
-            setEditChild(null)
-            setDialogOpen(true)
-          }}
+          onClick={() => setDialogOpen(true)}
         >
           Tambah Siswa
         </Button>
@@ -187,17 +165,15 @@ export function ChildrenPage() {
               pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
               disableRowSelectionOnClick
               autoHeight
-              sx={{ border: 'none' }}
+              onRowClick={(params) =>
+                navigate(`/admin/families/${params.row.family_id}`, { state: { focusChildId: params.row.id } })
+              }
+              sx={{ border: 'none', '& .MuiDataGrid-row': { cursor: 'pointer' } }}
             />
           </Paper>
         </Box>
       )}
-      <ChildDialog
-        open={dialogOpen}
-        child={editChild}
-        onClose={() => setDialogOpen(false)}
-        onSaved={() => void load()}
-      />
+      <ChildDialog open={dialogOpen} child={null} onClose={() => setDialogOpen(false)} onSaved={() => void load()} />
     </Box>
   )
 }

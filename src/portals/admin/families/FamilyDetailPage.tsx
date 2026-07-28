@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link as RouterLink, useParams } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useParams } from 'react-router-dom'
 import { Alert, Box, Breadcrumbs, CircularProgress, Link, Paper, Tab, Tabs, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import type { FamilyRow } from '../../../types/family'
@@ -8,6 +8,8 @@ import { FamilyChildrenTab } from './FamilyChildrenTab'
 
 export function FamilyDetailPage() {
   const { familyId } = useParams<{ familyId: string }>()
+  const location = useLocation()
+  const focusChildId = (location.state as { focusChildId?: string } | null)?.focusChildId
   const [family, setFamily] = useState<FamilyRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -98,7 +100,7 @@ export function FamilyDetailPage() {
           <Tab label="Data Keluarga" />
         </Tabs>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          {tab === 0 ? <FamilyChildrenTab familyId={familyId} /> : null}
+          {tab === 0 ? <FamilyChildrenTab familyId={familyId} initialExpandedId={focusChildId} /> : null}
           {tab === 1 ? <FamilyDetailEditForm family={family} onSaved={() => void load()} /> : null}
         </Box>
       </Paper>

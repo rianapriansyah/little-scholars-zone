@@ -29,7 +29,26 @@ type Props = {
   bottomNavItems: PortalNavItem[]
 }
 
-function NavList({ items, pathname, onNavigate }: { items: PortalNavItem[]; pathname: string; onNavigate?: () => void }) {
+/**
+ * A nav item matches if the pathname equals it or is nested under it (e.g. "/admin/families"
+ * matches "/admin/families/xyz"). When multiple items match (e.g. "/teacher" and
+ * "/teacher/kelola-akun" both match "/teacher/kelola-akun"), only the longest — most specific
+ * — match wins, so a detail/sub-route never highlights an unrelated sibling nav item.
+ */
+function findSelectedTo(pathname: string, allTos: string[]): string | undefined {
+  const matches = allTos.filter((to) => pathname === to || pathname.startsWith(`${to}/`))
+  return matches.sort((a, b) => b.length - a.length)[0]
+}
+
+function NavList({
+  items,
+  selectedTo,
+  onNavigate,
+}: {
+  items: PortalNavItem[]
+  selectedTo: string | undefined
+  onNavigate?: () => void
+}) {
   return (
     <List disablePadding>
       {items.map((item) => (
@@ -37,7 +56,7 @@ function NavList({ items, pathname, onNavigate }: { items: PortalNavItem[]; path
           key={item.to}
           component={Link}
           to={item.to}
-          selected={pathname === item.to}
+          selected={item.to === selectedTo}
           onClick={onNavigate}
           sx={{ pl: 2, pr: 2, py: 1.25, borderRadius: '8px', mx: 1 }}
         >
@@ -56,6 +75,9 @@ export function PortalLayout({ title, navItems, bottomNavItems }: Props) {
 
   const toggleDrawer = () => setDrawerOpen((open) => !open)
   const closeDrawer = () => setDrawerOpen(false)
+
+  const allTos = [...navItems, ...bottomNavItems].map((item) => item.to)
+  const selectedTo = findSelectedTo(pathname, allTos)
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -111,12 +133,12 @@ export function PortalLayout({ title, navItems, bottomNavItems }: Props) {
         }}
       >
         <Box sx={{ pt: 1, overflowY: 'auto' }}>
-          <NavList items={navItems} pathname={pathname} onNavigate={closeDrawer} />
+          <NavList items={navItems} selectedTo={selectedTo} onNavigate={closeDrawer} />
         </Box>
         <Box sx={{ flexGrow: 1 }} />
         <Divider />
         <Box sx={{ py: 1 }}>
-          <NavList items={bottomNavItems} pathname={pathname} onNavigate={closeDrawer} />
+          <NavList items={bottomNavItems} selectedTo={selectedTo} onNavigate={closeDrawer} />
         </Box>
       </Drawer>
 
