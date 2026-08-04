@@ -108,17 +108,23 @@ export async function fetchClassroomRoster(classroomId: string): Promise<Result<
 }
 
 /**
- * child_id → the open period the next attendance row will draw from. Mirrors the RPC's
- * choice: closed_at is null, lowest period_no wins.
+ * child_id → the period that covers `attendanceDate` in this classroom: it had started by
+ * then, and had not already run out before then. A period that is still open has no end date
+ * yet, so it covers every date from its start onwards.
+ *
+ * Attendance can only be recorded against such a period, so this doubles as the roster filter
+ * on the daily report screen. Lowest period_no wins, mirroring the RPC's choice.
  */
-export async function fetchOpenPeriodsByChild(
+export async function fetchPeriodsCoveringDate(
   classroomId: string,
+  attendanceDate: string,
 ): Promise<Result<Map<string, LearningPeriodListEntry>>> {
   const { data, error } = await supabase
     .from('learning_period_status')
     .select('*, children(full_name), classrooms(label)')
     .eq('classroom_id', classroomId)
-    .is('closed_at', null)
+    .lte('start_date', attendanceDate)
+    .or(`actual_end_date.is.null,actual_end_date.gte.${attendanceDate}`)
     .order('period_no', { ascending: true })
   if (error) return { ok: false, error: error.message }
 

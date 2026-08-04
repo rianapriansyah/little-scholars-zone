@@ -37,6 +37,7 @@ export function AttendanceStatusSelector({ value, onChange, disabled = false, ar
           aria-label={`${ATTENDANCE_STATUS_LABELS[status]} — ${ATTENDANCE_STATUS_HINTS[status]}`}
           color={status === 'sick' ? 'info' : status === 'absent' ? 'warning' : 'success'}
           sx={{ py: 1, fontWeight: 600 }}
+          size="small"
         >
           {ATTENDANCE_STATUS_LABELS[status]}
         </ToggleButton>

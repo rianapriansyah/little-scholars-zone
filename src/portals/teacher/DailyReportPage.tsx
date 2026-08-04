@@ -23,7 +23,7 @@ import {
   fetchDailyReportMateri,
   type RosterEntry,
 } from '../../lib/dailyReport'
-import { fetchAttendanceByChild, fetchOpenPeriodsByChild } from '../../lib/learningPeriods'
+import { fetchAttendanceByChild, fetchPeriodsCoveringDate } from '../../lib/learningPeriods'
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import type { CurriculumItemRow } from '../../types/curriculumItem'
 import type { DailyReportMateri } from '../../types/dailyReport'
@@ -53,6 +53,8 @@ export function DailyReportPage() {
 
   const [catalog, setCatalog] = useState<CurriculumItemRow[]>([])
   const [roster, setRoster] = useState<RosterEntry[]>([])
+  /** Everyone enrolled, before the period filter — lets the empty state explain itself. */
+  const [enrolledCount, setEnrolledCount] = useState(0)
   const [attendance, setAttendance] = useState<Map<string, ChildAttendanceRow>>(new Map())
   const [periods, setPeriods] = useState<Map<string, LearningPeriodListEntry>>(new Map())
 
@@ -130,14 +132,17 @@ export function DailyReportPage() {
     const [rosterResult, attendanceResult, periodResult] = await Promise.all([
       fetchClassRoster(classroomTeacherId),
       fetchAttendanceByChild(classroomId, reportDate),
-      fetchOpenPeriodsByChild(classroomId),
+      fetchPeriodsCoveringDate(classroomId, reportDate),
     ])
     if (!rosterResult.ok) return setError(rosterResult.error)
     if (!attendanceResult.ok) return setError(attendanceResult.error)
     if (!periodResult.ok) return setError(periodResult.error)
 
     setError(null)
-    setRoster(rosterResult.data)
+    // Only children whose learning period covers the selected date. Anyone else cannot have
+    // attendance recorded for it anyway — the RPC would refuse — so listing them is a trap.
+    setRoster(rosterResult.data.filter((child) => periodResult.data.has(child.childId)))
+    setEnrolledCount(rosterResult.data.length)
     setAttendance(attendanceResult.data)
     setPeriods(periodResult.data)
   }, [classroomTeacherId, classroomId, reportDate])
@@ -221,11 +226,15 @@ export function DailyReportPage() {
       {classes.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
       ) : roster.length === 0 ? (
-        <Typography color="text.secondary">Belum ada siswa yang terdaftar di kelas ini.</Typography>
+        <Typography color="text.secondary">
+          {enrolledCount === 0
+            ? 'Belum ada siswa yang terdaftar di kelas ini.'
+            : `Tidak ada siswa dengan periode belajar yang berjalan pada ${reportDate}. Periode mungkin belum dimulai atau sudah habis — cek di Detail Keluarga → Periode Belajar.`}
+        </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           <Typography variant="body2" color="text.secondary">
-            {selectedClass?.label} · {roster.length} siswa · {reportDate}
+            {selectedClass?.label} · {roster.length} dari {enrolledCount} siswa · {reportDate}
           </Typography>
 
           {roster.map((child) => {
