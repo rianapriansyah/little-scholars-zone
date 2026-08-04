@@ -18,8 +18,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material'
 import { AttendanceStatusSelector } from '../../components/AttendanceStatusSelector'
 import { DailyReportMateriPreview } from '../../components/DailyReportMateriPreview'
@@ -67,9 +65,6 @@ export function DailyReportStudentDialog({
   onClose,
   onChanged,
 }: Props) {
-  const theme = useTheme()
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'))
-
   const [selection, setSelection] = useState<Map<string, MasteryLevel>>(() => toSelection(report.entries))
   const [savedEntries, setSavedEntries] = useState<DailyReportEntry[]>(report.entries)
   const [reportId, setReportId] = useState<string | null>(report.reportId)
@@ -193,7 +188,7 @@ export function DailyReportStudentDialog({
   }
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
+    <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="sm">
       {/* Division 1 — header: who this is, and what their period has left. */}
       <DialogTitle sx={{ pb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
