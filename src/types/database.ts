@@ -203,7 +203,7 @@ export type Database = {
           created_at: string | null
           id: string
           label: string
-          time_end: string | null
+          time_end: string
           time_start: string
         }
         Insert: {
@@ -211,7 +211,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           label: string
-          time_end?: string | null
+          time_end: string
           time_start: string
         }
         Update: {
@@ -219,7 +219,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           label?: string
-          time_end?: string | null
+          time_end?: string
           time_start?: string
         }
         Relationships: []

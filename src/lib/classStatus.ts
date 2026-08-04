@@ -11,9 +11,9 @@ export type ClassStatus = {
  * getTodaysClassStartInWita / getTodaysClassEndInWita for turning a classroom's wall-clock
  * times into the correct instants).
  *
- * `endTime` is optional because classrooms.time_end is nullable (the column postdates the
- * original rows). Without it there is no way to know a class has finished, so it stays
- * "sedang berjalan" for the rest of the day — set an end time on the classroom to fix that.
+ * `endTime` stays optional so this remains a pure function of the instants it is given, but
+ * classrooms.time_end is now NOT NULL, so every real caller has one. Passing null means there
+ * is nothing to compare against and the class never stops looking in progress.
  */
 export function getClassStatus(startTime: Date, now: Date, endTime: Date | null = null): ClassStatus {
   if (endTime !== null && now.getTime() >= endTime.getTime()) {
@@ -86,7 +86,11 @@ export function getTodaysClassStartInWita(timeStart: string, referenceNow: Date 
   return getTodaysWitaInstant(timeStart, referenceNow)
 }
 
-/** Null when the classroom has no end time recorded, or today is a WITA weekend. */
+/**
+ * Null on a WITA weekend. Still accepts null for `timeEnd` — classrooms.time_end is NOT NULL
+ * in the database, but keeping the guard means stale or hand-built data cannot crash the
+ * teacher's home screen.
+ */
 export function getTodaysClassEndInWita(timeEnd: string | null, referenceNow: Date = new Date()): Date | null {
   return timeEnd ? getTodaysWitaInstant(timeEnd, referenceNow) : null
 }
