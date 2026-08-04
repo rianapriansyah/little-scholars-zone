@@ -4,10 +4,10 @@ import {
   Alert,
   Avatar,
   Box,
-  Chip,
   CircularProgress,
   ListItemAvatar,
   ListItemButton,
+  ListItemText,
   MenuItem,
   Paper,
   TextField,
@@ -17,21 +17,16 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import { supabase } from '../../lib/supabase'
 import { todayIsoDateInWita } from '../../lib/classStatus'
-import { isNearingEnd } from '../../lib/attendanceQuota'
 import {
-  fetchClassReportSummaries,
   fetchClassRoster,
   fetchCurriculumItems,
   fetchDailyReportMateri,
-  type ReportSummary,
   type RosterEntry,
 } from '../../lib/dailyReport'
 import { fetchAttendanceByChild, fetchOpenPeriodsByChild } from '../../lib/learningPeriods'
-import { reportStatus } from '../../lib/dailyReportEntries'
-import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
-import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
+import type { ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import type { CurriculumItemRow } from '../../types/curriculumItem'
-import type { DailyReportMateri, DailyReportStatus } from '../../types/dailyReport'
+import type { DailyReportMateri } from '../../types/dailyReport'
 import { DailyReportStudentSheet } from './DailyReportStudentSheet'
 
 type ClassOption = {
@@ -41,18 +36,6 @@ type ClassOption = {
   label: string
   timeStart: string
   timeEnd: string | null
-}
-
-const STATUS_CHIP: Record<DailyReportStatus, { label: string; color: 'default' | 'warning' | 'success' }> = {
-  kosong: { label: 'Belum diisi', color: 'default' },
-  draf: { label: 'Draf', color: 'warning' },
-  terkirim: { label: 'Terkirim', color: 'success' },
-}
-
-const ATTENDANCE_CHIP_COLOR: Record<AttendanceStatus, 'success' | 'warning' | 'info'> = {
-  present: 'success',
-  absent: 'warning',
-  sick: 'info',
 }
 
 /**
@@ -70,7 +53,6 @@ export function DailyReportPage() {
 
   const [catalog, setCatalog] = useState<CurriculumItemRow[]>([])
   const [roster, setRoster] = useState<RosterEntry[]>([])
-  const [summaries, setSummaries] = useState<Map<string, ReportSummary>>(new Map())
   const [attendance, setAttendance] = useState<Map<string, ChildAttendanceRow>>(new Map())
   const [periods, setPeriods] = useState<Map<string, LearningPeriodListEntry>>(new Map())
 
@@ -141,25 +123,21 @@ export function DailyReportPage() {
   const loadRoster = useCallback(async () => {
     if (!classroomTeacherId || !classroomId) {
       setRoster([])
-      setSummaries(new Map())
       setAttendance(new Map())
       setPeriods(new Map())
       return
     }
-    const [rosterResult, summaryResult, attendanceResult, periodResult] = await Promise.all([
+    const [rosterResult, attendanceResult, periodResult] = await Promise.all([
       fetchClassRoster(classroomTeacherId),
-      fetchClassReportSummaries(classroomTeacherId, reportDate),
       fetchAttendanceByChild(classroomId, reportDate),
       fetchOpenPeriodsByChild(classroomId),
     ])
     if (!rosterResult.ok) return setError(rosterResult.error)
-    if (!summaryResult.ok) return setError(summaryResult.error)
     if (!attendanceResult.ok) return setError(attendanceResult.error)
     if (!periodResult.ok) return setError(periodResult.error)
 
     setError(null)
     setRoster(rosterResult.data)
-    setSummaries(summaryResult.data)
     setAttendance(attendanceResult.data)
     setPeriods(periodResult.data)
   }, [classroomTeacherId, classroomId, reportDate])
@@ -268,56 +246,20 @@ export function DailyReportPage() {
           </Typography>
 
           {roster.map((child) => {
-            const period = periods.get(child.childId)
-            const recorded = attendance.get(child.childId)
-            const status = recorded && isAttendanceStatus(recorded.status) ? recorded.status : null
-            const summary = summaries.get(child.childId)
-            const report = reportStatus(summary?.reportId ?? null, summary?.submittedAt ?? null)
-            const reportChip = STATUS_CHIP[report]
-
+            // Deliberately just the name: status belongs in the child's own sheet, where
+            // there is room for it. The collapsed list stays a clean scan of who is in class.
             return (
               <Paper key={child.childId} variant="outlined">
                 <ListItemButton
                   onClick={() => void handleOpenChild(child)}
                   disabled={opening}
-                  sx={{ py: 1.5, borderRadius: 1, alignItems: 'flex-start' }}
+                  sx={{ py: 1.5, borderRadius: 1 }}
                 >
                   <ListItemAvatar>
                     <Avatar src={child.photoUrl ?? undefined}>{child.childName.charAt(0).toUpperCase()}</Avatar>
                   </ListItemAvatar>
-                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {child.childName}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
-                      <Chip
-                        size="small"
-                        label={status ? ATTENDANCE_STATUS_LABELS[status] : 'Belum absen'}
-                        color={status ? ATTENDANCE_CHIP_COLOR[status] : 'default'}
-                        variant={status ? 'filled' : 'outlined'}
-                      />
-                      {/* The materi report only exists for a child who was present. */}
-                      {status === 'present' ? (
-                        <Chip
-                          size="small"
-                          label={reportChip.label}
-                          color={reportChip.color}
-                          variant={report === 'terkirim' ? 'filled' : 'outlined'}
-                        />
-                      ) : null}
-                      {period ? (
-                        <Chip
-                          size="small"
-                          label={`Sisa ${period.daysRemaining}/${period.guaranteedDays}`}
-                          color={isNearingEnd(period) ? 'warning' : 'default'}
-                          variant={isNearingEnd(period) ? 'filled' : 'outlined'}
-                        />
-                      ) : (
-                        <Chip size="small" label="Belum ada periode" color="error" variant="outlined" />
-                      )}
-                    </Box>
-                  </Box>
-                  <ChevronRightIcon sx={{ ml: 1, mt: 0.5, color: 'text.disabled' }} />
+                  <ListItemText primary={child.childName} />
+                  <ChevronRightIcon sx={{ ml: 1, color: 'text.disabled' }} />
                 </ListItemButton>
               </Paper>
             )
