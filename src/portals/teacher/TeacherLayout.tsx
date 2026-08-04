@@ -2,6 +2,7 @@ import { PortalLayout, type PortalNavItem } from '../../components/PortalLayout'
 
 const NAV: PortalNavItem[] = [
   { to: '/teacher', label: 'Kelas Saya' },
+  { to: '/teacher/absensi', label: 'Absensi' },
   { to: '/teacher/laporan-harian', label: 'Laporan Harian' },
   { to: '/teacher/kelola-akun', label: 'Kelola Akun' },
 ]

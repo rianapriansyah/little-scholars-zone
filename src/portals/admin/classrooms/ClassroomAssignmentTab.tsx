@@ -21,6 +21,7 @@ import type { ClassroomRow } from '../../../types/classroom'
 import type { TeacherRow } from '../../../types/teacher'
 import type { ChildRow } from '../../../types/child'
 import { MAX_STUDENTS_PER_TEACHER } from '../../../lib/enrollmentLimits'
+import { fetchChildIdsWithOpenPeriod } from '../../../lib/learningPeriods'
 
 type Group = {
   id: string
@@ -41,6 +42,8 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const [children, setChildren] = useState<ChildRow[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [activeEnrollments, setActiveEnrollments] = useState<Map<string, ActiveEnrollment>>(new Map())
+  /** Children with an open learning period in this classroom — the only ones enrollable. */
+  const [eligibleChildIds, setEligibleChildIds] = useState<Set<string>>(new Set())
 
   const [newTeacherId, setNewTeacherId] = useState('')
   const [addSelections, setAddSelections] = useState<Record<string, string>>({})
@@ -100,6 +103,15 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     setActiveEnrollments(map)
   }
 
+  const loadEligibleChildren = async (classroomId: string) => {
+    const result = await fetchChildIdsWithOpenPeriod(classroomId)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    setEligibleChildIds(result.data)
+  }
+
   useEffect(() => {
     setNewTeacherId('')
     setAddSelections({})
@@ -109,6 +121,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     void supabase.from('children').select('*').eq('active', true).order('full_name').then(({ data }) => setChildren(data ?? []))
     void loadGroups(classroom.id)
     void loadActiveEnrollments()
+    void loadEligibleChildren(classroom.id)
   }, [classroom])
 
   const availableTeachersToAdd = teachers.filter((t) => t.active && !groups.some((g) => g.teacherId === t.id))
@@ -209,7 +222,11 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
         ) : (
           groups.map((group) => {
             const rosterChildIds = new Set(group.roster.map((r) => r.childId))
-            const availableChildren = children.filter((c) => !rosterChildIds.has(c.id))
+            // Only children who hold an open learning period for this classroom: without one,
+            // the teacher could never record their attendance.
+            const availableChildren = children.filter(
+              (c) => !rosterChildIds.has(c.id) && eligibleChildIds.has(c.id),
+            )
             const otherGroupTeacherIds = new Set(groups.filter((g) => g.id !== group.id).map((g) => g.teacherId))
             const teacherOptions = teachers.filter(
               (t) => t.id === group.teacherId || (t.active && !otherGroupTeacherIds.has(t.id)),
@@ -289,7 +306,12 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                     value={addSelections[group.id] ?? ''}
                     onChange={(e) => setAddSelections((prev) => ({ ...prev, [group.id]: e.target.value }))}
                     fullWidth
-                    disabled={atCapacity}
+                    disabled={atCapacity || availableChildren.length === 0}
+                    helperText={
+                      !atCapacity && availableChildren.length === 0
+                        ? 'Tidak ada siswa dengan periode belajar aktif di kelas ini. Buat periode dulu di Detail Keluarga → Periode Belajar.'
+                        : undefined
+                    }
                   >
                     {availableChildren.map((c) => {
                       const existing = activeEnrollments.get(c.id)

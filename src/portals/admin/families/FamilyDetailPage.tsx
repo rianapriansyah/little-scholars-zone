@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase'
 import type { FamilyRow } from '../../../types/family'
 import { FamilyDetailEditForm } from './FamilyDetailEditForm'
 import { FamilyChildrenTab } from './FamilyChildrenTab'
+import { FamilyPeriodsTab } from './FamilyPeriodsTab'
 import { ChildDialog } from '../children/ChildDialog'
 
 export function FamilyDetailPage() {
@@ -106,13 +107,15 @@ export function FamilyDetailPage() {
           sx={{ borderBottom: 1, borderColor: 'divider', px: 1 }}
         >
           <Tab label="Data Anak" />
+          <Tab label="Periode Belajar" />
           <Tab label="Data Keluarga" />
         </Tabs>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
           {tab === 0 ? (
             <FamilyChildrenTab familyId={familyId} initialExpandedId={focusChildId} refreshKey={childrenRefreshKey} />
           ) : null}
-          {tab === 1 ? <FamilyDetailEditForm family={family} onSaved={() => void load()} /> : null}
+          {tab === 1 ? <FamilyPeriodsTab familyId={familyId} /> : null}
+          {tab === 2 ? <FamilyDetailEditForm family={family} onSaved={() => void load()} /> : null}
         </Box>
       </Paper>
       <ChildDialog

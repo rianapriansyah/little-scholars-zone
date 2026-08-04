@@ -1,15 +1,11 @@
 import { supabase } from './supabase'
+import type { Result } from './result'
 import { isCurriculumSubject } from '../types/curriculumItem'
 import type { CurriculumItemRow } from '../types/curriculumItem'
 import type { DailyReportEntry, DailyReportMateri } from '../types/dailyReport'
 import { parseMasteryLevel, sortEntries, type RpcEntry } from './dailyReportEntries'
 
-/**
- * Uniform result shape so callers can surface `error` the same way the rest of the app does.
- * Discriminated on `ok` rather than on `error` being null, so `if (!result.ok)` narrows
- * `result.data` to non-null for TypeScript.
- */
-export type Result<T> = { ok: true; data: T } | { ok: false; error: string }
+export type { Result } from './result'
 
 export type RosterEntry = {
   childId: string

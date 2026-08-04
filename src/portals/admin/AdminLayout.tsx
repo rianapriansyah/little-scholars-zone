@@ -9,6 +9,7 @@ const NAV: PortalNavItem[] = [
   { to: '/admin/teachers', label: 'Guru' },
   { to: '/admin/classrooms', label: 'Kelas' },
   { to: '/admin/curriculum', label: 'Kurikulum' },
+  { to: '/admin/periode', label: 'Periode Belajar' },
   { to: '/admin/kelola-akun', label: 'Kelola Akun' },
 ]
 

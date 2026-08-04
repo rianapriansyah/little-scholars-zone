@@ -18,6 +18,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      child_attendances: {
+        Row: {
+          attendance_date: string
+          child_id: string
+          classroom_id: string
+          id: string
+          learning_period_id: string
+          note: string | null
+          recorded_at: string
+          recorded_by: string | null
+          status: string
+        }
+        Insert: {
+          attendance_date: string
+          child_id: string
+          classroom_id: string
+          id?: string
+          learning_period_id: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status: string
+        }
+        Update: {
+          attendance_date?: string
+          child_id?: string
+          classroom_id?: string
+          id?: string
+          learning_period_id?: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_attendances_period_fkey"
+            columns: ["learning_period_id", "child_id", "classroom_id"]
+            isOneToOne: false
+            referencedRelation: "learning_period_status"
+            referencedColumns: ["id", "child_id", "classroom_id"]
+          },
+          {
+            foreignKeyName: "child_attendances_period_fkey"
+            columns: ["learning_period_id", "child_id", "classroom_id"]
+            isOneToOne: false
+            referencedRelation: "learning_periods"
+            referencedColumns: ["id", "child_id", "classroom_id"]
+          },
+        ]
+      }
       children: {
         Row: {
           active: boolean
@@ -335,6 +386,63 @@ export type Database = {
         }
         Relationships: []
       }
+      learning_periods: {
+        Row: {
+          actual_end_date: string | null
+          child_id: string
+          classroom_id: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          guaranteed_days: number
+          id: string
+          period_no: number
+          projected_end_date: string | null
+          start_date: string
+        }
+        Insert: {
+          actual_end_date?: string | null
+          child_id: string
+          classroom_id: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          guaranteed_days?: number
+          id?: string
+          period_no: number
+          projected_end_date?: string | null
+          start_date: string
+        }
+        Update: {
+          actual_end_date?: string | null
+          child_id?: string
+          classroom_id?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          guaranteed_days?: number
+          id?: string
+          period_no?: number
+          projected_end_date?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_periods_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_periods_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teachers: {
         Row: {
           active: boolean
@@ -379,9 +487,47 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      learning_period_status: {
+        Row: {
+          actual_end_date: string | null
+          child_id: string | null
+          classroom_id: string | null
+          closed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          days_consumed: number | null
+          days_remaining: number | null
+          days_sick: number | null
+          guaranteed_days: number | null
+          id: string | null
+          is_active: boolean | null
+          period_no: number | null
+          projected_end_date: string | null
+          start_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_periods_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_periods_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      can_record_attendance: {
+        Args: { p_classroom_id: string }
+        Returns: boolean
+      }
       can_write_daily_report: {
         Args: { p_classroom_teacher_id: string }
         Returns: boolean
@@ -402,6 +548,16 @@ export type Database = {
       family_submitted_daily_report_ids: {
         Args: { p_auth_uid: string }
         Returns: string[]
+      }
+      record_attendance: {
+        Args: {
+          p_child_id: string
+          p_classroom_id: string
+          p_date: string
+          p_note?: string
+          p_status: string
+        }
+        Returns: string
       }
       save_daily_report_items: {
         Args: {
