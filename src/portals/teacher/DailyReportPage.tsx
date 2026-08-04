@@ -1,24 +1,29 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import NoteAddIcon from '@mui/icons-material/NoteAdd'
 import {
   Alert,
   Avatar,
   Box,
+  Button,
   Chip,
   CircularProgress,
-  List,
-  ListItemAvatar,
-  ListItemButton,
-  ListItemText,
+  Divider,
+  IconButton,
+  Link,
   MenuItem,
   Paper,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
+import { AttendanceStatusSelector } from '../../components/AttendanceStatusSelector'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import { supabase } from '../../lib/supabase'
 import { todayIsoDateInWita } from '../../lib/classStatus'
+import { isNearingEnd } from '../../lib/attendanceQuota'
 import {
   fetchClassReportSummaries,
   fetchClassRoster,
@@ -27,13 +32,18 @@ import {
   type ReportSummary,
   type RosterEntry,
 } from '../../lib/dailyReport'
+import { fetchAttendanceByChild, fetchOpenPeriodsByChild, recordAttendance } from '../../lib/learningPeriods'
 import { reportStatus } from '../../lib/dailyReportEntries'
+import { isAttendanceStatus } from '../../types/attendance'
+import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import type { CurriculumItemRow } from '../../types/curriculumItem'
 import type { DailyReportMateri, DailyReportStatus } from '../../types/dailyReport'
 import { DailyReportStudentSheet } from './DailyReportStudentSheet'
 
 type ClassOption = {
   classroomTeacherId: string
+  /** The billed program. Attendance and learning periods key off this, not the group. */
+  classroomId: string
   label: string
   timeStart: string
   timeEnd: string | null
@@ -45,6 +55,11 @@ const STATUS_CHIP: Record<DailyReportStatus, { label: string; color: 'default' |
   terkirim: { label: 'Terkirim', color: 'success' },
 }
 
+/**
+ * Everything the teacher fills in right after class, on one screen: attendance for each child
+ * and their Laporan Akademik Harian. Attendance is the fast pass over the whole group, so it
+ * sits inline on the roster; the materi report is deeper per-child work and stays behind a tap.
+ */
 export function DailyReportPage() {
   const { user } = useAuth()
   const { teacher } = useTeacherProfile(user?.id)
@@ -56,12 +71,17 @@ export function DailyReportPage() {
   const [catalog, setCatalog] = useState<CurriculumItemRow[]>([])
   const [roster, setRoster] = useState<RosterEntry[]>([])
   const [summaries, setSummaries] = useState<Map<string, ReportSummary>>(new Map())
+  const [attendance, setAttendance] = useState<Map<string, ChildAttendanceRow>>(new Map())
+  const [periods, setPeriods] = useState<Map<string, LearningPeriodListEntry>>(new Map())
+  const [notes, setNotes] = useState<Record<string, string>>({})
+  const [noteOpenFor, setNoteOpenFor] = useState<Set<string>>(new Set())
 
   const [selectedChild, setSelectedChild] = useState<RosterEntry | null>(null)
   const [openReport, setOpenReport] = useState<DailyReportMateri | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [opening, setOpening] = useState(false)
+  const [savingChildId, setSavingChildId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -72,7 +92,7 @@ export function DailyReportPage() {
       const [{ data: groupRows, error: gError }, catalogResult] = await Promise.all([
         supabase
           .from('classroom_teachers')
-          .select('id, classrooms(label, time_start, time_end)')
+          .select('id, classroom_id, classrooms(label, time_start, time_end)')
           .eq('teacher_id', teacher.id),
         fetchCurriculumItems(),
       ])
@@ -99,6 +119,7 @@ export function DailyReportPage() {
         if (!classroom) continue
         options.push({
           classroomTeacherId: row.id,
+          classroomId: row.classroom_id,
           label: classroom.label,
           timeStart: classroom.time_start,
           timeEnd: classroom.time_end,
@@ -117,28 +138,37 @@ export function DailyReportPage() {
     }
   }, [teacher])
 
+  const selectedClass = classes.find((c) => c.classroomTeacherId === classroomTeacherId)
+  const classroomId = selectedClass?.classroomId ?? ''
+
   const loadRoster = useCallback(async () => {
-    if (!classroomTeacherId) {
+    if (!classroomTeacherId || !classroomId) {
       setRoster([])
       setSummaries(new Map())
+      setAttendance(new Map())
+      setPeriods(new Map())
       return
     }
-    const [rosterResult, summaryResult] = await Promise.all([
+    const [rosterResult, summaryResult, attendanceResult, periodResult] = await Promise.all([
       fetchClassRoster(classroomTeacherId),
       fetchClassReportSummaries(classroomTeacherId, reportDate),
+      fetchAttendanceByChild(classroomId, reportDate),
+      fetchOpenPeriodsByChild(classroomId),
     ])
-    if (!rosterResult.ok) {
-      setError(rosterResult.error)
-      return
-    }
-    if (!summaryResult.ok) {
-      setError(summaryResult.error)
-      return
-    }
+    if (!rosterResult.ok) return setError(rosterResult.error)
+    if (!summaryResult.ok) return setError(summaryResult.error)
+    if (!attendanceResult.ok) return setError(attendanceResult.error)
+    if (!periodResult.ok) return setError(periodResult.error)
+
     setError(null)
     setRoster(rosterResult.data)
     setSummaries(summaryResult.data)
-  }, [classroomTeacherId, reportDate])
+    setAttendance(attendanceResult.data)
+    setPeriods(periodResult.data)
+    setNotes(
+      Object.fromEntries([...attendanceResult.data.values()].map((row) => [row.child_id, row.note ?? ''])),
+    )
+  }, [classroomTeacherId, classroomId, reportDate])
 
   useEffect(() => {
     void loadRoster()
@@ -163,6 +193,35 @@ export function DailyReportPage() {
     setOpenReport(result.data)
   }
 
+  async function handleMark(child: RosterEntry, status: AttendanceStatus) {
+    setSavingChildId(child.childId)
+    setError(null)
+    const result = await recordAttendance({
+      childId: child.childId,
+      classroomId,
+      attendanceDate: reportDate,
+      status,
+      note: notes[child.childId] ?? null,
+    })
+    setSavingChildId(null)
+    if (!result.ok) {
+      setError(`${child.childName}: ${result.error}`)
+      return
+    }
+    // Re-read rather than patching locally: recording can close the period, and
+    // days_remaining is computed server-side.
+    await loadRoster()
+  }
+
+  function toggleNote(childId: string) {
+    setNoteOpenFor((prev) => {
+      const next = new Set(prev)
+      if (next.has(childId)) next.delete(childId)
+      else next.add(childId)
+      return next
+    })
+  }
+
   if (!teacher || loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
@@ -170,8 +229,6 @@ export function DailyReportPage() {
       </Box>
     )
   }
-
-  const selectedClass = classes.find((c) => c.classroomTeacherId === classroomTeacherId)
 
   return (
     <Box>
@@ -213,6 +270,9 @@ export function DailyReportPage() {
             slotProps={{ inputLabel: { shrink: true } }}
           />
         </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
+          Hari libur atau kelas batal: cukup jangan isi absensi. Kuota tidak terpotong.
+        </Typography>
       </Paper>
 
       {classes.length === 0 ? (
@@ -231,45 +291,113 @@ export function DailyReportPage() {
             onChanged={() => void loadRoster()}
           />
         </Paper>
+      ) : roster.length === 0 ? (
+        <Typography color="text.secondary">Belum ada siswa yang terdaftar di kelas ini.</Typography>
       ) : (
-        <Paper variant="outlined">
-          <Box sx={{ px: 2, pt: 2 }}>
-            <Typography variant="subtitle1" sx={{ fontSize: '1rem' }}>
-              {selectedClass?.label ?? 'Kelas'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {roster.length} siswa · {reportDate}
-            </Typography>
-          </Box>
-          {roster.length === 0 ? (
-            <Typography color="text.secondary" sx={{ p: 2 }}>
-              Belum ada siswa yang terdaftar di kelas ini.
-            </Typography>
-          ) : (
-            <List disablePadding sx={{ mt: 1 }}>
-              {roster.map((child) => {
-                const summary = summaries.get(child.childId)
-                const status = reportStatus(summary?.reportId ?? null, summary?.submittedAt ?? null)
-                const chip = STATUS_CHIP[status]
-                return (
-                  <ListItemButton
-                    key={child.childId}
-                    onClick={() => void handleOpenChild(child)}
-                    disabled={opening}
-                    sx={{ py: 1.5 }}
-                  >
-                    <ListItemAvatar>
-                      <Avatar src={child.photoUrl ?? undefined}>{child.childName.charAt(0).toUpperCase()}</Avatar>
-                    </ListItemAvatar>
-                    <ListItemText primary={child.childName} />
-                    <Chip size="small" label={chip.label} color={chip.color} variant={status === 'terkirim' ? 'filled' : 'outlined'} />
-                    <ChevronRightIcon sx={{ ml: 1, color: 'text.disabled' }} />
-                  </ListItemButton>
-                )
-              })}
-            </List>
-          )}
-        </Paper>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Typography variant="body2" color="text.secondary">
+            {selectedClass?.label} · {roster.length} siswa · {reportDate}
+          </Typography>
+
+          {roster.map((child) => {
+            const period = periods.get(child.childId)
+            const recorded = attendance.get(child.childId)
+            const status = recorded && isAttendanceStatus(recorded.status) ? recorded.status : null
+            const noteOpen = noteOpenFor.has(child.childId) || Boolean(recorded?.note)
+            const summary = summaries.get(child.childId)
+            const report = reportStatus(summary?.reportId ?? null, summary?.submittedAt ?? null)
+            const reportChip = STATUS_CHIP[report]
+
+            return (
+              <Paper key={child.childId} variant="outlined" sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                  <Avatar src={child.photoUrl ?? undefined} sx={{ width: 36, height: 36 }}>
+                    {child.childName.charAt(0).toUpperCase()}
+                  </Avatar>
+                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {child.childName}
+                    </Typography>
+                    {period ? (
+                      <Link
+                        component={RouterLink}
+                        to={`/teacher/periode/${period.id}`}
+                        variant="caption"
+                        underline="hover"
+                        color="text.secondary"
+                      >
+                        Periode {period.periodNo} · lihat detail
+                      </Link>
+                    ) : (
+                      <Typography variant="caption" color="error">
+                        Belum ada periode belajar aktif
+                      </Typography>
+                    )}
+                  </Box>
+                  {period ? (
+                    <Chip
+                      size="small"
+                      label={`Sisa ${period.daysRemaining}/${period.guaranteedDays}`}
+                      color={isNearingEnd(period) ? 'warning' : 'default'}
+                      variant={isNearingEnd(period) ? 'filled' : 'outlined'}
+                    />
+                  ) : null}
+                  <Tooltip title="Catatan absensi">
+                    <IconButton
+                      size="small"
+                      onClick={() => toggleNote(child.childId)}
+                      aria-label={`Catatan absensi untuk ${child.childName}`}
+                    >
+                      <NoteAddIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+
+                <AttendanceStatusSelector
+                  value={status}
+                  onChange={(next) => void handleMark(child, next)}
+                  disabled={savingChildId !== null || !period}
+                  ariaLabel={child.childName}
+                />
+
+                {noteOpen ? (
+                  <TextField
+                    size="small"
+                    label="Catatan absensi (opsional)"
+                    value={notes[child.childId] ?? ''}
+                    onChange={(e) => setNotes((prev) => ({ ...prev, [child.childId]: e.target.value }))}
+                    onBlur={() => {
+                      if (status) void handleMark(child, status)
+                    }}
+                    fullWidth
+                    sx={{ mt: 1.5 }}
+                    helperText="Tersimpan saat Anda berpindah dari kolom ini. Tidak memengaruhi kuota."
+                  />
+                ) : null}
+
+                <Divider sx={{ my: 1.5 }} />
+
+                <Button
+                  fullWidth
+                  onClick={() => void handleOpenChild(child)}
+                  disabled={opening}
+                  endIcon={<ChevronRightIcon />}
+                  sx={{ justifyContent: 'space-between', textTransform: 'none', px: 1 }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2">Materi Hari Ini</Typography>
+                    <Chip
+                      size="small"
+                      label={reportChip.label}
+                      color={reportChip.color}
+                      variant={report === 'terkirim' ? 'filled' : 'outlined'}
+                    />
+                  </Box>
+                </Button>
+              </Paper>
+            )
+          })}
+        </Box>
       )}
     </Box>
   )

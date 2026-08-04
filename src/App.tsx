@@ -21,7 +21,6 @@ import { PeriodDetailPage } from './portals/admin/periods/PeriodDetailPage'
 import { TeacherLayout } from './portals/teacher/TeacherLayout'
 import { TeacherRosterPage } from './portals/teacher/TeacherRosterPage'
 import { DailyReportPage } from './portals/teacher/DailyReportPage'
-import { TakeAttendancePage } from './portals/teacher/TakeAttendancePage'
 import { TeacherPeriodDetailPage } from './portals/teacher/TeacherPeriodDetailPage'
 import { ParentLayout } from './portals/parent/ParentLayout'
 import { ParentHomePage } from './portals/parent/ParentHomePage'
@@ -56,7 +55,6 @@ export default function App() {
             <Route element={<TeacherLayout />}>
               <Route index element={<TeacherRosterPage />} />
               <Route path="laporan-harian" element={<DailyReportPage />} />
-              <Route path="absensi" element={<TakeAttendancePage />} />
               <Route path="periode/:periodId" element={<TeacherPeriodDetailPage />} />
               <Route path="kelola-akun" element={<ManageAccountPage />} />
             </Route>
