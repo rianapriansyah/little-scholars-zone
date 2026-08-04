@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getClassStatus, getTodaysClassStartInWita, todayIsoDateInWita } from './classStatus'
+import {
+  getClassStatus,
+  getTodaysClassEndInWita,
+  getTodaysClassStartInWita,
+  todayIsoDateInWita,
+} from './classStatus'
 
 describe('getClassStatus', () => {
   const start = new Date('2026-07-14T02:00:00Z') // 10:00 WITA
@@ -27,6 +32,53 @@ describe('getClassStatus', () => {
   it('returns default outside 30 minutes of start', () => {
     const now = new Date(start.getTime() - 31 * 60_000)
     expect(getClassStatus(start, now)).toEqual({ border: 'default', label: null })
+  })
+})
+
+describe('getClassStatus with an end time', () => {
+  const start = new Date('2026-07-14T02:00:00Z') // 10:00 WITA
+  const end = new Date('2026-07-14T04:00:00Z') //   12:00 WITA
+
+  it('reports the class finished once the end time has passed', () => {
+    const now = new Date(end.getTime() + 60_000)
+    expect(getClassStatus(start, now, end)).toEqual({ border: 'default', label: 'Kelas selesai' })
+  })
+
+  it('finishes exactly at the end time, not a moment later', () => {
+    expect(getClassStatus(start, end, end).label).toBe('Kelas selesai')
+    expect(getClassStatus(start, new Date(end.getTime() - 1), end).label).toBe('Kelas sedang berjalan')
+  })
+
+  it('still reports in-progress between start and end', () => {
+    const midway = new Date(start.getTime() + 30 * 60_000)
+    expect(getClassStatus(start, midway, end)).toEqual({ border: 'green', label: 'Kelas sedang berjalan' })
+  })
+
+  it('finished wins over the started check hours later, which was the bug', () => {
+    const evening = new Date('2026-07-14T13:00:00Z') // 21:00 WITA, long after class
+    expect(getClassStatus(start, evening, end).label).toBe('Kelas selesai')
+    // Without an end time there is nothing to compare against, so it stays green.
+    expect(getClassStatus(start, evening, null).label).toBe('Kelas sedang berjalan')
+  })
+
+  it('leaves the pre-start countdown untouched', () => {
+    const fiveBefore = new Date(start.getTime() - 5 * 60_000)
+    expect(getClassStatus(start, fiveBefore, end)).toEqual({ border: 'red', label: null })
+  })
+})
+
+describe('getTodaysClassEndInWita', () => {
+  it('converts the end time the same way as the start time', () => {
+    const referenceNow = new Date('2026-07-14T04:00:00Z') // 12:00 WITA, Tuesday
+    expect(getTodaysClassEndInWita('12:00', referenceNow)).toEqual(new Date('2026-07-14T04:00:00Z'))
+  })
+
+  it('returns null when the classroom has no end time recorded', () => {
+    expect(getTodaysClassEndInWita(null, new Date('2026-07-14T04:00:00Z'))).toBeNull()
+  })
+
+  it('returns null on a WITA weekend, like the start helper', () => {
+    expect(getTodaysClassEndInWita('12:00', new Date('2026-07-18T04:00:00Z'))).toBeNull()
   })
 })
 

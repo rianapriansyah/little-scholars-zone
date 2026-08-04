@@ -6,11 +6,20 @@ export type ClassStatus = {
 }
 
 /**
- * Priority order, most urgent first: already started > within 10min > within 30min > default.
- * Pure function over two instants — no timezone handling here (see getTodaysClassStartInWita
- * for converting a classroom's wall-clock start time into the correct instant).
+ * Priority order, most urgent first: finished > already started > within 10min > within 30min
+ * > default. Pure function over instants — no timezone handling here (see
+ * getTodaysClassStartInWita / getTodaysClassEndInWita for turning a classroom's wall-clock
+ * times into the correct instants).
+ *
+ * `endTime` is optional because classrooms.time_end is nullable (the column postdates the
+ * original rows). Without it there is no way to know a class has finished, so it stays
+ * "sedang berjalan" for the rest of the day — set an end time on the classroom to fix that.
  */
-export function getClassStatus(startTime: Date, now: Date): ClassStatus {
+export function getClassStatus(startTime: Date, now: Date, endTime: Date | null = null): ClassStatus {
+  if (endTime !== null && now.getTime() >= endTime.getTime()) {
+    return { border: 'default', label: 'Kelas selesai' }
+  }
+
   const minutesUntilStart = (startTime.getTime() - now.getTime()) / 60_000
 
   if (minutesUntilStart <= 0) {
@@ -58,17 +67,26 @@ export function todayIsoDateInWita(referenceNow: Date = new Date()): string {
 const WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
 
 /**
- * Returns the instant `timeStart` (HH:MM[:SS]) falls on *today's WITA date*, or null if
- * today is a weekend in WITA (classrooms only run Monday–Friday). Always uses Asia/Makassar
- * (UTC+8, no DST) regardless of the browser/server's local timezone.
+ * Returns the instant `time` (HH:MM[:SS]) falls on *today's WITA date*, or null if today is a
+ * weekend in WITA (classrooms only run Monday–Friday). Always uses Asia/Makassar (UTC+8, no
+ * DST) regardless of the browser/server's local timezone.
  */
-export function getTodaysClassStartInWita(timeStart: string, referenceNow: Date = new Date()): Date | null {
+function getTodaysWitaInstant(time: string, referenceNow: Date): Date | null {
   const { weekday, year, month, day } = getWitaDateParts(referenceNow)
   if (!WEEKDAYS.has(weekday)) return null
 
-  const [hourStr, minuteStr] = timeStart.split(':')
+  const [hourStr, minuteStr] = time.split(':')
   const hour = Number(hourStr)
   const minute = Number(minuteStr)
 
   return new Date(Date.UTC(year, month - 1, day, hour - WITA_UTC_OFFSET_HOURS, minute))
+}
+
+export function getTodaysClassStartInWita(timeStart: string, referenceNow: Date = new Date()): Date | null {
+  return getTodaysWitaInstant(timeStart, referenceNow)
+}
+
+/** Null when the classroom has no end time recorded, or today is a WITA weekend. */
+export function getTodaysClassEndInWita(timeEnd: string | null, referenceNow: Date = new Date()): Date | null {
+  return timeEnd ? getTodaysWitaInstant(timeEnd, referenceNow) : null
 }

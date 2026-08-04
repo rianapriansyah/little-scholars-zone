@@ -4,7 +4,12 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import type { ClassroomRow } from '../../types/classroom'
-import { getClassStatus, getTodaysClassStartInWita, type ClassStatusBorder } from '../../lib/classStatus'
+import {
+  getClassStatus,
+  getTodaysClassEndInWita,
+  getTodaysClassStartInWita,
+  type ClassStatusBorder,
+} from '../../lib/classStatus'
 import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
 
 type GroupWithRoster = {
@@ -106,7 +111,8 @@ export function TeacherRosterPage() {
           {groups.map((group) => {
             const { classroom } = group
             const todaysStart = getTodaysClassStartInWita(classroom.time_start, now)
-            const status = todaysStart ? getClassStatus(todaysStart, now) : null
+            const todaysEnd = getTodaysClassEndInWita(classroom.time_end, now)
+            const status = todaysStart ? getClassStatus(todaysStart, now, todaysEnd) : null
             const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
 
             return (
@@ -121,7 +127,13 @@ export function TeacherRosterPage() {
                       {classroom.label}
                     </Typography>
                     {status?.label ? (
-                      <Chip size="small" label={status.label} color="success" variant="outlined" />
+                      <Chip
+                        size="small"
+                        label={status.label}
+                        // Only the in-progress state is green; "Kelas selesai" must read as neutral.
+                        color={status.border === 'green' ? 'success' : 'default'}
+                        variant="outlined"
+                      />
                     ) : null}
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
