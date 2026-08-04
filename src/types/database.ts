@@ -447,6 +447,7 @@ export type Database = {
         Row: {
           active: boolean
           auth_user_id: string | null
+          call_name: string | null
           contact_phone: string | null
           created_at: string | null
           education: string | null
@@ -460,6 +461,7 @@ export type Database = {
         Insert: {
           active?: boolean
           auth_user_id?: string | null
+          call_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
           education?: string | null
@@ -473,6 +475,7 @@ export type Database = {
         Update: {
           active?: boolean
           auth_user_id?: string | null
+          call_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
           education?: string | null
