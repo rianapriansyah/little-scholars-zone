@@ -41,6 +41,12 @@ function StatTile({ label, value, hint }: { label: string; value: string | numbe
 
 type Props = {
   periodId: string
+  /**
+   * Drop the child's name from the header. Set it where the surrounding screen already groups
+   * by child — the parent portal lists a child once and their programs beneath — so the
+   * program becomes the card's title instead of repeating the name on every card.
+   */
+  hideChildName?: boolean
 }
 
 /**
@@ -50,7 +56,7 @@ type Props = {
  *
  * Shared by the teacher and admin portals; each supplies its own breadcrumbs around it.
  */
-export function LearningPeriodDetail({ periodId }: Props) {
+export function LearningPeriodDetail({ periodId, hideChildName = false }: Props) {
   const [period, setPeriod] = useState<LearningPeriodListEntry | null>(null)
   const [attendances, setAttendances] = useState<ChildAttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -90,7 +96,7 @@ export function LearningPeriodDetail({ periodId }: Props) {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 0.5 }}>
         <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
-          {period.childName}
+          {hideChildName ? period.classroomLabel : period.childName}
         </Typography>
         <Chip
           size="small"
@@ -100,7 +106,7 @@ export function LearningPeriodDetail({ periodId }: Props) {
         />
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {period.classroomLabel} · Periode {period.periodNo}
+        {hideChildName ? `Periode ${period.periodNo}` : `${period.classroomLabel} · Periode ${period.periodNo}`}
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
