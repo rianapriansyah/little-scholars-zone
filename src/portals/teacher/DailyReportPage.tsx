@@ -1,24 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import NoteAddIcon from '@mui/icons-material/NoteAdd'
 import {
   Alert,
   Avatar,
   Box,
-  Button,
   Chip,
   CircularProgress,
-  Divider,
-  IconButton,
-  Link,
+  ListItemAvatar,
+  ListItemButton,
   MenuItem,
   Paper,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material'
-import { AttendanceStatusSelector } from '../../components/AttendanceStatusSelector'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import { supabase } from '../../lib/supabase'
@@ -32,7 +26,7 @@ import {
   type ReportSummary,
   type RosterEntry,
 } from '../../lib/dailyReport'
-import { fetchAttendanceByChild, fetchOpenPeriodsByChild, recordAttendance } from '../../lib/learningPeriods'
+import { fetchAttendanceByChild, fetchOpenPeriodsByChild } from '../../lib/learningPeriods'
 import { reportStatus } from '../../lib/dailyReportEntries'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
@@ -55,10 +49,16 @@ const STATUS_CHIP: Record<DailyReportStatus, { label: string; color: 'default' |
   terkirim: { label: 'Terkirim', color: 'success' },
 }
 
+const ATTENDANCE_CHIP_COLOR: Record<AttendanceStatus, 'success' | 'warning' | 'info'> = {
+  present: 'success',
+  absent: 'warning',
+  sick: 'info',
+}
+
 /**
- * Everything the teacher fills in right after class, on one screen: attendance for each child
- * and their Laporan Akademik Harian. Attendance is the fast pass over the whole group, so it
- * sits inline on the roster; the materi report is deeper per-child work and stays behind a tap.
+ * Everything the teacher fills in right after class: the roster summarises each child's day at
+ * a glance, and tapping one opens their sheet, where attendance is set first and the materi
+ * report second — the report only applies to a child who was actually present.
  */
 export function DailyReportPage() {
   const { user } = useAuth()
@@ -73,15 +73,12 @@ export function DailyReportPage() {
   const [summaries, setSummaries] = useState<Map<string, ReportSummary>>(new Map())
   const [attendance, setAttendance] = useState<Map<string, ChildAttendanceRow>>(new Map())
   const [periods, setPeriods] = useState<Map<string, LearningPeriodListEntry>>(new Map())
-  const [notes, setNotes] = useState<Record<string, string>>({})
-  const [noteOpenFor, setNoteOpenFor] = useState<Set<string>>(new Set())
 
   const [selectedChild, setSelectedChild] = useState<RosterEntry | null>(null)
   const [openReport, setOpenReport] = useState<DailyReportMateri | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [opening, setOpening] = useState(false)
-  const [savingChildId, setSavingChildId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -165,9 +162,6 @@ export function DailyReportPage() {
     setSummaries(summaryResult.data)
     setAttendance(attendanceResult.data)
     setPeriods(periodResult.data)
-    setNotes(
-      Object.fromEntries([...attendanceResult.data.values()].map((row) => [row.child_id, row.note ?? ''])),
-    )
   }, [classroomTeacherId, classroomId, reportDate])
 
   useEffect(() => {
@@ -181,11 +175,6 @@ export function DailyReportPage() {
   }, [classroomTeacherId, reportDate])
 
   async function handleOpenChild(child: RosterEntry) {
-    // Guarded here as well as on the button: a materi report only makes sense for a child who
-    // was actually in class.
-    const recorded = attendance.get(child.childId)
-    if (recorded?.status !== 'present') return
-
     setOpening(true)
     setError(null)
     const result = await fetchDailyReportMateri(child.childId, classroomTeacherId, reportDate)
@@ -196,35 +185,6 @@ export function DailyReportPage() {
     }
     setSelectedChild(child)
     setOpenReport(result.data)
-  }
-
-  async function handleMark(child: RosterEntry, status: AttendanceStatus) {
-    setSavingChildId(child.childId)
-    setError(null)
-    const result = await recordAttendance({
-      childId: child.childId,
-      classroomId,
-      attendanceDate: reportDate,
-      status,
-      note: notes[child.childId] ?? null,
-    })
-    setSavingChildId(null)
-    if (!result.ok) {
-      setError(`${child.childName}: ${result.error}`)
-      return
-    }
-    // Re-read rather than patching locally: recording can close the period, and
-    // days_remaining is computed server-side.
-    await loadRoster()
-  }
-
-  function toggleNote(childId: string) {
-    setNoteOpenFor((prev) => {
-      const next = new Set(prev)
-      if (next.has(childId)) next.delete(childId)
-      else next.add(childId)
-      return next
-    })
   }
 
   if (!teacher || loading) {
@@ -287,8 +247,11 @@ export function DailyReportPage() {
           <DailyReportStudentSheet
             key={`${selectedChild.childId}-${reportDate}`}
             childName={selectedChild.childName}
+            classroomId={classroomId}
             catalog={catalog}
             report={openReport}
+            attendance={attendance.get(selectedChild.childId) ?? null}
+            period={periods.get(selectedChild.childId) ?? null}
             onBack={() => {
               setSelectedChild(null)
               setOpenReport(null)
@@ -308,113 +271,54 @@ export function DailyReportPage() {
             const period = periods.get(child.childId)
             const recorded = attendance.get(child.childId)
             const status = recorded && isAttendanceStatus(recorded.status) ? recorded.status : null
-            const noteOpen = noteOpenFor.has(child.childId) || Boolean(recorded?.note)
             const summary = summaries.get(child.childId)
             const report = reportStatus(summary?.reportId ?? null, summary?.submittedAt ?? null)
             const reportChip = STATUS_CHIP[report]
-            // Materi is only filled for a child who was present. Not-yet-marked counts as not
-            // present, so the teacher takes attendance first.
-            const canFillReport = status === 'present'
 
             return (
-              <Paper key={child.childId} variant="outlined" sx={{ p: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-                  <Avatar src={child.photoUrl ?? undefined} sx={{ width: 36, height: 36 }}>
-                    {child.childName.charAt(0).toUpperCase()}
-                  </Avatar>
+              <Paper key={child.childId} variant="outlined">
+                <ListItemButton
+                  onClick={() => void handleOpenChild(child)}
+                  disabled={opening}
+                  sx={{ py: 1.5, borderRadius: 1, alignItems: 'flex-start' }}
+                >
+                  <ListItemAvatar>
+                    <Avatar src={child.photoUrl ?? undefined}>{child.childName.charAt(0).toUpperCase()}</Avatar>
+                  </ListItemAvatar>
                   <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                     <Typography variant="body1" sx={{ fontWeight: 500 }}>
                       {child.childName}
                     </Typography>
-                    {period ? (
-                      <Link
-                        component={RouterLink}
-                        to={`/teacher/periode/${period.id}`}
-                        variant="caption"
-                        underline="hover"
-                        color="text.secondary"
-                      >
-                        Periode {period.periodNo} · lihat detail
-                      </Link>
-                    ) : (
-                      <Typography variant="caption" color="error">
-                        Belum ada periode belajar aktif
-                      </Typography>
-                    )}
-                  </Box>
-                  {period ? (
-                    <Chip
-                      size="small"
-                      label={`Sisa ${period.daysRemaining}/${period.guaranteedDays}`}
-                      color={isNearingEnd(period) ? 'warning' : 'default'}
-                      variant={isNearingEnd(period) ? 'filled' : 'outlined'}
-                    />
-                  ) : null}
-                  <Tooltip title="Catatan absensi">
-                    <IconButton
-                      size="small"
-                      onClick={() => toggleNote(child.childId)}
-                      aria-label={`Catatan absensi untuk ${child.childName}`}
-                    >
-                      <NoteAddIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  Absensi
-                </Typography>
-                <AttendanceStatusSelector
-                  value={status}
-                  onChange={(next) => void handleMark(child, next)}
-                  disabled={savingChildId !== null || !period}
-                  ariaLabel={child.childName}
-                />
-
-                {noteOpen ? (
-                  <TextField
-                    size="small"
-                    label="Catatan absensi (opsional)"
-                    value={notes[child.childId] ?? ''}
-                    onChange={(e) => setNotes((prev) => ({ ...prev, [child.childId]: e.target.value }))}
-                    onBlur={() => {
-                      if (status) void handleMark(child, status)
-                    }}
-                    fullWidth
-                    sx={{ mt: 1.5 }}
-                    helperText="Tersimpan saat Anda berpindah dari kolom ini. Tidak memengaruhi kuota."
-                  />
-                ) : null}
-
-                <Divider sx={{ my: 1.5 }} />
-
-                <Button
-                  fullWidth
-                  onClick={() => void handleOpenChild(child)}
-                  disabled={opening || !canFillReport}
-                  endIcon={<ChevronRightIcon />}
-                  sx={{ justifyContent: 'space-between', textTransform: 'none', px: 1 }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2">Materi Hari Ini</Typography>
-                    {canFillReport ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
                       <Chip
                         size="small"
-                        label={reportChip.label}
-                        color={reportChip.color}
-                        variant={report === 'terkirim' ? 'filled' : 'outlined'}
+                        label={status ? ATTENDANCE_STATUS_LABELS[status] : 'Belum absen'}
+                        color={status ? ATTENDANCE_CHIP_COLOR[status] : 'default'}
+                        variant={status ? 'filled' : 'outlined'}
                       />
-                    ) : null}
+                      {/* The materi report only exists for a child who was present. */}
+                      {status === 'present' ? (
+                        <Chip
+                          size="small"
+                          label={reportChip.label}
+                          color={reportChip.color}
+                          variant={report === 'terkirim' ? 'filled' : 'outlined'}
+                        />
+                      ) : null}
+                      {period ? (
+                        <Chip
+                          size="small"
+                          label={`Sisa ${period.daysRemaining}/${period.guaranteedDays}`}
+                          color={isNearingEnd(period) ? 'warning' : 'default'}
+                          variant={isNearingEnd(period) ? 'filled' : 'outlined'}
+                        />
+                      ) : (
+                        <Chip size="small" label="Belum ada periode" color="error" variant="outlined" />
+                      )}
+                    </Box>
                   </Box>
-                </Button>
-                {!canFillReport ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1 }}>
-                    {status === null
-                      ? 'Isi absensi dulu. Materi hanya diisi untuk siswa yang hadir.'
-                      : `Siswa ${ATTENDANCE_STATUS_LABELS[status].toLowerCase()} hari ini — materi tidak diisi.`}
-                    {report !== 'kosong' ? ' Laporan yang sudah ada tetap tersimpan.' : ''}
-                  </Typography>
-                ) : null}
+                  <ChevronRightIcon sx={{ ml: 1, mt: 0.5, color: 'text.disabled' }} />
+                </ListItemButton>
               </Paper>
             )
           })}

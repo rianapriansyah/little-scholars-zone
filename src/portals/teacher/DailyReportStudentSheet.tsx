@@ -13,37 +13,67 @@ import {
   Divider,
   IconButton,
   Paper,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
+import { AttendanceStatusSelector } from '../../components/AttendanceStatusSelector'
 import { DailyReportMateriPreview } from '../../components/DailyReportMateriPreview'
 import { MasteryLevelSelector } from '../../components/MasteryLevelSelector'
 import { saveDailyReportMateri, submitDailyReport } from '../../lib/dailyReport'
 import { buildEntries, isSelectionUnchanged, toRpcEntries, toSelection } from '../../lib/dailyReportEntries'
+import { recordAttendance } from '../../lib/learningPeriods'
+import { isNearingEnd } from '../../lib/attendanceQuota'
 import type { MasteryLevel } from '../../lib/masteryLevels'
+import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
+import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import { CURRICULUM_SUBJECTS, CURRICULUM_SUBJECT_LABELS, isCurriculumSubject } from '../../types/curriculumItem'
 import type { CurriculumItemRow, CurriculumSubject } from '../../types/curriculumItem'
 import type { DailyReportEntry, DailyReportMateri } from '../../types/dailyReport'
 
 type Props = {
   childName: string
+  /** The billed program. Attendance keys on this, not on the teaching group. */
+  classroomId: string
   catalog: readonly CurriculumItemRow[]
   report: DailyReportMateri
+  attendance: ChildAttendanceRow | null
+  period: LearningPeriodListEntry | null
   onBack: () => void
-  /** Fires after any successful save or submit so the roster badges stay in sync. */
+  /** Fires after any successful save, submit or attendance change so the roster stays in sync. */
   onChanged: () => void
 }
 
-export function DailyReportStudentSheet({ childName, catalog, report, onBack, onChanged }: Props) {
+export function DailyReportStudentSheet({
+  childName,
+  classroomId,
+  catalog,
+  report,
+  attendance,
+  period,
+  onBack,
+  onChanged,
+}: Props) {
   const [selection, setSelection] = useState<Map<string, MasteryLevel>>(() => toSelection(report.entries))
   const [savedEntries, setSavedEntries] = useState<DailyReportEntry[]>(report.entries)
   const [reportId, setReportId] = useState<string | null>(report.reportId)
   const [submittedAt, setSubmittedAt] = useState<string | null>(report.submittedAt)
+
+  const [attendanceStatus, setAttendanceStatus] = useState<AttendanceStatus | null>(
+    attendance && isAttendanceStatus(attendance.status) ? attendance.status : null,
+  )
+  const [attendanceNote, setAttendanceNote] = useState(attendance?.note ?? '')
+
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   const locked = submittedAt !== null
+  // Materi is only filled for a child who was actually in class. Not-yet-marked counts as not
+  // present, so attendance is genuinely the first step of this screen.
+  const isPresent = attendanceStatus === 'present'
+  const materiDisabled = busy || locked || !isPresent
+
   const entries = useMemo(() => buildEntries(selection, catalog), [selection, catalog])
   const dirty = !isSelectionUnchanged(selection, savedEntries)
 
@@ -70,6 +100,26 @@ export function DailyReportStudentSheet({ childName, catalog, report, onBack, on
       next.delete(itemId)
       return next
     })
+  }
+
+  async function handleMarkAttendance(status: AttendanceStatus, note = attendanceNote) {
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    const result = await recordAttendance({
+      childId: report.childId,
+      classroomId,
+      attendanceDate: report.reportDate,
+      status,
+      note,
+    })
+    setBusy(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    setAttendanceStatus(status)
+    onChanged()
   }
 
   /** Returns the report id on success, null on failure (error already surfaced). */
@@ -150,6 +200,60 @@ export function DailyReportStudentSheet({ childName, catalog, report, onBack, on
           {notice}
         </Alert>
       ) : null}
+
+      {/* Step 1. Everything below depends on this. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ flexGrow: 1 }}>
+          Absensi
+        </Typography>
+        {period ? (
+          <Chip
+            size="small"
+            label={`Sisa ${period.daysRemaining}/${period.guaranteedDays}`}
+            color={isNearingEnd(period) ? 'warning' : 'default'}
+            variant={isNearingEnd(period) ? 'filled' : 'outlined'}
+          />
+        ) : null}
+      </Box>
+
+      {period ? (
+        <>
+          <AttendanceStatusSelector
+            value={attendanceStatus}
+            onChange={(next) => void handleMarkAttendance(next)}
+            disabled={busy}
+            ariaLabel={childName}
+          />
+          <TextField
+            size="small"
+            label="Catatan absensi (opsional)"
+            value={attendanceNote}
+            onChange={(e) => setAttendanceNote(e.target.value)}
+            onBlur={() => {
+              // Only re-save if the note actually changed; a status tap already stored it.
+              if (attendanceStatus && (attendance?.note ?? '') !== attendanceNote) {
+                void handleMarkAttendance(attendanceStatus, attendanceNote)
+              }
+            }}
+            disabled={busy || attendanceStatus === null}
+            fullWidth
+            sx={{ mt: 1.5 }}
+            helperText={
+              attendanceStatus === null
+                ? 'Tandai kehadiran dulu untuk menambahkan catatan.'
+                : 'Tersimpan saat Anda berpindah dari kolom ini. Tidak memengaruhi kuota.'
+            }
+          />
+        </>
+      ) : (
+        <Alert severity="warning">
+          Belum ada periode belajar aktif untuk siswa ini di kelas ini, jadi absensi belum bisa dicatat. Minta admin
+          membuat periode di Detail Keluarga → Periode Belajar.
+        </Alert>
+      )}
+
+      <Divider sx={{ my: 2 }} />
+
       {locked ? (
         <Alert severity="info" sx={{ mb: 2 }}>
           Laporan ini sudah dikirim ke orang tua dan tidak bisa diubah lagi. Hubungi admin bila ada koreksi.
@@ -160,65 +264,78 @@ export function DailyReportStudentSheet({ childName, catalog, report, onBack, on
         Materi Hari Ini
       </Typography>
 
+      {!isPresent && !locked ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {attendanceStatus === null
+            ? 'Isi absensi dulu. Materi hanya diisi untuk siswa yang hadir.'
+            : `Siswa ${ATTENDANCE_STATUS_LABELS[attendanceStatus].toLowerCase()} hari ini — materi tidak diisi.`}
+          {reportId ? ' Laporan yang sudah tersimpan tetap aman.' : ''}
+        </Alert>
+      ) : null}
+
       {catalog.length === 0 ? (
         <Alert severity="warning">Daftar materi masih kosong. Minta admin mengisinya di menu Kurikulum.</Alert>
       ) : (
-        CURRICULUM_SUBJECTS.map((subject) => {
-          const items = bySubject.get(subject) ?? []
-          if (items.length === 0) return null
-          const chosen = items.filter((item) => selection.has(item.id)).length
+        <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
+          {CURRICULUM_SUBJECTS.map((subject) => {
+            const items = bySubject.get(subject) ?? []
+            if (items.length === 0) return null
+            const chosen = items.filter((item) => selection.has(item.id)).length
 
-          return (
-            <Accordion key={subject} defaultExpanded disableGutters sx={{ mb: 1 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="subtitle1" sx={{ fontSize: '1rem', flexGrow: 1 }}>
-                  {CURRICULUM_SUBJECT_LABELS[subject]}
-                </Typography>
-                <Chip
-                  size="small"
-                  label={`${chosen} dipilih`}
-                  color={chosen > 0 ? 'primary' : 'default'}
-                  variant="outlined"
-                  sx={{ mr: 1 }}
-                />
-              </AccordionSummary>
-              <AccordionDetails sx={{ pt: 0 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {items.map((item) => {
-                    const level = selection.get(item.id) ?? null
-                    return (
-                      <Box key={item.id}>
-                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
-                          <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0, fontWeight: level ? 600 : 400 }}>
-                            {item.label}
-                          </Typography>
-                          {level && !locked ? (
-                            <Tooltip title="Tandai tidak diajarkan hari ini">
-                              <IconButton
-                                size="small"
-                                aria-label={`Hapus ${item.label} dari laporan`}
-                                onClick={() => clearItem(item.id)}
-                                disabled={busy}
-                              >
-                                <ClearIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          ) : null}
+            return (
+              <Accordion key={subject} defaultExpanded disableGutters sx={{ mb: 1 }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="subtitle1" sx={{ fontSize: '1rem', flexGrow: 1 }}>
+                    {CURRICULUM_SUBJECT_LABELS[subject]}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={`${chosen} dipilih`}
+                    color={chosen > 0 ? 'primary' : 'default'}
+                    variant="outlined"
+                    sx={{ mr: 1 }}
+                  />
+                </AccordionSummary>
+                <AccordionDetails sx={{ pt: 0 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {items.map((item) => {
+                      const level = selection.get(item.id) ?? null
+                      return (
+                        <Box key={item.id}>
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
+                            <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0, fontWeight: level ? 600 : 400 }}>
+                              {item.label}
+                            </Typography>
+                            {level && !locked ? (
+                              <Tooltip title="Tandai tidak diajarkan hari ini">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    aria-label={`Hapus ${item.label} dari laporan`}
+                                    onClick={() => clearItem(item.id)}
+                                    disabled={materiDisabled}
+                                  >
+                                    <ClearIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            ) : null}
+                          </Box>
+                          <MasteryLevelSelector
+                            value={level}
+                            onChange={(next) => setLevel(item.id, next)}
+                            disabled={materiDisabled}
+                            ariaLabel={item.label}
+                          />
                         </Box>
-                        <MasteryLevelSelector
-                          value={level}
-                          onChange={(next) => setLevel(item.id, next)}
-                          disabled={busy || locked}
-                          ariaLabel={item.label}
-                        />
-                      </Box>
-                    )
-                  })}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-          )
-        })
+                      )
+                    })}
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            )
+          })}
+        </Box>
       )}
 
       <Accordion disableGutters sx={{ mt: 2 }}>
@@ -238,14 +355,18 @@ export function DailyReportStudentSheet({ childName, catalog, report, onBack, on
         <>
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1, justifyContent: 'flex-end' }}>
-            <Button variant="outlined" onClick={() => void handleSaveDraft()} disabled={busy || !dirty}>
+            <Button variant="outlined" onClick={() => void handleSaveDraft()} disabled={materiDisabled || !dirty}>
               {busy ? 'Menyimpan…' : dirty ? 'Simpan Draf' : 'Tersimpan'}
             </Button>
-            <Button variant="contained" onClick={() => void handleSubmit()} disabled={busy || entries.length === 0}>
+            <Button
+              variant="contained"
+              onClick={() => void handleSubmit()}
+              disabled={materiDisabled || entries.length === 0}
+            >
               Kirim ke Orang Tua
             </Button>
           </Box>
-          {entries.length === 0 ? (
+          {isPresent && entries.length === 0 ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5 }}>
               Pilih minimal satu materi sebelum mengirim.
             </Typography>
