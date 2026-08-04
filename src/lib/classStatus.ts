@@ -88,14 +88,19 @@ export function formatWitaDayAndDate(referenceNow: Date = new Date()): string {
 
 const WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
 
+/** Classrooms only run Monday–Friday, judged by the WITA calendar rather than the browser's. */
+export function isWitaClassDay(referenceNow: Date = new Date()): boolean {
+  return WEEKDAYS.has(getWitaDateParts(referenceNow).weekday)
+}
+
 /**
  * Returns the instant `time` (HH:MM[:SS]) falls on *today's WITA date*, or null if today is a
  * weekend in WITA (classrooms only run Monday–Friday). Always uses Asia/Makassar (UTC+8, no
  * DST) regardless of the browser/server's local timezone.
  */
 function getTodaysWitaInstant(time: string, referenceNow: Date): Date | null {
-  const { weekday, year, month, day } = getWitaDateParts(referenceNow)
-  if (!WEEKDAYS.has(weekday)) return null
+  if (!isWitaClassDay(referenceNow)) return null
+  const { year, month, day } = getWitaDateParts(referenceNow)
 
   const [hourStr, minuteStr] = time.split(':')
   const hour = Number(hourStr)

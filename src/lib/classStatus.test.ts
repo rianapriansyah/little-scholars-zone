@@ -4,6 +4,7 @@ import {
   getClassStatus,
   getTodaysClassEndInWita,
   getTodaysClassStartInWita,
+  isWitaClassDay,
   todayIsoDateInWita,
 } from './classStatus'
 
@@ -102,6 +103,23 @@ describe('getTodaysClassStartInWita', () => {
     // 2026-07-13T17:00:00Z = 2026-07-14T01:00:00 WITA — already Tuesday in WITA, still Monday in UTC.
     const referenceNow = new Date('2026-07-13T17:00:00Z')
     expect(getTodaysClassStartInWita('10:00', referenceNow)).toEqual(new Date('2026-07-14T02:00:00Z'))
+  })
+})
+
+describe('isWitaClassDay', () => {
+  it('is true Monday through Friday', () => {
+    expect(isWitaClassDay(new Date('2026-08-03T04:00:00Z'))).toBe(true) // Monday
+    expect(isWitaClassDay(new Date('2026-08-07T04:00:00Z'))).toBe(true) // Friday
+  })
+
+  it('is false at the weekend', () => {
+    expect(isWitaClassDay(new Date('2026-08-08T04:00:00Z'))).toBe(false) // Saturday
+    expect(isWitaClassDay(new Date('2026-08-09T04:00:00Z'))).toBe(false) // Sunday
+  })
+
+  it('judges by the WITA day, not UTC', () => {
+    // 2026-08-07T17:00:00Z = Saturday 01:00 WITA, still Friday in UTC.
+    expect(isWitaClassDay(new Date('2026-08-07T17:00:00Z'))).toBe(false)
   })
 })
 

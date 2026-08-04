@@ -9,8 +9,10 @@ import {
   getClassStatus,
   getTodaysClassEndInWita,
   getTodaysClassStartInWita,
+  isWitaClassDay,
   type ClassStatusBorder,
 } from '../../lib/classStatus'
+import { teacherDisplayName } from '../../lib/teacherName'
 import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
 
 type GroupWithRoster = {
@@ -97,20 +99,28 @@ export function TeacherRosterPage() {
     )
   }
 
+  const isClassDay = isWitaClassDay(now)
+
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
-        Selamat Bekerja, {teacher.full_name}
+        Selamat Bekerja, {teacherDisplayName(teacher)}
       </Typography>
-      {/* Driven by `now`, which ticks every 30s, so the date rolls over without a reload. */}
+      {/* Driven by `now`, which ticks every 30s, so the date rolls over without a reload. On a
+          weekend the date stands alone — "Kelas hari ini" above "Tidak ada kelas" contradicts
+          itself. */}
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Kelas hari ini, {formatWitaDayAndDate(now)}
+        {isClassDay ? `Kelas hari ini, ${formatWitaDayAndDate(now)}` : formatWitaDayAndDate(now)}
       </Typography>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       {groups.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
+      ) : !isClassDay ? (
+        // Classrooms run Mon–Fri, so listing them on a weekend would invite attendance for a
+        // day that never happened.
+        <Typography color="text.secondary">Tidak ada kelas hari ini.</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {groups.map((group) => {
