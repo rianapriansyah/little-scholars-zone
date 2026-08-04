@@ -27,7 +27,7 @@ import { fetchAttendanceByChild, fetchOpenPeriodsByChild } from '../../lib/learn
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import type { CurriculumItemRow } from '../../types/curriculumItem'
 import type { DailyReportMateri } from '../../types/dailyReport'
-import { DailyReportStudentSheet } from './DailyReportStudentSheet'
+import { DailyReportStudentDialog } from './DailyReportStudentDialog'
 
 type ClassOption = {
   classroomTeacherId: string
@@ -220,23 +220,6 @@ export function DailyReportPage() {
 
       {classes.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
-      ) : selectedChild && openReport ? (
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <DailyReportStudentSheet
-            key={`${selectedChild.childId}-${reportDate}`}
-            childName={selectedChild.childName}
-            classroomId={classroomId}
-            catalog={catalog}
-            report={openReport}
-            attendance={attendance.get(selectedChild.childId) ?? null}
-            period={periods.get(selectedChild.childId) ?? null}
-            onBack={() => {
-              setSelectedChild(null)
-              setOpenReport(null)
-            }}
-            onChanged={() => void loadRoster()}
-          />
-        </Paper>
       ) : roster.length === 0 ? (
         <Typography color="text.secondary">Belum ada siswa yang terdaftar di kelas ini.</Typography>
       ) : (
@@ -266,6 +249,24 @@ export function DailyReportPage() {
           })}
         </Box>
       )}
+
+      {selectedChild && openReport ? (
+        <DailyReportStudentDialog
+          key={`${selectedChild.childId}-${reportDate}`}
+          open
+          childName={selectedChild.childName}
+          classroomId={classroomId}
+          catalog={catalog}
+          report={openReport}
+          attendance={attendance.get(selectedChild.childId) ?? null}
+          period={periods.get(selectedChild.childId) ?? null}
+          onClose={() => {
+            setSelectedChild(null)
+            setOpenReport(null)
+          }}
+          onChanged={() => void loadRoster()}
+        />
+      ) : null}
     </Box>
   )
 }
