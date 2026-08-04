@@ -1,5 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Card, CardContent, Chip, CircularProgress, List, ListItem, ListItemText, Typography } from '@mui/material'
+import { useNavigate } from 'react-router-dom'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import {
+  Alert,
+  Box,
+  Card,
+  CardActionArea,
+  CardContent,
+  Chip,
+  CircularProgress,
+  List,
+  ListItem,
+  ListItemText,
+  Typography,
+} from '@mui/material'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
@@ -41,6 +55,7 @@ function useNow(intervalMs = 30_000): Date {
 export function TeacherRosterPage() {
   const { user } = useAuth()
   const { teacher } = useTeacherProfile(user?.id)
+  const navigate = useNavigate()
   const [groups, setGroups] = useState<GroupWithRoster[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -101,6 +116,15 @@ export function TeacherRosterPage() {
 
   const isClassDay = isWitaClassDay(now)
 
+  /**
+   * `groupId` is a classroom_teachers id — the same thing the Laporan Harian class picker is
+   * keyed on — so the report screen opens straight on this class instead of whichever one
+   * happened to sort first.
+   */
+  function openDailyReport(groupId: string) {
+    void navigate('/teacher/laporan-harian', { state: { classroomTeacherId: groupId } })
+  }
+
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
@@ -136,9 +160,13 @@ export function TeacherRosterPage() {
                 variant="outlined"
                 sx={borderColor ? { borderColor, borderWidth: 2 } : undefined}
               >
+                <CardActionArea
+                  onClick={() => openDailyReport(group.id)}
+                  aria-label={`Isi laporan harian untuk ${classroom.label}`}
+                >
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
+                    <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
                       {classroom.label}
                     </Typography>
                     {status?.label ? (
@@ -150,6 +178,7 @@ export function TeacherRosterPage() {
                         variant="outlined"
                       />
                     ) : null}
+                    <ChevronRightIcon sx={{ color: 'text.disabled' }} />
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                     Sen–Jum · {classroom.time_start.slice(0, 5)}
@@ -170,6 +199,7 @@ export function TeacherRosterPage() {
                     </List>
                   )}
                 </CardContent>
+                </CardActionArea>
               </Card>
             )
           })}

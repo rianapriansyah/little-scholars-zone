@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import {
   Alert,
@@ -46,6 +47,10 @@ type ClassOption = {
 export function DailyReportPage() {
   const { user } = useAuth()
   const { teacher } = useTeacherProfile(user?.id)
+  const location = useLocation()
+  /** Set when the teacher arrived by tapping a class card on Kelas Saya. */
+  const focusClassroomTeacherId = (location.state as { classroomTeacherId?: string } | null)
+    ?.classroomTeacherId
 
   const [classes, setClasses] = useState<ClassOption[]>([])
   const [classroomTeacherId, setClassroomTeacherId] = useState('')
@@ -110,7 +115,12 @@ export function DailyReportPage() {
 
       setClasses(options)
       setCatalog(catalogResult.data)
-      setClassroomTeacherId((current) => current || options[0]?.classroomTeacherId || '')
+      // Honour the class handed over from Kelas Saya, but only if this teacher really holds
+      // it — a stale or hand-typed navigation state must not select a class they cannot see.
+      const requested = options.find((o) => o.classroomTeacherId === focusClassroomTeacherId)
+      setClassroomTeacherId(
+        (current) => current || requested?.classroomTeacherId || options[0]?.classroomTeacherId || '',
+      )
       setLoading(false)
     })()
 
