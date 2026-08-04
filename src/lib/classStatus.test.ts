@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getClassStatus, getTodaysClassStartInWita } from './classStatus'
+import { getClassStatus, getTodaysClassStartInWita, todayIsoDateInWita } from './classStatus'
 
 describe('getClassStatus', () => {
   const start = new Date('2026-07-14T02:00:00Z') // 10:00 WITA
@@ -49,5 +49,16 @@ describe('getTodaysClassStartInWita', () => {
     // 2026-07-13T17:00:00Z = 2026-07-14T01:00:00 WITA — already Tuesday in WITA, still Monday in UTC.
     const referenceNow = new Date('2026-07-13T17:00:00Z')
     expect(getTodaysClassStartInWita('10:00', referenceNow)).toEqual(new Date('2026-07-14T02:00:00Z'))
+  })
+})
+
+describe('todayIsoDateInWita', () => {
+  it('returns the WITA calendar date, zero-padded', () => {
+    expect(todayIsoDateInWita(new Date('2026-08-02T04:00:00Z'))).toBe('2026-08-02')
+  })
+
+  it('rolls to the next day before UTC midnight, so a report is filed under the right day', () => {
+    // 2026-08-02T17:30:00Z = 2026-08-03T01:30 WITA — already the 3rd where the teacher is.
+    expect(todayIsoDateInWita(new Date('2026-08-02T17:30:00Z'))).toBe('2026-08-03')
   })
 })

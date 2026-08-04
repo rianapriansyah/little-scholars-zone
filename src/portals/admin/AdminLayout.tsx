@@ -8,6 +8,7 @@ const NAV: PortalNavItem[] = [
   { to: '/admin/children', label: 'Siswa' },
   { to: '/admin/teachers', label: 'Guru' },
   { to: '/admin/classrooms', label: 'Kelas' },
+  { to: '/admin/curriculum', label: 'Kurikulum' },
   { to: '/admin/kelola-akun', label: 'Kelola Akun' },
 ]
 

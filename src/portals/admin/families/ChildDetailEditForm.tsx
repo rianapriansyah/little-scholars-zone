@@ -179,7 +179,7 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
     const { error: rpcErr } = await supabase.rpc('switch_classroom', {
       p_child_id: child.id,
       p_new_classroom_teacher_id: selectedGroupId,
-      p_end_reason: endReason.trim() || null,
+      p_end_reason: endReason.trim() || undefined,
     })
     setEnrolling(false)
     if (rpcErr) {

@@ -45,6 +45,16 @@ function getWitaDateParts(instant: Date) {
   }
 }
 
+/**
+ * Today's date in Asia/Makassar as YYYY-MM-DD. A daily report is filed against a WITA
+ * calendar day, so deriving it from the browser's local date (or a UTC toISOString()) would
+ * file the report under the wrong day for anyone whose clock is behind UTC+8.
+ */
+export function todayIsoDateInWita(referenceNow: Date = new Date()): string {
+  const { year, month, day } = getWitaDateParts(referenceNow)
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 const WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
 
 /**
