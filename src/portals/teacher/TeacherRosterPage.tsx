@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import type { ClassroomRow } from '../../types/classroom'
 import {
+  formatWitaDayAndDate,
   getClassStatus,
   getTodaysClassEndInWita,
   getTodaysClassStartInWita,
@@ -98,8 +99,12 @@ export function TeacherRosterPage() {
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}>
-        Kelas Saya
+      <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
+        Selamat Bekerja, {teacher.full_name}
+      </Typography>
+      {/* Driven by `now`, which ticks every 30s, so the date rolls over without a reload. */}
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Kelas hari ini, {formatWitaDayAndDate(now)}
       </Typography>
 
       {error ? <Alert severity="error">{error}</Alert> : null}

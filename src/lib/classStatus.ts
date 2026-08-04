@@ -64,6 +64,28 @@ export function todayIsoDateInWita(referenceNow: Date = new Date()): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+/** getWitaDateParts formats with en-CA, so the weekday comes back in English. */
+const WITA_WEEKDAY_LABELS: Record<string, string> = {
+  Monday: 'Senin',
+  Tuesday: 'Selasa',
+  Wednesday: 'Rabu',
+  Thursday: 'Kamis',
+  Friday: 'Jumat',
+  Saturday: 'Sabtu',
+  Sunday: 'Minggu',
+}
+
+/**
+ * Today in Asia/Makassar, written the way the teacher portal greets it: "Senin, 05-08-2026".
+ * WITA rather than the browser's clock, so the day name always matches the classes listed
+ * under it.
+ */
+export function formatWitaDayAndDate(referenceNow: Date = new Date()): string {
+  const { weekday, year, month, day } = getWitaDateParts(referenceNow)
+  const dayName = WITA_WEEKDAY_LABELS[weekday] ?? weekday
+  return `${dayName}, ${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`
+}
+
 const WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
 
 /**

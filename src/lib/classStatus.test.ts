@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatWitaDayAndDate,
   getClassStatus,
   getTodaysClassEndInWita,
   getTodaysClassStartInWita,
@@ -101,6 +102,24 @@ describe('getTodaysClassStartInWita', () => {
     // 2026-07-13T17:00:00Z = 2026-07-14T01:00:00 WITA — already Tuesday in WITA, still Monday in UTC.
     const referenceNow = new Date('2026-07-13T17:00:00Z')
     expect(getTodaysClassStartInWita('10:00', referenceNow)).toEqual(new Date('2026-07-14T02:00:00Z'))
+  })
+})
+
+describe('formatWitaDayAndDate', () => {
+  it('names the day in Indonesian and pads to DD-MM-YYYY', () => {
+    // 2026-08-03 is a Monday in WITA.
+    expect(formatWitaDayAndDate(new Date('2026-08-03T04:00:00Z'))).toBe('Senin, 03-08-2026')
+  })
+
+  it('covers the rest of the week', () => {
+    expect(formatWitaDayAndDate(new Date('2026-08-07T04:00:00Z'))).toBe('Jumat, 07-08-2026')
+    expect(formatWitaDayAndDate(new Date('2026-08-08T04:00:00Z'))).toBe('Sabtu, 08-08-2026')
+    expect(formatWitaDayAndDate(new Date('2026-08-09T04:00:00Z'))).toBe('Minggu, 09-08-2026')
+  })
+
+  it('uses the WITA day, not the browser/UTC one, near midnight', () => {
+    // 2026-08-02T17:30:00Z = 2026-08-03T01:30 WITA — Monday there, still Sunday in UTC.
+    expect(formatWitaDayAndDate(new Date('2026-08-02T17:30:00Z'))).toBe('Senin, 03-08-2026')
   })
 })
 
