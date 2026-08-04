@@ -16,6 +16,7 @@ import {
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { DevRoleSwitcher } from './DevRoleSwitcher'
 
 const DRAWER_WIDTH = 260
 
@@ -102,6 +103,7 @@ export function PortalLayout({ title, navItems }: Props) {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
             {title}
           </Typography>
+          <DevRoleSwitcher />
           <Button
             color="inherit"
             size="small"
