@@ -23,7 +23,6 @@ import { MasteryLevelSelector } from '../../components/MasteryLevelSelector'
 import { saveDailyReportMateri, submitDailyReport } from '../../lib/dailyReport'
 import { buildEntries, isSelectionUnchanged, toRpcEntries, toSelection } from '../../lib/dailyReportEntries'
 import { recordAttendance } from '../../lib/learningPeriods'
-import { isNearingEnd } from '../../lib/attendanceQuota'
 import type { MasteryLevel } from '../../lib/masteryLevels'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
@@ -178,16 +177,10 @@ export function DailyReportStudentSheet({
         <IconButton onClick={onBack} aria-label="Kembali ke daftar siswa" size="small" disabled={busy}>
           <ArrowBackIcon />
         </IconButton>
+        {/* Status chips live on the collapsed roster card; repeating them here is noise. */}
         <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
           {childName}
         </Typography>
-        {locked ? (
-          <Chip size="small" label="Terkirim" color="success" />
-        ) : reportId ? (
-          <Chip size="small" label="Draf" color="warning" variant="outlined" />
-        ) : (
-          <Chip size="small" label="Belum diisi" variant="outlined" />
-        )}
       </Box>
 
       {error ? (
@@ -202,19 +195,9 @@ export function DailyReportStudentSheet({
       ) : null}
 
       {/* Step 1. Everything below depends on this. */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ flexGrow: 1 }}>
-          Absensi
-        </Typography>
-        {period ? (
-          <Chip
-            size="small"
-            label={`Sisa ${period.daysRemaining}/${period.guaranteedDays}`}
-            color={isNearingEnd(period) ? 'warning' : 'default'}
-            variant={isNearingEnd(period) ? 'filled' : 'outlined'}
-          />
-        ) : null}
-      </Box>
+      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+        Absensi
+      </Typography>
 
       {period ? (
         <>
