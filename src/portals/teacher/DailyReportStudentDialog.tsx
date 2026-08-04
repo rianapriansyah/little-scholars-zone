@@ -26,7 +26,6 @@ import { MasteryLevelSelector } from '../../components/MasteryLevelSelector'
 import { saveDailyReportMateri, submitDailyReport } from '../../lib/dailyReport'
 import { buildEntries, isSelectionUnchanged, toRpcEntries, toSelection } from '../../lib/dailyReportEntries'
 import { recordAttendance } from '../../lib/learningPeriods'
-import { isNearingEnd } from '../../lib/attendanceQuota'
 import type { MasteryLevel } from '../../lib/masteryLevels'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
@@ -289,40 +288,11 @@ export function DailyReportStudentDialog({
           </Alert>
         ) : null}
 
+        {/* Quota deliberately absent: the teacher does not need it to file a daily report, and
+            it is the admin's concern at renewal time. It stays on the period detail screen and
+            the admin renewal queue. */}
         <Section
           index={1}
-          title="Kuota Belajar"
-          defaultExpanded
-          chip={
-            period ? (
-              <Chip
-                size="small"
-                label={`Sisa ${period.daysRemaining}`}
-                color={isNearingEnd(period) ? 'warning' : 'default'}
-                variant={isNearingEnd(period) ? 'filled' : 'outlined'}
-              />
-            ) : (
-              <Chip size="small" label="Belum ada" color="error" variant="outlined" />
-            )
-          }
-        >
-          {period ? (
-            <Panel>
-              <Field label="Periode" value={`Periode ${period.periodNo} · mulai ${period.startDate}`} />
-              <Field label="Sisa Hari" value={`${period.daysRemaining} dari ${period.guaranteedDays} hari`} />
-              <Field label="Terpakai" value={`${period.daysConsumed} hari (hadir + alfa)`} />
-              <Field label="Sakit" value={`${period.daysSick} hari (tidak memotong kuota)`} divider={false} />
-            </Panel>
-          ) : (
-            <Alert severity="warning">
-              Belum ada periode belajar aktif untuk siswa ini di kelas ini, jadi kehadiran belum bisa dicatat. Minta
-              admin membuat periode di Detail Keluarga → Periode Belajar.
-            </Alert>
-          )}
-        </Section>
-
-        <Section
-          index={2}
           title="Kehadiran"
           defaultExpanded
           chip={
@@ -385,7 +355,7 @@ export function DailyReportStudentDialog({
         </Section>
 
         <Section
-          index={3}
+          index={2}
           title="Materi Hari Ini"
           defaultExpanded
           chip={entries.length > 0 ? <Chip size="small" label={`${entries.length} materi`} color="primary" /> : null}
@@ -476,7 +446,7 @@ export function DailyReportStudentDialog({
           )}
         </Section>
 
-        <Section index={4} title="Pratinjau untuk Orang Tua">
+        <Section index={3} title="Pratinjau untuk Orang Tua">
           <Panel>
             <DailyReportMateriPreview entries={entries} />
           </Panel>
