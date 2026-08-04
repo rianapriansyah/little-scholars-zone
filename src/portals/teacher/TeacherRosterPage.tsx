@@ -104,7 +104,7 @@ export function TeacherRosterPage() {
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
-        Selamat Bekerja, {teacherDisplayName(teacher)}
+        {isClassDay ? 'Selamat Bekerja' : 'Selamat Berakhir Pekan'}, {teacherDisplayName(teacher)}
       </Typography>
       {/* Driven by `now`, which ticks every 30s, so the date rolls over without a reload. On a
           weekend the date stands alone — "Kelas hari ini" above "Tidak ada kelas" contradicts
