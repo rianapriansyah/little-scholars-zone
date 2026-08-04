@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import ClearIcon from '@mui/icons-material/Clear'
+import CloseIcon from '@mui/icons-material/Close'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import {
   Accordion,
@@ -13,8 +14,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   IconButton,
-  Paper,
   TextField,
   Tooltip,
   Typography,
@@ -33,6 +34,63 @@ import { CURRICULUM_SUBJECTS, CURRICULUM_SUBJECT_LABELS, isCurriculumSubject } f
 import type { CurriculumItemRow, CurriculumSubject } from '../../types/curriculumItem'
 import type { DailyReportEntry, DailyReportMateri } from '../../types/dailyReport'
 
+/** A numbered, collapsible division of the record, separated from its neighbours by a rule. */
+function Section({
+  index,
+  title,
+  chip,
+  defaultExpanded = false,
+  children,
+}: {
+  index: number
+  title: string
+  chip?: ReactNode
+  defaultExpanded?: boolean
+  children: ReactNode
+}) {
+  return (
+    <Accordion
+      defaultExpanded={defaultExpanded}
+      disableGutters
+      elevation={0}
+      square
+      sx={{
+        bgcolor: 'transparent',
+        borderBottom: 1,
+        borderColor: 'divider',
+        '&:before': { display: 'none' },
+        '&:last-of-type': { borderBottom: 0 },
+      }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
+        <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>
+          {index}. {title}
+        </Typography>
+        {chip ? <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>{chip}</Box> : null}
+      </AccordionSummary>
+      <AccordionDetails sx={{ px: 0, pt: 0, pb: 2.5 }}>{children}</AccordionDetails>
+    </Accordion>
+  )
+}
+
+/** The tinted card a section's contents sit on. */
+function Panel({ children }: { children: ReactNode }) {
+  return <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 2 }}>{children}</Box>
+}
+
+/** Muted label above its value, the way the rest of the record reads. */
+function Field({ label, value, divider = true }: { label: string; value: ReactNode; divider?: boolean }) {
+  return (
+    <>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+        {label}
+      </Typography>
+      {typeof value === 'string' ? <Typography variant="body1">{value}</Typography> : value}
+      {divider ? <Divider sx={{ my: 1.5 }} /> : null}
+    </>
+  )
+}
+
 type Props = {
   open: boolean
   childName: string
@@ -48,8 +106,8 @@ type Props = {
 }
 
 /**
- * One child's whole day, as a modal over the roster. Four divisions, each collapsible:
- * header (name + credit usage), attendance, its submit button, then Materi Hari Ini.
+ * One child's whole day, as a modal over the roster: a header, then numbered collapsible
+ * divisions — kuota, kehadiran (with its own submit), materi, and the parent preview.
  *
  * Attendance is submitted explicitly rather than on tap, so a mis-tap costs nothing until the
  * teacher confirms it — and Materi only unlocks once a 'present' record actually exists.
@@ -188,222 +246,245 @@ export function DailyReportStudentDialog({
   }
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="sm">
-      {/* Division 1 — header: who this is, and what their period has left. */}
-      <DialogTitle sx={{ pb: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Typography variant="h6" sx={{ fontSize: '1.15rem', flexGrow: 1, minWidth: 0 }}>
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : onClose}
+      fullWidth
+      maxWidth="sm"
+      slotProps={{ paper: { sx: { borderRadius: 2 } } }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, pr: 1.5 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.25rem' }}>
             {childName}
           </Typography>
-          {locked ? (
-            <Chip size="small" label="Terkirim" color="success" />
-          ) : reportId ? (
-            <Chip size="small" label="Draf" color="warning" variant="outlined" />
-          ) : (
-            <Chip size="small" label="Belum diisi" variant="outlined" />
-          )}
+          <Typography variant="body2" color="text.secondary">
+            Laporan Harian · {report.reportDate}
+          </Typography>
         </Box>
-        {period ? (
-          <Typography
-            variant="body2"
-            color={isNearingEnd(period) ? 'warning.main' : 'text.secondary'}
-            sx={{ mt: 0.5 }}
-          >
-            Sisa {period.daysRemaining} dari {period.guaranteedDays} hari · Terpakai {period.daysConsumed} · Sakit{' '}
-            {period.daysSick}
-          </Typography>
-        ) : (
-          <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
-            Belum ada periode belajar aktif
-          </Typography>
-        )}
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-          {report.reportDate}
-        </Typography>
+        {locked ? (
+          <Chip size="small" label="Terkirim" color="success" />
+        ) : reportId ? (
+          <Chip size="small" label="Draf" color="warning" variant="outlined" />
+        ) : null}
+        <IconButton onClick={onClose} disabled={busy} aria-label="Tutup" size="small" sx={{ mt: -0.5 }}>
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
 
-      <DialogContent dividers>
+      <DialogContent dividers sx={{ px: 3, py: 0 }}>
         {error ? (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError(null)}>
             {error}
           </Alert>
         ) : null}
         {notice ? (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice(null)}>
+          <Alert severity="success" sx={{ mt: 2 }} onClose={() => setNotice(null)}>
             {notice}
           </Alert>
         ) : null}
         {locked ? (
-          <Alert severity="info" sx={{ mb: 2 }}>
+          <Alert severity="info" sx={{ mt: 2 }}>
             Laporan ini sudah dikirim ke orang tua dan tidak bisa diubah lagi. Hubungi admin bila ada koreksi.
           </Alert>
         ) : null}
 
-        {/* Division 2 — attendance, with its own submit in division 3. */}
-        <Accordion defaultExpanded disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="subtitle1" sx={{ fontSize: '1rem', flexGrow: 1 }}>
-              Kehadiran
-            </Typography>
-            {savedStatus ? (
+        <Section
+          index={1}
+          title="Kuota Belajar"
+          defaultExpanded
+          chip={
+            period ? (
+              <Chip
+                size="small"
+                label={`Sisa ${period.daysRemaining}`}
+                color={isNearingEnd(period) ? 'warning' : 'default'}
+                variant={isNearingEnd(period) ? 'filled' : 'outlined'}
+              />
+            ) : (
+              <Chip size="small" label="Belum ada" color="error" variant="outlined" />
+            )
+          }
+        >
+          {period ? (
+            <Panel>
+              <Field label="Periode" value={`Periode ${period.periodNo} · mulai ${period.startDate}`} />
+              <Field label="Sisa Hari" value={`${period.daysRemaining} dari ${period.guaranteedDays} hari`} />
+              <Field label="Terpakai" value={`${period.daysConsumed} hari (hadir + alfa)`} />
+              <Field label="Sakit" value={`${period.daysSick} hari (tidak memotong kuota)`} divider={false} />
+            </Panel>
+          ) : (
+            <Alert severity="warning">
+              Belum ada periode belajar aktif untuk siswa ini di kelas ini, jadi kehadiran belum bisa dicatat. Minta
+              admin membuat periode di Detail Keluarga → Periode Belajar.
+            </Alert>
+          )}
+        </Section>
+
+        <Section
+          index={2}
+          title="Kehadiran"
+          defaultExpanded
+          chip={
+            savedStatus ? (
               <Chip
                 size="small"
                 label={ATTENDANCE_STATUS_LABELS[savedStatus]}
                 color={savedStatus === 'present' ? 'success' : savedStatus === 'absent' ? 'warning' : 'info'}
-                sx={{ mr: 1 }}
               />
             ) : (
-              <Chip size="small" label="Belum absen" variant="outlined" sx={{ mr: 1 }} />
-            )}
-          </AccordionSummary>
-          <AccordionDetails>
-            {period ? (
-              <>
-                <AttendanceStatusSelector
-                  value={draftStatus}
-                  onChange={setDraftStatus}
-                  disabled={busy}
-                  ariaLabel={childName}
+              <Chip size="small" label="Belum absen" variant="outlined" />
+            )
+          }
+        >
+          {period ? (
+            <>
+              <Panel>
+                <Field
+                  label="Status Kehadiran"
+                  divider={false}
+                  value={
+                    <AttendanceStatusSelector
+                      value={draftStatus}
+                      onChange={setDraftStatus}
+                      disabled={busy}
+                      ariaLabel={childName}
+                    />
+                  }
                 />
-                <TextField
-                  size="small"
-                  label="Catatan kehadiran (opsional)"
-                  value={draftNote}
-                  onChange={(e) => setDraftNote(e.target.value)}
-                  disabled={busy || draftStatus === null}
-                  fullWidth
-                  sx={{ mt: 1.5 }}
-                  helperText="Tidak memengaruhi kuota."
+                <Divider sx={{ my: 1.5 }} />
+                <Field
+                  label="Catatan Kehadiran"
+                  divider={false}
+                  value={
+                    <TextField
+                      size="small"
+                      placeholder="Opsional — tidak memengaruhi kuota"
+                      value={draftNote}
+                      onChange={(e) => setDraftNote(e.target.value)}
+                      disabled={busy || draftStatus === null}
+                      fullWidth
+                    />
+                  }
                 />
+              </Panel>
+              {/* Nothing is written until this is pressed. */}
+              <Button
+                variant="contained"
+                fullWidth
+                sx={{ mt: 1.5 }}
+                onClick={() => void handleSubmitAttendance()}
+                disabled={busy || !draftStatus || !attendanceDirty}
+              >
+                {busy ? 'Menyimpan…' : attendanceDirty ? 'Masukkan Kehadiran' : 'Kehadiran Tersimpan'}
+              </Button>
+            </>
+          ) : (
+            <Alert severity="warning">Kehadiran belum bisa dicatat tanpa periode belajar aktif.</Alert>
+          )}
+        </Section>
 
-                {/* Division 3 — nothing is written until this is pressed. */}
-                <Button
-                  variant="contained"
-                  fullWidth
-                  sx={{ mt: 1.5 }}
-                  onClick={() => void handleSubmitAttendance()}
-                  disabled={busy || !draftStatus || !attendanceDirty}
-                >
-                  {busy ? 'Menyimpan…' : attendanceDirty ? 'Masukkan Kehadiran' : 'Kehadiran Tersimpan'}
-                </Button>
-              </>
-            ) : (
-              <Alert severity="warning">
-                Belum ada periode belajar aktif untuk siswa ini di kelas ini, jadi kehadiran belum bisa dicatat. Minta
-                admin membuat periode di Detail Keluarga → Periode Belajar.
-              </Alert>
-            )}
-          </AccordionDetails>
-        </Accordion>
+        <Section
+          index={3}
+          title="Materi Hari Ini"
+          defaultExpanded
+          chip={entries.length > 0 ? <Chip size="small" label={`${entries.length} materi`} color="primary" /> : null}
+        >
+          {!isPresent && !locked ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              {savedStatus === null
+                ? 'Masukkan kehadiran dulu. Materi hanya diisi untuk siswa yang hadir.'
+                : `Siswa ${ATTENDANCE_STATUS_LABELS[savedStatus].toLowerCase()} hari ini — materi tidak diisi.`}
+              {reportId ? ' Laporan yang sudah tersimpan tetap aman.' : ''}
+            </Alert>
+          ) : null}
 
-        {/* Division 4 — materi, gated on a stored 'present'. */}
-        <Accordion defaultExpanded disableGutters variant="outlined" sx={{ mt: 1.5, '&:before': { display: 'none' } }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="subtitle1" sx={{ fontSize: '1rem', flexGrow: 1 }}>
-              Materi Hari Ini
-            </Typography>
-            {entries.length > 0 ? (
-              <Chip size="small" label={`${entries.length} materi`} color="primary" variant="outlined" sx={{ mr: 1 }} />
-            ) : null}
-          </AccordionSummary>
-          <AccordionDetails>
-            {!isPresent && !locked ? (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                {savedStatus === null
-                  ? 'Masukkan kehadiran dulu. Materi hanya diisi untuk siswa yang hadir.'
-                  : `Siswa ${ATTENDANCE_STATUS_LABELS[savedStatus].toLowerCase()} hari ini — materi tidak diisi.`}
-                {reportId ? ' Laporan yang sudah tersimpan tetap aman.' : ''}
-              </Alert>
-            ) : null}
+          {catalog.length === 0 ? (
+            <Alert severity="warning">Daftar materi masih kosong. Minta admin mengisinya di menu Kurikulum.</Alert>
+          ) : (
+            <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
+              {CURRICULUM_SUBJECTS.map((subject) => {
+                const items = bySubject.get(subject) ?? []
+                if (items.length === 0) return null
+                const chosen = items.filter((item) => selection.has(item.id)).length
 
-            {catalog.length === 0 ? (
-              <Alert severity="warning">Daftar materi masih kosong. Minta admin mengisinya di menu Kurikulum.</Alert>
-            ) : (
-              <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
-                {CURRICULUM_SUBJECTS.map((subject) => {
-                  const items = bySubject.get(subject) ?? []
-                  if (items.length === 0) return null
-                  const chosen = items.filter((item) => selection.has(item.id)).length
-
-                  return (
-                    <Accordion key={subject} defaultExpanded disableGutters sx={{ mb: 1 }}>
-                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Typography variant="body1" sx={{ flexGrow: 1 }}>
-                          {CURRICULUM_SUBJECT_LABELS[subject]}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={`${chosen} dipilih`}
-                          color={chosen > 0 ? 'primary' : 'default'}
-                          variant="outlined"
-                          sx={{ mr: 1 }}
-                        />
-                      </AccordionSummary>
-                      <AccordionDetails sx={{ pt: 0 }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {items.map((item) => {
-                            const level = selection.get(item.id) ?? null
-                            return (
-                              <Box key={item.id}>
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{ flexGrow: 1, minWidth: 0, fontWeight: level ? 600 : 400 }}
-                                  >
-                                    {item.label}
-                                  </Typography>
-                                  {level && !locked ? (
-                                    <Tooltip title="Tandai tidak diajarkan hari ini">
-                                      <span>
-                                        <IconButton
-                                          size="small"
-                                          aria-label={`Hapus ${item.label} dari laporan`}
-                                          onClick={() => clearItem(item.id)}
-                                          disabled={materiDisabled}
-                                        >
-                                          <ClearIcon fontSize="small" />
-                                        </IconButton>
-                                      </span>
-                                    </Tooltip>
-                                  ) : null}
-                                </Box>
-                                <MasteryLevelSelector
-                                  value={level}
-                                  onChange={(next) => setLevel(item.id, next)}
-                                  disabled={materiDisabled}
-                                  ariaLabel={item.label}
-                                />
+                return (
+                  <Accordion
+                    key={subject}
+                    defaultExpanded
+                    disableGutters
+                    elevation={0}
+                    square
+                    sx={{ bgcolor: 'transparent', mb: 1, '&:before': { display: 'none' } }}
+                  >
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 40 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+                        {CURRICULUM_SUBJECT_LABELS[subject]}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={`${chosen} dipilih`}
+                        color={chosen > 0 ? 'primary' : 'default'}
+                        variant="outlined"
+                        sx={{ mr: 1 }}
+                      />
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 0, pt: 0 }}>
+                      <Panel>
+                        {items.map((item, itemIndex) => {
+                          const level = selection.get(item.id) ?? null
+                          return (
+                            <Box key={item.id}>
+                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
+                                <Typography
+                                  variant="body1"
+                                  sx={{ flexGrow: 1, minWidth: 0, fontWeight: level ? 600 : 400 }}
+                                >
+                                  {item.label}
+                                </Typography>
+                                {level && !locked ? (
+                                  <Tooltip title="Tandai tidak diajarkan hari ini">
+                                    <span>
+                                      <IconButton
+                                        size="small"
+                                        aria-label={`Hapus ${item.label} dari laporan`}
+                                        onClick={() => clearItem(item.id)}
+                                        disabled={materiDisabled}
+                                      >
+                                        <ClearIcon fontSize="small" />
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
+                                ) : null}
                               </Box>
-                            )
-                          })}
-                        </Box>
-                      </AccordionDetails>
-                    </Accordion>
-                  )
-                })}
-              </Box>
-            )}
-          </AccordionDetails>
-        </Accordion>
+                              <MasteryLevelSelector
+                                value={level}
+                                onChange={(next) => setLevel(item.id, next)}
+                                disabled={materiDisabled}
+                                ariaLabel={item.label}
+                              />
+                              {itemIndex < items.length - 1 ? <Divider sx={{ my: 1.5 }} /> : null}
+                            </Box>
+                          )
+                        })}
+                      </Panel>
+                    </AccordionDetails>
+                  </Accordion>
+                )
+              })}
+            </Box>
+          )}
+        </Section>
 
-        <Accordion disableGutters variant="outlined" sx={{ mt: 1.5, '&:before': { display: 'none' } }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="subtitle1" sx={{ fontSize: '1rem' }}>
-              Pratinjau untuk orang tua
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <DailyReportMateriPreview entries={entries} />
-            </Paper>
-          </AccordionDetails>
-        </Accordion>
+        <Section index={4} title="Pratinjau untuk Orang Tua">
+          <Panel>
+            <DailyReportMateriPreview entries={entries} />
+          </Panel>
+        </Section>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: 'wrap' }}>
-        <Button onClick={onClose} disabled={busy} sx={{ mr: 'auto' }}>
-          Tutup
-        </Button>
+      <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: 'wrap', bgcolor: 'action.hover' }}>
+        <Box sx={{ flexGrow: 1 }} />
         {!locked ? (
           <>
             <Button variant="outlined" onClick={() => void handleSaveDraft()} disabled={materiDisabled || !dirty}>
@@ -418,6 +499,9 @@ export function DailyReportStudentDialog({
             </Button>
           </>
         ) : null}
+        <Button variant="contained" onClick={onClose} disabled={busy}>
+          Tutup
+        </Button>
       </DialogActions>
     </Dialog>
   )
