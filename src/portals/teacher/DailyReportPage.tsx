@@ -34,7 +34,7 @@ import {
 } from '../../lib/dailyReport'
 import { fetchAttendanceByChild, fetchOpenPeriodsByChild, recordAttendance } from '../../lib/learningPeriods'
 import { reportStatus } from '../../lib/dailyReportEntries'
-import { isAttendanceStatus } from '../../types/attendance'
+import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import type { CurriculumItemRow } from '../../types/curriculumItem'
 import type { DailyReportMateri, DailyReportStatus } from '../../types/dailyReport'
@@ -181,6 +181,11 @@ export function DailyReportPage() {
   }, [classroomTeacherId, reportDate])
 
   async function handleOpenChild(child: RosterEntry) {
+    // Guarded here as well as on the button: a materi report only makes sense for a child who
+    // was actually in class.
+    const recorded = attendance.get(child.childId)
+    if (recorded?.status !== 'present') return
+
     setOpening(true)
     setError(null)
     const result = await fetchDailyReportMateri(child.childId, classroomTeacherId, reportDate)
@@ -307,6 +312,9 @@ export function DailyReportPage() {
             const summary = summaries.get(child.childId)
             const report = reportStatus(summary?.reportId ?? null, summary?.submittedAt ?? null)
             const reportChip = STATUS_CHIP[report]
+            // Materi is only filled for a child who was present. Not-yet-marked counts as not
+            // present, so the teacher takes attendance first.
+            const canFillReport = status === 'present'
 
             return (
               <Paper key={child.childId} variant="outlined" sx={{ p: 2 }}>
@@ -353,6 +361,9 @@ export function DailyReportPage() {
                   </Tooltip>
                 </Box>
 
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Absensi
+                </Typography>
                 <AttendanceStatusSelector
                   value={status}
                   onChange={(next) => void handleMark(child, next)}
@@ -380,20 +391,30 @@ export function DailyReportPage() {
                 <Button
                   fullWidth
                   onClick={() => void handleOpenChild(child)}
-                  disabled={opening}
+                  disabled={opening || !canFillReport}
                   endIcon={<ChevronRightIcon />}
                   sx={{ justifyContent: 'space-between', textTransform: 'none', px: 1 }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2">Materi Hari Ini</Typography>
-                    <Chip
-                      size="small"
-                      label={reportChip.label}
-                      color={reportChip.color}
-                      variant={report === 'terkirim' ? 'filled' : 'outlined'}
-                    />
+                    {canFillReport ? (
+                      <Chip
+                        size="small"
+                        label={reportChip.label}
+                        color={reportChip.color}
+                        variant={report === 'terkirim' ? 'filled' : 'outlined'}
+                      />
+                    ) : null}
                   </Box>
                 </Button>
+                {!canFillReport ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1 }}>
+                    {status === null
+                      ? 'Isi absensi dulu. Materi hanya diisi untuk siswa yang hadir.'
+                      : `Siswa ${ATTENDANCE_STATUS_LABELS[status].toLowerCase()} hari ini — materi tidak diisi.`}
+                    {report !== 'kosong' ? ' Laporan yang sudah ada tetap tersimpan.' : ''}
+                  </Typography>
+                ) : null}
               </Paper>
             )
           })}
