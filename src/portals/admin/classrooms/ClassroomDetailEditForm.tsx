@@ -42,6 +42,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
     const [label, setLabel] = useState('')
     const [timeStart, setTimeStart] = useState('10:00')
     const [timeEnd, setTimeEnd] = useState('11:00')
+    const [price, setPrice] = useState('')
+    const [guaranteedDays, setGuaranteedDays] = useState('20')
     const [active, setActive] = useState(true)
     const [roster, setRoster] = useState<RosterEntry[]>([])
     const [error, setError] = useState<string | null>(null)
@@ -53,6 +55,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       setLabel(classroom?.label ?? '')
       setTimeStart(classroom?.time_start.slice(0, 5) ?? '10:00')
       setTimeEnd(classroom?.time_end?.slice(0, 5) ?? '11:00')
+      setPrice(classroom ? String(classroom.price) : '')
+      setGuaranteedDays(String(classroom?.guaranteed_days ?? 20))
       setActive(classroom?.active ?? true)
       setError(null)
       setTeacherNames([])
@@ -109,6 +113,16 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         setError('Waktu selesai harus setelah waktu mulai.')
         return
       }
+      const priceValue = Number(price)
+      if (price.trim() === '' || !Number.isFinite(priceValue) || priceValue < 0) {
+        setError('Masukkan harga program (boleh 0, tidak boleh kosong atau negatif).')
+        return
+      }
+      const guaranteedDaysValue = Number(guaranteedDays)
+      if (!Number.isInteger(guaranteedDaysValue) || guaranteedDaysValue < 1) {
+        setError('Jumlah hari dijamin harus bilangan bulat minimal 1.')
+        return
+      }
 
       setSaving(true)
       if (isEdit) {
@@ -118,6 +132,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             label: label.trim(),
             time_start: timeStart,
             time_end: timeEnd,
+            price: priceValue,
+            guaranteed_days: guaranteedDaysValue,
             active,
           })
           .eq('id', classroom.id)
@@ -131,6 +147,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           label: label.trim(),
           time_start: timeStart,
           time_end: timeEnd,
+          price: priceValue,
+          guaranteed_days: guaranteedDaysValue,
         })
         setSaving(false)
         if (iErr) {
@@ -212,6 +230,33 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
               onChange={(e) => setTimeEnd(e.target.value)}
               fullWidth
               slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 1800 } }}
+            />
+          </Box>
+
+          <Divider />
+          <Typography variant="subtitle2">Program & Biaya</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            <TextField
+              size="small"
+              label="Harga per Periode (Rp)"
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              required
+              fullWidth
+              slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+              helperText="Biaya satu periode belajar di kelas ini."
+            />
+            <TextField
+              size="small"
+              label="Hari Dijamin"
+              type="number"
+              value={guaranteedDays}
+              onChange={(e) => setGuaranteedDays(e.target.value)}
+              required
+              fullWidth
+              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+              helperText="Dipakai untuk periode baru. Periode yang sudah berjalan tidak ikut berubah."
             />
           </Box>
 

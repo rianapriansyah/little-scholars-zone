@@ -11,6 +11,7 @@ import {
   TextField,
 } from '@mui/material'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
+import { formatRupiah } from '../../../lib/formatRupiah'
 import {
   createLearningPeriod,
   fetchActiveClassrooms,
@@ -38,7 +39,6 @@ export function LearningPeriodDialog({ open, child, onClose, onSaved }: Props) {
   const [classroomId, setClassroomId] = useState('')
   const [startDate, setStartDate] = useState(() => todayIsoDateInWita())
   const [projectedEndDate, setProjectedEndDate] = useState('')
-  const [guaranteedDays, setGuaranteedDays] = useState(String(DEFAULT_GUARANTEED_DAYS))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,7 +46,6 @@ export function LearningPeriodDialog({ open, child, onClose, onSaved }: Props) {
     if (!open) return
     setStartDate(todayIsoDateInWita())
     setProjectedEndDate('')
-    setGuaranteedDays(String(DEFAULT_GUARANTEED_DAYS))
     setError(null)
 
     void (async () => {
@@ -65,19 +64,16 @@ export function LearningPeriodDialog({ open, child, onClose, onSaved }: Props) {
     })()
   }, [open, child.id])
 
+  const selectedClassroom = classrooms.find((classroom) => classroom.id === classroomId)
+
   const handleClose = () => {
     if (saving) return
     onClose()
   }
 
   async function handleSave() {
-    const days = Number(guaranteedDays)
     if (!classroomId) {
       setError('Pilih kelas terlebih dahulu.')
-      return
-    }
-    if (!Number.isInteger(days) || days < 1) {
-      setError('Jumlah hari dijamin harus bilangan bulat minimal 1.')
       return
     }
 
@@ -88,7 +84,6 @@ export function LearningPeriodDialog({ open, child, onClose, onSaved }: Props) {
       classroomId,
       startDate,
       projectedEndDate: projectedEndDate || null,
-      guaranteedDays: days,
     })
     setSaving(false)
     if (!result.ok) {
@@ -147,15 +142,13 @@ export function LearningPeriodDialog({ open, child, onClose, onSaved }: Props) {
             slotProps={{ inputLabel: { shrink: true } }}
             helperText="Opsional. Perkiraan kasar saja — tanggal selesai sebenarnya dihitung dari hari terpakai."
           />
-          <TextField
-            size="small"
-            label="Hari Dijamin"
-            type="number"
-            value={guaranteedDays}
-            onChange={(e) => setGuaranteedDays(e.target.value)}
-            fullWidth
-            helperText="Standar 20 hari efektif. Sakit tidak memotong kuota."
-          />
+          {/* Read-only: the trigger copies this from the classroom at insert, so showing an
+              editable field here would promise something the database will overwrite. */}
+          <Alert severity="info">
+            Kuota: <strong>{selectedClassroom?.guaranteed_days ?? DEFAULT_GUARANTEED_DAYS} hari efektif</strong>
+            {selectedClassroom ? ` · Harga ${formatRupiah(selectedClassroom.price)}` : ''}. Mengikuti kelas yang
+            dipilih. Sakit tidak memotong kuota.
+          </Alert>
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -201,24 +201,30 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string | null
+          guaranteed_days: number
           id: string
           label: string
+          price: number
           time_end: string
           time_start: string
         }
         Insert: {
           active?: boolean
           created_at?: string | null
+          guaranteed_days?: number
           id?: string
           label: string
+          price: number
           time_end: string
           time_start: string
         }
         Update: {
           active?: boolean
           created_at?: string | null
+          guaranteed_days?: number
           id?: string
           label?: string
+          price?: number
           time_end?: string
           time_start?: string
         }

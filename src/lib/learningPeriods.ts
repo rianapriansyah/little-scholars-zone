@@ -252,13 +252,15 @@ export async function fetchPeriodsForChild(childId: string): Promise<Result<Lear
 /**
  * Admin-only. period_no is derived as the child's highest so far in that classroom, plus one;
  * the unique constraint is the real guard if two admins race.
+ *
+ * guaranteed_days is deliberately not passed: a BEFORE INSERT trigger copies it from the
+ * classroom, so the terms come from the program being sold rather than from the client.
  */
 export async function createLearningPeriod(params: {
   childId: string
   classroomId: string
   startDate: string
   projectedEndDate?: string | null
-  guaranteedDays?: number
 }): Promise<Result<string>> {
   const { data: existing, error: qError } = await supabase
     .from('learning_periods')
@@ -279,7 +281,6 @@ export async function createLearningPeriod(params: {
       period_no: nextPeriodNo,
       start_date: params.startDate,
       projected_end_date: params.projectedEndDate || null,
-      ...(params.guaranteedDays ? { guaranteed_days: params.guaranteedDays } : {}),
     })
     .select('id')
     .single()
