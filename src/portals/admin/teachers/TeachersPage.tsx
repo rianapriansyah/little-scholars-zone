@@ -7,11 +7,14 @@ import { supabase } from '../../../lib/supabase'
 import type { TeacherRow } from '../../../types/teacher'
 import { TeacherDialog } from './TeacherDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { teacherDisplayName } from '../../../lib/teacherName'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 function teacherSearchBlob(row: TeacherRow): string {
-  return `${row.full_name} ${row.email} ${row.contact_phone ?? ''}`.toLowerCase()
+  // Both names: the grid shows the call name, but searching the formal name must still find
+  // the row — and vice versa.
+  return `${row.call_name ?? ''} ${row.full_name} ${row.email} ${row.contact_phone ?? ''}`.toLowerCase()
 }
 
 export function TeachersPage() {
@@ -71,14 +74,20 @@ export function TeachersPage() {
         headerName: 'Guru',
         flex: 1,
         minWidth: 200,
-        renderCell: (params) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
-            <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
-              {params.row.full_name.charAt(0).toUpperCase()}
-            </Avatar>
-            <Typography variant="body2">{params.row.full_name}</Typography>
-          </Box>
-        ),
+        // valueGetter as well as renderCell, so sorting follows the name on screen rather
+        // than the formal one behind it.
+        valueGetter: (_v, row) => teacherDisplayName(row),
+        renderCell: (params) => {
+          const name = teacherDisplayName(params.row)
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
+              <Avatar src={params.row.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
+                {name.charAt(0).toUpperCase()}
+              </Avatar>
+              <Typography variant="body2">{name}</Typography>
+            </Box>
+          )
+        },
       },
       { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
       { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
