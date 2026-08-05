@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   formatWitaDayAndDate,
   getClassStatus,
+  getClockInWindowStatus,
   getTodaysClassEndInWita,
   getTodaysClassStartInWita,
+  isClockOutWindowOpen,
   isWitaClassDay,
   todayIsoDateInWita,
+  witaWallClockTime,
+  witaWallClockToIso,
 } from './classStatus'
 
 describe('getClassStatus', () => {
@@ -66,6 +70,50 @@ describe('getClassStatus with an end time', () => {
   it('leaves the pre-start countdown untouched', () => {
     const fiveBefore = new Date(start.getTime() - 5 * 60_000)
     expect(getClassStatus(start, fiveBefore, end)).toEqual({ border: 'red', label: null })
+  })
+})
+
+describe('getClockInWindowStatus', () => {
+  const start = new Date('2026-07-14T02:00:00Z') // 10:00 WITA
+
+  it('is open exactly at the start time', () => {
+    expect(getClockInWindowStatus(start, start)).toBe('open')
+  })
+
+  it('is open up to 5 minutes before start', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() - 5 * 60_000))).toBe('open')
+  })
+
+  it('is too_early more than 5 minutes before start', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() - 5 * 60_000 - 1))).toBe('too_early')
+  })
+
+  it('is open up to 5 minutes after start', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() + 5 * 60_000))).toBe('open')
+  })
+
+  it('is missed more than 5 minutes after start', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() + 5 * 60_000 + 1))).toBe('missed')
+  })
+})
+
+describe('isClockOutWindowOpen', () => {
+  const end = new Date('2026-07-14T04:00:00Z') // 12:00 WITA
+
+  it('is closed more than 5 minutes before end', () => {
+    expect(isClockOutWindowOpen(end, new Date(end.getTime() - 5 * 60_000 - 1))).toBe(false)
+  })
+
+  it('opens exactly 5 minutes before end', () => {
+    expect(isClockOutWindowOpen(end, new Date(end.getTime() - 5 * 60_000))).toBe(true)
+  })
+
+  it('stays open at the end time', () => {
+    expect(isClockOutWindowOpen(end, end)).toBe(true)
+  })
+
+  it('stays open indefinitely after end, unlike the clock-in window', () => {
+    expect(isClockOutWindowOpen(end, new Date(end.getTime() + 3 * 60 * 60_000))).toBe(true)
   })
 })
 
@@ -138,6 +186,27 @@ describe('formatWitaDayAndDate', () => {
   it('uses the WITA day, not the browser/UTC one, near midnight', () => {
     // 2026-08-02T17:30:00Z = 2026-08-03T01:30 WITA — Monday there, still Sunday in UTC.
     expect(formatWitaDayAndDate(new Date('2026-08-02T17:30:00Z'))).toBe('Senin, 03-08-2026')
+  })
+})
+
+describe('witaWallClockToIso', () => {
+  it('interprets the given date and time as WITA (UTC+8)', () => {
+    expect(witaWallClockToIso('2026-08-05', '10:00')).toBe(new Date('2026-08-05T02:00:00Z').toISOString())
+  })
+
+  it('handles a date near UTC midnight correctly', () => {
+    expect(witaWallClockToIso('2026-08-05', '01:00')).toBe(new Date('2026-08-04T17:00:00Z').toISOString())
+  })
+})
+
+describe('witaWallClockTime', () => {
+  it('formats an instant as its WITA wall-clock HH:mm', () => {
+    expect(witaWallClockTime(new Date('2026-08-05T02:00:00Z').toISOString())).toBe('10:00')
+  })
+
+  it('round-trips with witaWallClockToIso', () => {
+    const iso = witaWallClockToIso('2026-08-05', '14:37')
+    expect(witaWallClockTime(iso)).toBe('14:37')
   })
 })
 

@@ -18,6 +18,7 @@ import { ClassroomDetailPage } from './portals/admin/classrooms/ClassroomDetailP
 import { CurriculumPage } from './portals/admin/curriculum/CurriculumPage'
 import { PeriodsPage } from './portals/admin/periods/PeriodsPage'
 import { PeriodDetailPage } from './portals/admin/periods/PeriodDetailPage'
+import { KehadiranGuruPage } from './portals/admin/attendance/KehadiranGuruPage'
 import { TeacherLayout } from './portals/teacher/TeacherLayout'
 import { TeacherRosterPage } from './portals/teacher/TeacherRosterPage'
 import { DailyReportPage } from './portals/teacher/DailyReportPage'
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="curriculum" element={<CurriculumPage />} />
               <Route path="periode" element={<PeriodsPage />} />
               <Route path="periode/:periodId" element={<PeriodDetailPage />} />
+              <Route path="kehadiran-guru" element={<KehadiranGuruPage />} />
               <Route path="kelola-akun" element={<ManageAccountPage />} />
             </Route>
           </Route>

@@ -197,6 +197,53 @@ export type Database = {
           },
         ]
       }
+      classroom_teachers_attendances: {
+        Row: {
+          classroom_teacher_id: string
+          clocked_in_at: string | null
+          clocked_in_source: string | null
+          clocked_out_at: string | null
+          clocked_out_source: string | null
+          created_at: string
+          edited_by: string | null
+          id: string
+          notes: string | null
+          session_date: string
+        }
+        Insert: {
+          classroom_teacher_id: string
+          clocked_in_at?: string | null
+          clocked_in_source?: string | null
+          clocked_out_at?: string | null
+          clocked_out_source?: string | null
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          notes?: string | null
+          session_date: string
+        }
+        Update: {
+          classroom_teacher_id?: string
+          clocked_in_at?: string | null
+          clocked_in_source?: string | null
+          clocked_out_at?: string | null
+          clocked_out_source?: string | null
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          notes?: string | null
+          session_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_teachers_attendances_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classrooms: {
         Row: {
           active: boolean
@@ -496,6 +543,34 @@ export type Database = {
       }
     }
     Views: {
+      classroom_teachers_attendance_status: {
+        Row: {
+          arrival_status: string | null
+          classroom_teacher_id: string | null
+          clocked_in_at: string | null
+          clocked_in_source: string | null
+          clocked_out_at: string | null
+          clocked_out_source: string | null
+          created_at: string | null
+          departure_status: string | null
+          edited_by: string | null
+          id: string | null
+          minutes_taught: number | null
+          notes: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          session_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_teachers_attendances_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_period_status: {
         Row: {
           actual_end_date: string | null
@@ -540,6 +615,14 @@ export type Database = {
       can_write_daily_report: {
         Args: { p_classroom_teacher_id: string }
         Returns: boolean
+      }
+      clock_in_classroom_teacher: {
+        Args: { p_classroom_teacher_id: string }
+        Returns: string
+      }
+      clock_out_classroom_teacher: {
+        Args: { p_classroom_teacher_id: string }
+        Returns: string
       }
       enroll_child_in_classroom: {
         Args: { p_child_id: string; p_classroom_teacher_id: string }

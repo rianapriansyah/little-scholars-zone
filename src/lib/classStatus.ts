@@ -34,6 +34,30 @@ export function getClassStatus(startTime: Date, now: Date, endTime: Date | null 
   return { border: 'default', label: null }
 }
 
+export type ClockInWindowStatus = 'too_early' | 'open' | 'missed'
+
+/**
+ * Masuk Kelas is only pressable within 5 minutes either side of the scheduled start — 'missed'
+ * (not just disabled forever) once that window has passed, since a genuinely late teacher must
+ * have an admin log it instead of self-reporting an arrival time that no longer reflects when
+ * they actually pressed the button.
+ */
+export function getClockInWindowStatus(startTime: Date, now: Date): ClockInWindowStatus {
+  const minutesFromStart = (now.getTime() - startTime.getTime()) / 60_000
+  if (minutesFromStart < -5) return 'too_early'
+  if (minutesFromStart > 5) return 'missed'
+  return 'open'
+}
+
+/**
+ * Selesaikan Kelas opens 5 minutes before the scheduled end and never closes again — unlike
+ * Masuk Kelas, a class legitimately running long must still be closeable whenever it actually
+ * finishes.
+ */
+export function isClockOutWindowOpen(endTime: Date, now: Date): boolean {
+  return now.getTime() >= endTime.getTime() - 5 * 60_000
+}
+
 const WITA_TIME_ZONE = 'Asia/Makassar'
 const WITA_UTC_OFFSET_HOURS = 8 // fixed offset, no DST
 
@@ -120,4 +144,24 @@ export function getTodaysClassStartInWita(timeStart: string, referenceNow: Date 
  */
 export function getTodaysClassEndInWita(timeEnd: string | null, referenceNow: Date = new Date()): Date | null {
   return timeEnd ? getTodaysWitaInstant(timeEnd, referenceNow) : null
+}
+
+/**
+ * Combines an explicit WITA calendar date and wall-clock time into the correct UTC instant, for
+ * the admin correction dialog. Unlike getTodaysWitaInstant, the date is already known (an admin
+ * picked it) rather than derived from the browser's clock, so this can use the fixed +08:00
+ * offset directly instead of the Intl-based conversion the "today" helpers need.
+ */
+export function witaWallClockToIso(dateIso: string, time: string): string {
+  return new Date(`${dateIso}T${time}:00+08:00`).toISOString()
+}
+
+/** The reverse of witaWallClockToIso: an instant's wall-clock time in WITA, HH:mm. */
+export function witaWallClockTime(instant: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: WITA_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(instant))
 }

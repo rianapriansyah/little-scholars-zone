@@ -4,6 +4,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardActionArea,
   CardContent,
@@ -21,13 +22,22 @@ import type { ClassroomRow } from '../../types/classroom'
 import {
   formatWitaDayAndDate,
   getClassStatus,
+  getClockInWindowStatus,
   getTodaysClassEndInWita,
   getTodaysClassStartInWita,
+  isClockOutWindowOpen,
   isWitaClassDay,
+  todayIsoDateInWita,
   type ClassStatusBorder,
 } from '../../lib/classStatus'
 import { teacherDisplayName } from '../../lib/teacherName'
 import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
+import {
+  clockInClassroomTeacher,
+  clockOutClassroomTeacher,
+  fetchAttendanceForClassroomTeachers,
+} from '../../lib/classroomTeacherAttendance'
+import type { ClassroomTeacherAttendanceStatus } from '../../types/classroomTeacherAttendance'
 
 type GroupWithRoster = {
   id: string
@@ -59,6 +69,9 @@ export function TeacherRosterPage() {
   const [groups, setGroups] = useState<GroupWithRoster[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [attendance, setAttendance] = useState<Map<string, ClassroomTeacherAttendanceStatus>>(new Map())
+  const [clockingId, setClockingId] = useState<string | null>(null)
+  const [clockError, setClockError] = useState<string | null>(null)
   const now = useNow()
 
   useEffect(() => {
@@ -95,8 +108,14 @@ export function TeacherRosterPage() {
       }
       results.sort((a, b) => a.classroom.label.localeCompare(b.classroom.label))
 
+      const attendanceResult = await fetchAttendanceForClassroomTeachers(
+        results.map((r) => r.id),
+        todayIsoDateInWita(),
+      )
+
       if (!cancelled) {
         setGroups(results)
+        if (attendanceResult.ok) setAttendance(attendanceResult.data)
         setLoading(false)
       }
     })()
@@ -105,6 +124,39 @@ export function TeacherRosterPage() {
       cancelled = true
     }
   }, [teacher])
+
+  /** Refetches just the one class's attendance row after a clock tap, rather than everything. */
+  async function refreshAttendance(groupId: string) {
+    const result = await fetchAttendanceForClassroomTeachers([groupId], todayIsoDateInWita())
+    if (!result.ok) return
+    const record = result.data.get(groupId)
+    if (!record) return
+    setAttendance((prev) => new Map(prev).set(groupId, record))
+  }
+
+  async function handleClockIn(groupId: string) {
+    setClockingId(groupId)
+    setClockError(null)
+    const result = await clockInClassroomTeacher(groupId)
+    setClockingId(null)
+    if (!result.ok) {
+      setClockError(result.error)
+      return
+    }
+    await refreshAttendance(groupId)
+  }
+
+  async function handleClockOut(groupId: string) {
+    setClockingId(groupId)
+    setClockError(null)
+    const result = await clockOutClassroomTeacher(groupId)
+    setClockingId(null)
+    if (!result.ok) {
+      setClockError(result.error)
+      return
+    }
+    await refreshAttendance(groupId)
+  }
 
   if (!teacher || loading) {
     return (
@@ -125,6 +177,58 @@ export function TeacherRosterPage() {
     void navigate('/teacher/laporan-harian', { state: { classroomTeacherId: groupId } })
   }
 
+  /**
+   * Masuk Kelas → Selesaikan Kelas → a read-only summary, in that order. Lives outside the
+   * CardActionArea (rendered as a sibling below it, not nested inside) so tapping the button
+   * never also triggers the card's navigate-to-Laporan-Harian click.
+   */
+  function renderAttendanceControl(group: GroupWithRoster, todaysStart: Date | null, todaysEnd: Date | null) {
+    if (!todaysStart || !todaysEnd) return null
+    const record = attendance.get(group.id)
+    const isClocking = clockingId === group.id
+
+    if (record?.clockedOutAt) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          Kelas selesai · {record.minutesTaught ?? '—'} menit
+        </Typography>
+      )
+    }
+
+    if (record?.clockedInAt) {
+      const canClockOut = isClockOutWindowOpen(todaysEnd, now)
+      return (
+        <Button
+          size="small"
+          variant="outlined"
+          disabled={!canClockOut || isClocking}
+          onClick={() => void handleClockOut(group.id)}
+        >
+          {isClocking ? 'Menyimpan…' : 'Selesaikan Kelas'}
+        </Button>
+      )
+    }
+
+    const windowStatus = getClockInWindowStatus(todaysStart, now)
+    return (
+      <Box>
+        <Button
+          size="small"
+          variant="contained"
+          disabled={windowStatus !== 'open' || isClocking}
+          onClick={() => void handleClockIn(group.id)}
+        >
+          {isClocking ? 'Menyimpan…' : 'Masuk Kelas'}
+        </Button>
+        {windowStatus === 'missed' ? (
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+            Lewat jendela absen masuk — hubungi admin untuk mencatatnya.
+          </Typography>
+        ) : null}
+      </Box>
+    )
+  }
+
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
@@ -138,6 +242,11 @@ export function TeacherRosterPage() {
       </Typography>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
+      {clockError ? (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setClockError(null)}>
+          {clockError}
+        </Alert>
+      ) : null}
 
       {groups.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
@@ -200,6 +309,7 @@ export function TeacherRosterPage() {
                   )}
                 </CardContent>
                 </CardActionArea>
+                <Box sx={{ px: 2, pb: 2 }}>{renderAttendanceControl(group, todaysStart, todaysEnd)}</Box>
               </Card>
             )
           })}
