@@ -22,10 +22,8 @@ import type { ClassroomRow } from '../../types/classroom'
 import {
   formatWitaDayAndDate,
   getClassStatus,
-  getClockInWindowStatus,
   getTodaysClassEndInWita,
   getTodaysClassStartInWita,
-  isClockOutWindowOpen,
   isWitaClassDay,
   todayIsoDateInWita,
   type ClassStatusBorder,
@@ -181,9 +179,13 @@ export function TeacherRosterPage() {
    * Masuk Kelas → Selesaikan Kelas → a read-only summary, in that order. Lives outside the
    * CardActionArea (rendered as a sibling below it, not nested inside) so tapping the button
    * never also triggers the card's navigate-to-Laporan-Harian click.
+   *
+   * TEMPORARY, for testing: both buttons are always enabled — the 5-minute window is only
+   * disabled server-side for now too (see 20260805040000_..._disable_windows_for_testing.sql),
+   * so this matches what the RPCs will actually accept. Re-add the getClockInWindowStatus /
+   * isClockOutWindowOpen gating here once the window checks are restored.
    */
-  function renderAttendanceControl(group: GroupWithRoster, todaysStart: Date | null, todaysEnd: Date | null) {
-    if (!todaysStart || !todaysEnd) return null
+  function renderAttendanceControl(group: GroupWithRoster) {
     const record = attendance.get(group.id)
     const isClocking = clockingId === group.id
 
@@ -196,36 +198,17 @@ export function TeacherRosterPage() {
     }
 
     if (record?.clockedInAt) {
-      const canClockOut = isClockOutWindowOpen(todaysEnd, now)
       return (
-        <Button
-          size="small"
-          variant="outlined"
-          disabled={!canClockOut || isClocking}
-          onClick={() => void handleClockOut(group.id)}
-        >
+        <Button size="small" variant="outlined" disabled={isClocking} onClick={() => void handleClockOut(group.id)}>
           {isClocking ? 'Menyimpan…' : 'Selesaikan Kelas'}
         </Button>
       )
     }
 
-    const windowStatus = getClockInWindowStatus(todaysStart, now)
     return (
-      <Box>
-        <Button
-          size="small"
-          variant="contained"
-          disabled={windowStatus !== 'open' || isClocking}
-          onClick={() => void handleClockIn(group.id)}
-        >
-          {isClocking ? 'Menyimpan…' : 'Masuk Kelas'}
-        </Button>
-        {windowStatus === 'missed' ? (
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-            Lewat jendela absen masuk — hubungi admin untuk mencatatnya.
-          </Typography>
-        ) : null}
-      </Box>
+      <Button size="small" variant="contained" disabled={isClocking} onClick={() => void handleClockIn(group.id)}>
+        {isClocking ? 'Menyimpan…' : 'Masuk Kelas'}
+      </Button>
     )
   }
 
@@ -309,7 +292,7 @@ export function TeacherRosterPage() {
                   )}
                 </CardContent>
                 </CardActionArea>
-                <Box sx={{ px: 2, pb: 2 }}>{renderAttendanceControl(group, todaysStart, todaysEnd)}</Box>
+                <Box sx={{ px: 2, pb: 2 }}>{renderAttendanceControl(group)}</Box>
               </Card>
             )
           })}
