@@ -11,7 +11,7 @@ import {
   TextField,
 } from '@mui/material'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
-import { formatRupiah } from '../../../lib/formatRupiah'
+import { formatIdr } from '../../../lib/formatIdr'
 import {
   createLearningPeriod,
   fetchActiveClassrooms,
@@ -146,7 +146,7 @@ export function LearningPeriodDialog({ open, child, onClose, onSaved }: Props) {
               editable field here would promise something the database will overwrite. */}
           <Alert severity="info">
             Kuota: <strong>{selectedClassroom?.guaranteed_days ?? DEFAULT_GUARANTEED_DAYS} hari efektif</strong>
-            {selectedClassroom ? ` · Harga ${formatRupiah(selectedClassroom.price)}` : ''}. Mengikuti kelas yang
+            {selectedClassroom ? ` · Harga ${formatIdr(selectedClassroom.price)}` : ''}. Mengikuti kelas yang
             dipilih. Sakit tidak memotong kuota.
           </Alert>
         </Box>

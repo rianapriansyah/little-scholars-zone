@@ -5,6 +5,7 @@ import {
   Button,
   Divider,
   FormControlLabel,
+  InputAdornment,
   List,
   ListItem,
   ListItemText,
@@ -13,6 +14,7 @@ import {
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
+import { digitsOnly, groupDigits } from '../../../lib/formatIdr'
 import type { ClassroomRow } from '../../../types/classroom'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DangerZone } from '../../../components/DangerZone'
@@ -55,7 +57,9 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       setLabel(classroom?.label ?? '')
       setTimeStart(classroom?.time_start.slice(0, 5) ?? '10:00')
       setTimeEnd(classroom?.time_end?.slice(0, 5) ?? '11:00')
-      setPrice(classroom ? String(classroom.price) : '')
+      // Raw digits only: numeric(12,2) can arrive with a fractional part, which the grouped
+      // display and digitsOnly() would both mangle.
+      setPrice(classroom ? String(Math.round(classroom.price)) : '')
       setGuaranteedDays(String(classroom?.guaranteed_days ?? 20))
       setActive(classroom?.active ?? true)
       setError(null)
@@ -113,11 +117,13 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         setError('Waktu selesai harus setelah waktu mulai.')
         return
       }
-      const priceValue = Number(price)
-      if (price.trim() === '' || !Number.isFinite(priceValue) || priceValue < 0) {
-        setError('Masukkan harga program (boleh 0, tidak boleh kosong atau negatif).')
+      // `price` holds digits only, so this cannot be negative or non-finite — an empty field
+      // is the only way it goes wrong.
+      if (price === '') {
+        setError('Masukkan harga program. Isi 0 bila kelas ini memang tidak dipungut biaya.')
         return
       }
+      const priceValue = Number(price)
       const guaranteedDaysValue = Number(guaranteedDays)
       if (!Number.isInteger(guaranteedDaysValue) || guaranteedDaysValue < 1) {
         setError('Jumlah hari dijamin harus bilangan bulat minimal 1.')
@@ -236,15 +242,18 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           <Divider />
           <Typography variant="subtitle2">Program & Biaya</Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            {/* Money input follows car-rental: raw digits in state, dot-grouped for display,
+                inputMode numeric with an Rp adornment. type="number" would let a spinner,
+                a minus sign and exponent notation into a price. */}
             <TextField
               size="small"
-              label="Harga per Periode (Rp)"
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              label="Harga per Periode"
+              value={groupDigits(price)}
+              onChange={(e) => setPrice(digitsOnly(e.target.value))}
               required
               fullWidth
-              slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+              inputMode="numeric"
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
               helperText="Biaya satu periode belajar di kelas ini."
             />
             <TextField
