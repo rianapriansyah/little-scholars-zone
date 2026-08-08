@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { currentMonthRange, formatHoursMinutes, weekdaysInRange } from './teacherAttendanceReport'
+import { currentMonthRange, formatHoursMinutes, summarizeAttendanceByClass, weekdaysInRange } from './teacherAttendanceReport'
+import type { ClassroomTeacherAttendanceStatus } from '../types/classroomTeacherAttendance'
+
+/** Only classroomTeacherId/sessionDate/minutesTaught matter to summarizeAttendanceByClass;
+ * everything else is filler to satisfy the type. */
+function fakeRow(
+  overrides: Pick<ClassroomTeacherAttendanceStatus, 'classroomTeacherId' | 'sessionDate' | 'minutesTaught'>,
+): ClassroomTeacherAttendanceStatus {
+  return {
+    id: `${overrides.classroomTeacherId}-${overrides.sessionDate}`,
+    clockedInAt: null,
+    clockedInSource: null,
+    clockedOutAt: null,
+    clockedOutSource: null,
+    editedBy: null,
+    notes: null,
+    scheduledStart: `${overrides.sessionDate}T00:00:00Z`,
+    scheduledEnd: `${overrides.sessionDate}T00:00:00Z`,
+    arrivalStatus: 'on_time',
+    departureStatus: 'on_time',
+    ...overrides,
+  }
+}
 
 describe('currentMonthRange', () => {
   it('returns the first and last day of the month, and an Indonesian label', () => {
@@ -61,5 +83,59 @@ describe('formatHoursMinutes', () => {
 
   it('handles less than an hour', () => {
     expect(formatHoursMinutes(45)).toBe('0 jam 45 menit')
+  })
+})
+
+describe('summarizeAttendanceByClass', () => {
+  const classes = [
+    { classroomTeacherId: 'a', classroomLabel: 'Kelas A' },
+    { classroomTeacherId: 'b', classroomLabel: 'Kelas B' },
+  ]
+
+  it('sums minutes per class and grand total, counting only cells within `dates`', () => {
+    const dates = ['2026-08-03', '2026-08-04']
+    const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 45 }),
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-04', minutesTaught: 50 }),
+      fakeRow({ classroomTeacherId: 'b', sessionDate: '2026-08-03', minutesTaught: 30 }),
+    ]
+
+    const result = summarizeAttendanceByClass(classes, dates, rows)
+
+    expect(result.classTotals).toEqual([
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', totalMinutes: 95 },
+      { classroomTeacherId: 'b', classroomLabel: 'Kelas B', totalMinutes: 30 },
+    ])
+    expect(result.grandTotalMinutes).toBe(125)
+  })
+
+  it('ignores a row whose date is not in the weekday list — this is the bug that caused MyAttendancePage and the PDF to disagree', () => {
+    const dates = ['2026-08-03'] // Monday only; 2026-08-01 is a Saturday
+    const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 45 }),
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-01', minutesTaught: 5 }),
+    ]
+
+    const result = summarizeAttendanceByClass([classes[0]], dates, rows)
+
+    expect(result.grandTotalMinutes).toBe(45)
+  })
+
+  it('treats a null minutesTaught as zero rather than NaN', () => {
+    const dates = ['2026-08-03']
+    const rows = [fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: null })]
+
+    const result = summarizeAttendanceByClass([classes[0]], dates, rows)
+
+    expect(result.grandTotalMinutes).toBe(0)
+  })
+
+  it('gives a class with no attendance rows at all a total of zero', () => {
+    const result = summarizeAttendanceByClass(classes, ['2026-08-03'], [])
+    expect(result.classTotals).toEqual([
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', totalMinutes: 0 },
+      { classroomTeacherId: 'b', classroomLabel: 'Kelas B', totalMinutes: 0 },
+    ])
+    expect(result.grandTotalMinutes).toBe(0)
   })
 })
