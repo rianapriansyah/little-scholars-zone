@@ -2,36 +2,54 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Box, Chip, Paper, TextField, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
-import { todayIsoDateInWita, witaWallClockTime } from '../../../lib/classStatus'
+import { todayIsoDateInWita } from '../../../lib/classStatus'
 import { fetchAttendanceRoster } from '../../../lib/classroomTeacherAttendance'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
-import {
-  ARRIVAL_STATUS_LABELS,
-  DEPARTURE_STATUS_LABELS,
-  type ClassroomTeacherAttendanceListEntry,
-} from '../../../types/classroomTeacherAttendance'
-import { ClassroomTeacherAttendanceDialog } from './ClassroomTeacherAttendanceDialog'
+import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
+import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-function rowSearchBlob(row: ClassroomTeacherAttendanceListEntry): string {
-  return `${row.classroomLabel} ${row.teacherName}`.toLowerCase()
+/** One row per teacher — the raw classroom_teacher-level rows only ever show up inside the modal. */
+type TeacherRow = {
+  teacherId: string
+  teacherName: string
+  classes: ClassroomTeacherAttendanceListEntry[]
+}
+
+function groupByTeacher(entries: ClassroomTeacherAttendanceListEntry[]): TeacherRow[] {
+  const byTeacher = new Map<string, TeacherRow>()
+  for (const entry of entries) {
+    const existing = byTeacher.get(entry.teacherId)
+    if (existing) {
+      existing.classes.push(entry)
+    } else {
+      byTeacher.set(entry.teacherId, { teacherId: entry.teacherId, teacherName: entry.teacherName, classes: [entry] })
+    }
+  }
+  const rows = [...byTeacher.values()]
+  rows.sort((a, b) => a.teacherName.localeCompare(b.teacherName))
+  return rows
+}
+
+function rowSearchBlob(row: TeacherRow): string {
+  return `${row.teacherName} ${row.classes.map((c) => c.classroomLabel).join(' ')}`.toLowerCase()
 }
 
 /**
- * The admin correction surface: one row per active classroom_teacher on the selected date,
- * whether or not anyone has logged anything for it yet — a forgotten punch shows up as a gap
- * ("Belum Absen…") rather than being silently missing from the list. Payroll itself stays a
+ * The admin correction surface, one row per teacher: how many of their classes are logged for
+ * the selected date, at a glance. Tapping a row opens TeacherAttendanceDialog, which lists that
+ * teacher's classes and lets an admin fill in or correct each one. Payroll itself stays a
  * manual process an admin runs off this data; nothing here computes pay.
  */
 export function KehadiranGuruPage() {
   const [sessionDate, setSessionDate] = useState(() => todayIsoDateInWita())
-  const [rows, setRows] = useState<ClassroomTeacherAttendanceListEntry[]>([])
+  const [entries, setEntries] = useState<ClassroomTeacherAttendanceListEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 })
   const [keyword, setKeyword] = useState('')
-  const [editEntry, setEditEntry] = useState<ClassroomTeacherAttendanceListEntry | null>(null)
+  const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -43,88 +61,54 @@ export function KehadiranGuruPage() {
       setError(result.error)
       return
     }
-    setRows(result.data)
+    setEntries(result.data)
   }, [sessionDate])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  const teacherRows = useMemo(() => groupByTeacher(entries), [entries])
+
   const filteredRows = useMemo(
-    () => rows.filter((row) => matchesSearchTokens(rowSearchBlob(row), keyword)),
-    [rows, keyword],
+    () => teacherRows.filter((row) => matchesSearchTokens(rowSearchBlob(row), keyword)),
+    [teacherRows, keyword],
   )
 
-  const columns: GridColDef<ClassroomTeacherAttendanceListEntry>[] = useMemo(
+  const columns: GridColDef<TeacherRow>[] = useMemo(
     () => [
-      { field: 'classroomLabel', headerName: 'Kelas', flex: 1, minWidth: 160 },
-      { field: 'teacherName', headerName: 'Guru', flex: 1, minWidth: 160 },
+      { field: 'teacherName', headerName: 'Guru', flex: 1, minWidth: 200 },
       {
-        field: 'schedule',
-        headerName: 'Jadwal',
-        width: 120,
-        valueGetter: (_v, row) => `${row.timeStart.slice(0, 5)}–${row.timeEnd.slice(0, 5)}`,
+        field: 'classCount',
+        headerName: 'Jumlah Kelas',
+        width: 130,
+        valueGetter: (_v, row) => row.classes.length,
       },
       {
-        field: 'arrival',
-        headerName: 'Absen Masuk',
-        width: 160,
+        field: 'summary',
+        headerName: 'Ringkasan',
+        width: 180,
         renderCell: (params) => {
-          const status = params.row.status
-          const arrival = status?.arrivalStatus ?? 'missing'
+          const total = params.row.classes.length
+          const done = params.row.classes.filter((c) => c.status?.clockedOutAt).length
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
               <Chip
                 size="small"
-                label={ARRIVAL_STATUS_LABELS[arrival]}
-                color={arrival === 'on_time' ? 'success' : arrival === 'late' ? 'warning' : 'default'}
-                variant={arrival === 'missing' ? 'outlined' : 'filled'}
+                label={`${done}/${total} kelas selesai`}
+                color={total > 0 && done === total ? 'success' : done > 0 ? 'warning' : 'default'}
+                variant={done > 0 ? 'filled' : 'outlined'}
               />
-              {status?.clockedInAt ? (
-                <Typography variant="body2" color="text.secondary">
-                  {witaWallClockTime(status.clockedInAt)}
-                </Typography>
-              ) : null}
             </Box>
           )
         },
-      },
-      {
-        field: 'departure',
-        headerName: 'Absen Selesai',
-        width: 160,
-        renderCell: (params) => {
-          const status = params.row.status
-          const departure = status?.departureStatus ?? 'missing'
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
-              <Chip
-                size="small"
-                label={DEPARTURE_STATUS_LABELS[departure]}
-                color={departure === 'on_time' ? 'success' : departure === 'early' ? 'warning' : 'default'}
-                variant={departure === 'missing' ? 'outlined' : 'filled'}
-              />
-              {status?.clockedOutAt ? (
-                <Typography variant="body2" color="text.secondary">
-                  {witaWallClockTime(status.clockedOutAt)}
-                </Typography>
-              ) : null}
-            </Box>
-          )
-        },
-      },
-      {
-        field: 'minutesTaught',
-        headerName: 'Durasi',
-        width: 100,
-        valueGetter: (_v, row) => (row.status?.minutesTaught != null ? `${row.status.minutesTaught}m` : '—'),
       },
     ],
     [],
   )
 
-  const handleCellClick = (params: GridCellParams<ClassroomTeacherAttendanceListEntry>) => {
-    setEditEntry(params.row)
+  const handleCellClick = (params: GridCellParams<TeacherRow>) => {
+    setSelectedTeacher(params.row)
     setDialogOpen(true)
   }
 
@@ -134,7 +118,8 @@ export function KehadiranGuruPage() {
         Kehadiran Guru
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Jam masuk/selesai per kelas, dibandingkan jadwal. Perhitungan gaji tetap dilakukan manual dari data ini.
+        Pilih guru untuk melihat jam masuk/selesai per kelas, dibandingkan jadwal. Perhitungan gaji tetap dilakukan
+        manual dari data ini.
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
@@ -164,18 +149,18 @@ export function KehadiranGuruPage() {
       />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
-      {!loading && rows.length === 0 ? (
+      {!loading && teacherRows.length === 0 ? (
         <Typography color="text.secondary">Tidak ada kelas aktif untuk tanggal ini.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-            {loading ? 'Memuat…' : `${filteredRows.length} kelas`}
+            {loading ? 'Memuat…' : `${filteredRows.length} guru`}
           </Typography>
           <Paper sx={{ width: '100%', minWidth: 0, overflow: 'hidden', mt: error ? 2 : 0 }} variant="outlined">
             <DataGrid
               rows={filteredRows}
               columns={columns}
-              getRowId={(row) => row.classroomTeacherId}
+              getRowId={(row) => row.teacherId}
               loading={loading}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
@@ -189,10 +174,11 @@ export function KehadiranGuruPage() {
         </Box>
       )}
 
-      <ClassroomTeacherAttendanceDialog
+      <TeacherAttendanceDialog
         open={dialogOpen}
+        teacherName={selectedTeacher?.teacherName ?? ''}
         sessionDate={sessionDate}
-        entry={editEntry}
+        classes={selectedTeacher?.classes ?? []}
         onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
       />

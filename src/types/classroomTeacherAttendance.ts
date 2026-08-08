@@ -57,6 +57,8 @@ export type ClassroomTeacherAttendanceStatus = {
 /** A status row joined with the names needed to render it on the admin Kehadiran Guru screen. */
 export type ClassroomTeacherAttendanceListEntry = {
   classroomTeacherId: string
+  /** Groups entries by teacher for the Kehadiran Guru list — teacherName alone isn't a safe key. */
+  teacherId: string
   classroomLabel: string
   teacherName: string
   timeStart: string

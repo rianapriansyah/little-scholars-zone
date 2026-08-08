@@ -106,7 +106,7 @@ export async function clockOutClassroomTeacher(classroomTeacherId: string): Prom
 export async function fetchAttendanceRoster(sessionDate: string): Promise<Result<ClassroomTeacherAttendanceListEntry[]>> {
   const { data: groupRows, error: gError } = await supabase
     .from('classroom_teachers')
-    .select('id, classrooms(label, time_start, time_end, active), teachers(full_name, call_name)')
+    .select('id, teacher_id, classrooms(label, time_start, time_end, active), teachers(full_name, call_name)')
   if (gError) return { ok: false, error: gError.message }
 
   const { data: statusRows, error: sError } = await supabase
@@ -131,6 +131,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
 
     entries.push({
       classroomTeacherId: group.id,
+      teacherId: group.teacher_id,
       classroomLabel: classroom.label,
       teacherName: teacher ? teacherDisplayName(teacher) : '—',
       timeStart: classroom.time_start,
