@@ -49,7 +49,7 @@ export default function App() {
               <Route path="curriculum" element={<CurriculumPage />} />
               <Route path="periode" element={<PeriodsPage />} />
               <Route path="periode/:periodId" element={<PeriodDetailPage />} />
-              <Route path="kehadiran-guru" element={<TeachersAttendancePage />} />
+              <Route path="teachers-attendance" element={<TeachersAttendancePage />} />
               <Route path="kelola-akun" element={<ManageAccountPage />} />
             </Route>
           </Route>
@@ -57,7 +57,7 @@ export default function App() {
           <Route path="/teacher" element={<TeacherRoute />}>
             <Route element={<TeacherLayout />}>
               <Route index element={<TeacherRosterPage />} />
-              <Route path="kehadiran-saya" element={<MyAttendancePage />} />
+              <Route path="my-attendance" element={<MyAttendancePage />} />
               <Route path="laporan-harian" element={<DailyReportPage />} />
               <Route path="periode/:periodId" element={<TeacherPeriodDetailPage />} />
               <Route path="kelola-akun" element={<ManageAccountPage />} />
