@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Box, Chip, Paper, TextField, Typography } from '@mui/material'
+import DownloadIcon from '@mui/icons-material/Download'
+import { Alert, Box, Button, Chip, CircularProgress, Paper, TextField, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
 import { fetchAttendanceRoster } from '../../../lib/classroomTeacherAttendance'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { downloadTeacherAttendanceReport } from '../../../lib/teacherAttendanceReport'
 import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
 import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
 
@@ -51,6 +53,8 @@ export function KehadiranGuruPage() {
   const [keyword, setKeyword] = useState('')
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [downloadingTeacherId, setDownloadingTeacherId] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -74,6 +78,21 @@ export function KehadiranGuruPage() {
     () => teacherRows.filter((row) => matchesSearchTokens(rowSearchBlob(row), keyword)),
     [teacherRows, keyword],
   )
+
+  /** Always the current calendar month, regardless of the sessionDate picker above. */
+  async function handleDownload(row: TeacherRow) {
+    setDownloadingTeacherId(row.teacherId)
+    setDownloadError(null)
+    const result = await downloadTeacherAttendanceReport({
+      teacherName: row.teacherName,
+      classes: row.classes.map((c) => ({
+        classroomTeacherId: c.classroomTeacherId,
+        classroomLabel: c.classroomLabel,
+      })),
+    })
+    setDownloadingTeacherId(null)
+    if (!result.ok) setDownloadError(result.error)
+  }
 
   const columns: GridColDef<TeacherRow>[] = useMemo(
     () => [
@@ -102,12 +121,42 @@ export function KehadiranGuruPage() {
             </Box>
           )
         },
-      }
+      },
+      {
+        field: 'download',
+        headerName: '',
+        width: 150,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: (params) => {
+          const isDownloading = downloadingTeacherId === params.row.teacherId
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={isDownloading ? <CircularProgress size={14} /> : <DownloadIcon fontSize="small" />}
+                disabled={isDownloading}
+                // Laporan bulanan ini terpisah dari baris di grid, jadi klik tombolnya tidak
+                // boleh ikut membuka modal kehadiran hariannya.
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDownload(params.row)
+                }}
+              >
+                {isDownloading ? 'Membuat…' : 'Download'}
+              </Button>
+            </Box>
+          )
+        },
+      },
     ],
-    [],
+    [downloadingTeacherId],
   )
 
   const handleCellClick = (params: GridCellParams<TeacherRow>) => {
+    if (params.field === 'download') return
     setSelectedTeacher(params.row)
     setDialogOpen(true)
   }
@@ -149,6 +198,11 @@ export function KehadiranGuruPage() {
       />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
+      {downloadError ? (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDownloadError(null)}>
+          {downloadError}
+        </Alert>
+      ) : null}
       {!loading && teacherRows.length === 0 ? (
         <Typography color="text.secondary">Tidak ada kelas aktif untuk tanggal ini.</Typography>
       ) : (
