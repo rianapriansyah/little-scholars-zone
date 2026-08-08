@@ -80,13 +80,13 @@ export function KehadiranGuruPage() {
       {
         field: 'teacherName',
         headerName: 'Guru',
-        flex: 1,
-        minWidth: 220,
+        width: 210,
         valueGetter: (_v, row) => `${row.teacherName} (${row.classes.length} kelas)`,
       },
       {
         field: 'summary',
         headerName: 'Ringkasan',
+        flex: 1,
         width: 110,
         renderCell: (params) => {
           const total = params.row.classes.length
@@ -95,14 +95,14 @@ export function KehadiranGuruPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
               <Chip
                 size="small"
-                label={`${done}/${total}`}
+                label={`${done}/${total} Absen Kelas Terisi`}
                 color={total > 0 && done === total ? 'success' : done > 0 ? 'warning' : 'default'}
                 variant={done > 0 ? 'filled' : 'outlined'}
               />
             </Box>
           )
         },
-      },
+      }
     ],
     [],
   )

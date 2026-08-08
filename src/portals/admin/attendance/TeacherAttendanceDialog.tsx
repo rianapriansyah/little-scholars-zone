@@ -10,6 +10,7 @@ import {
   Button,
   Chip,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -264,6 +265,12 @@ export function TeacherAttendanceDialog({ open, teacherName, sessionDate, classe
           )
         ) : null}
       </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'action.hover' }}>
+        <Button variant="contained" onClick={onClose}>
+          Tutup
+        </Button>
+      </DialogActions>
     </Dialog>
   )
 }
