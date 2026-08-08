@@ -12,6 +12,14 @@ import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
+// Fixed (not flex) widths so the grid can actually overflow and scroll horizontally — a flex
+// column stops the grid from scrolling at all and just squeezes itself down to nothing on a
+// narrow screen instead, which is what made Ringkasan unreadable. Guru and Ringkasan are then
+// pinned in place with sticky positioning below (the free DataGrid has no real column pinning,
+// that's a Pro-only feature), so only the Download column scrolls out of view.
+const TEACHER_COL_WIDTH = 190
+const SUMMARY_COL_WIDTH = 160
+
 /** One row per teacher — the raw classroom_teacher-level rows only ever show up inside the modal. */
 type TeacherRow = {
   teacherId: string
@@ -99,14 +107,13 @@ export function KehadiranGuruPage() {
       {
         field: 'teacherName',
         headerName: 'Guru',
-        width: 210,
+        width: TEACHER_COL_WIDTH,
         valueGetter: (_v, row) => `${row.teacherName} (${row.classes.length} kelas)`,
       },
       {
         field: 'summary',
         headerName: 'Ringkasan',
-        flex: 1,
-        width: 110,
+        width: SUMMARY_COL_WIDTH,
         renderCell: (params) => {
           const total = params.row.classes.length
           const done = params.row.classes.filter((c) => c.status?.clockedOutAt).length
@@ -222,7 +229,26 @@ export function KehadiranGuruPage() {
               disableRowSelectionOnClick
               autoHeight
               onCellClick={handleCellClick}
-              sx={{ border: 'none', '& .MuiDataGrid-cell': { cursor: 'pointer' } }}
+              sx={{
+                border: 'none',
+                '& .MuiDataGrid-cell': { cursor: 'pointer' },
+                // Sticky-pin Guru + Ringkasan (header and body cells share the same data-field
+                // attribute) so they stay put while Download scrolls underneath them.
+                '& [data-field="teacherName"]': {
+                  position: 'sticky',
+                  left: 0,
+                  zIndex: 2,
+                  bgcolor: 'background.paper',
+                },
+                '& [data-field="summary"]': {
+                  position: 'sticky',
+                  left: TEACHER_COL_WIDTH,
+                  zIndex: 2,
+                  bgcolor: 'background.paper',
+                  borderRight: 1,
+                  borderColor: 'divider',
+                },
+              }}
             />
           </Paper>
         </Box>
