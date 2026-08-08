@@ -4,6 +4,7 @@ import { autoTable } from 'jspdf-autotable'
 import { supabase } from './supabase'
 import { todayIsoDateInWita, witaWallClockTime } from './classStatus'
 import { parseClassroomTeacherAttendanceStatus } from './classroomTeacherAttendance'
+import { formatIdr } from './formatIdr'
 import type { Result } from './result'
 import type {
   ArrivalStatus,
@@ -93,6 +94,13 @@ function formatClockTime(iso: string | null): string {
   return iso ? witaWallClockTime(iso) : '—'
 }
 
+/** 907 → "15 jam 7 menit", 2400 → "40 jam", for the "jam x rate" summary line. */
+export function formatHoursMinutes(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return minutes === 0 ? `${hours} jam` : `${hours} jam ${minutes} menit`
+}
+
 /** One line of human-readable context — never used for payroll math, just for reading the PDF. */
 function summarizeKeterangan(arrival: ArrivalStatus, departure: DepartureStatus): string {
   if (arrival === 'missing' && departure === 'missing') return 'Belum Absen'
@@ -116,17 +124,20 @@ const PAGE_BOTTOM_MARGIN = 16
  * Fetches the teacher's attendance for the current calendar month and downloads it as a PDF:
  * header (business name, teacher, period), then one table per class the teacher teaches — a
  * teacher with 4 classes gets 4 tables, each with its own "Total Durasi Mengajar" row — and
- * finally one small summary table totalling every class's minutes for the month. A day with no
- * logged attendance still gets a row in its class's table — "Belum Absen" — same
- * no-row-means-a-gap convention as the rest of this feature, so a forgotten punch is visible in
- * the printed report too, not silently skipped (and doesn't count toward any total).
+ * finally one small summary table totalling every class's minutes for the month, plus (when a
+ * rate is configured) an estimated-pay line. A day with no logged attendance still gets a row
+ * in its class's table — "Belum Absen" — same no-row-means-a-gap convention as the rest of this
+ * feature, so a forgotten punch is visible in the printed report too, not silently skipped (and
+ * doesn't count toward any total).
  */
 export async function downloadTeacherAttendanceReport(params: {
   teacherName: string
   classes: TeacherAttendanceReportClass[]
+  /** IDR per hour. null means not configured — the estimate line is skipped, not shown as Rp 0. */
+  rate: number | null
   referenceDate?: string
 }): Promise<Result<void>> {
-  const { teacherName, classes } = params
+  const { teacherName, classes, rate } = params
   const { start, end, label } = currentMonthRange(params.referenceDate)
 
   const fetchResult = await fetchMonthlyAttendance(
@@ -215,6 +226,31 @@ export async function downloadTeacherAttendanceReport(params: {
   doc.text('Ringkasan Total Durasi Bulan Ini', MARGIN_LEFT, cursorY)
   cursorY += 4
 
+  // When a rate is set: "15 jam 7 menit x Rp 8.000" then the estimated pay, both bold so they
+  // read as the bottom-line answer. Skipped (not shown as Rp 0) when the teacher has no rate
+  // configured yet — see the Rate section on the Edit Guru dialog.
+  const rateRows: (string | { content: string; styles?: Record<string, unknown> })[][] =
+    rate != null
+      ? [
+          [
+            'Total Keseluruhan dalam satuan Jam x Rate per Jam',
+            `${formatHoursMinutes(grandTotalMinutes)} x ${formatIdr(rate)}`,
+          ],
+          [
+            { content: `Estimasi yang akan diterima ${teacherName}`, styles: { fontStyle: 'bold' } },
+            { content: formatIdr((grandTotalMinutes / 60) * rate), styles: { fontStyle: 'bold' } },
+          ],
+        ]
+      : [
+          [
+            {
+              content: 'Rate per jam belum diatur — atur di menu Guru untuk melihat estimasi gaji.',
+              styles: { fontStyle: 'italic' },
+            },
+            '',
+          ],
+        ]
+
   autoTable(doc, {
     startY: cursorY,
     margin: { left: MARGIN_LEFT },
@@ -225,6 +261,7 @@ export async function downloadTeacherAttendanceReport(params: {
         { content: 'Total Keseluruhan', styles: { fontStyle: 'bold' } },
         { content: `${grandTotalMinutes} menit`, styles: { fontStyle: 'bold' } },
       ],
+      ...rateRows,
     ],
     styles: { fontSize: 9 },
     headStyles: { fillColor: [46, 87, 76] },

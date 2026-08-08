@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentMonthRange, weekdaysInRange } from './teacherAttendanceReport'
+import { currentMonthRange, formatHoursMinutes, weekdaysInRange } from './teacherAttendanceReport'
 
 describe('currentMonthRange', () => {
   it('returns the first and last day of the month, and an Indonesian label', () => {
@@ -43,5 +43,23 @@ describe('weekdaysInRange', () => {
 
   it('returns an empty list for a weekend-only range', () => {
     expect(weekdaysInRange('2026-08-01', '2026-08-02')).toEqual([])
+  })
+})
+
+describe('formatHoursMinutes', () => {
+  it('omits the minutes when there is no remainder', () => {
+    expect(formatHoursMinutes(2400)).toBe('40 jam')
+  })
+
+  it('shows the leftover minutes otherwise', () => {
+    expect(formatHoursMinutes(907)).toBe('15 jam 7 menit')
+  })
+
+  it('handles zero', () => {
+    expect(formatHoursMinutes(0)).toBe('0 jam')
+  })
+
+  it('handles less than an hour', () => {
+    expect(formatHoursMinutes(45)).toBe('0 jam 45 menit')
   })
 })

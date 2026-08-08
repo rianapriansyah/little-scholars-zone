@@ -61,6 +61,8 @@ export type ClassroomTeacherAttendanceListEntry = {
   teacherId: string
   classroomLabel: string
   teacherName: string
+  /** Hourly rate in IDR, or null if not configured. Same value on every entry for this teacher. */
+  teacherRate: number | null
   timeStart: string
   timeEnd: string
   /** null means no row exists yet for this class on this date — nobody has logged anything. */

@@ -509,6 +509,7 @@ export type Database = {
           full_name: string
           id: string
           photo_url: string | null
+          rate: number | null
           start_working_at: string
         }
         Insert: {
@@ -523,6 +524,7 @@ export type Database = {
           full_name: string
           id?: string
           photo_url?: string | null
+          rate?: number | null
           start_working_at?: string
         }
         Update: {
@@ -537,6 +539,7 @@ export type Database = {
           full_name?: string
           id?: string
           photo_url?: string | null
+          rate?: number | null
           start_working_at?: string
         }
         Relationships: []
