@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import DownloadIcon from '@mui/icons-material/Download'
-import { Alert, Box, Button, Chip, CircularProgress, Paper, TextField, Typography } from '@mui/material'
+import { Alert, Box, Chip, Paper, TextField, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
 import { fetchAttendanceRoster } from '../../../lib/classroomTeacherAttendance'
@@ -11,14 +12,6 @@ import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classro
 import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
-
-// Fixed (not flex) widths so the grid can actually overflow and scroll horizontally — a flex
-// column stops the grid from scrolling at all and just squeezes itself down to nothing on a
-// narrow screen instead, which is what made Ringkasan unreadable. Guru and Ringkasan are then
-// pinned in place with sticky positioning below (the free DataGrid has no real column pinning,
-// that's a Pro-only feature), so only the Download column scrolls out of view.
-const TEACHER_COL_WIDTH = 190
-const SUMMARY_COL_WIDTH = 160
 
 /** One row per teacher — the raw classroom_teacher-level rows only ever show up inside the modal. */
 type TeacherRow = {
@@ -48,9 +41,10 @@ function rowSearchBlob(row: TeacherRow): string {
 
 /**
  * The admin correction surface, one row per teacher: how many of their classes are logged for
- * the selected date, at a glance. Tapping a row opens TeacherAttendanceDialog, which lists that
- * teacher's classes and lets an admin fill in or correct each one. Payroll itself stays a
- * manual process an admin runs off this data; nothing here computes pay.
+ * the selected date, at a glance. Two different things happen depending on which column is
+ * tapped — Guru confirms then downloads the monthly PDF, Ringkasan opens TeacherAttendanceDialog
+ * to fill in or correct today's punches. Payroll itself stays a manual process an admin runs off
+ * this data; nothing here computes pay.
  */
 export function KehadiranGuruPage() {
   const [sessionDate, setSessionDate] = useState(() => todayIsoDateInWita())
@@ -61,7 +55,8 @@ export function KehadiranGuruPage() {
   const [keyword, setKeyword] = useState('')
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [downloadingTeacherId, setDownloadingTeacherId] = useState<string | null>(null)
+  const [confirmDownloadTeacher, setConfirmDownloadTeacher] = useState<TeacherRow | null>(null)
+  const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -89,7 +84,7 @@ export function KehadiranGuruPage() {
 
   /** Always the current calendar month, regardless of the sessionDate picker above. */
   async function handleDownload(row: TeacherRow) {
-    setDownloadingTeacherId(row.teacherId)
+    setDownloading(true)
     setDownloadError(null)
     const result = await downloadTeacherAttendanceReport({
       teacherName: row.teacherName,
@@ -98,7 +93,7 @@ export function KehadiranGuruPage() {
         classroomLabel: c.classroomLabel,
       })),
     })
-    setDownloadingTeacherId(null)
+    setDownloading(false)
     if (!result.ok) setDownloadError(result.error)
   }
 
@@ -107,13 +102,24 @@ export function KehadiranGuruPage() {
       {
         field: 'teacherName',
         headerName: 'Guru',
-        width: TEACHER_COL_WIDTH,
+        flex: 1,
+        minWidth: 200,
         valueGetter: (_v, row) => `${row.teacherName} (${row.classes.length} kelas)`,
+        renderCell: (params) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, height: '100%', minWidth: 0 }}>
+            <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
+              {params.value as string}
+            </Typography>
+            {/* Hints that this column downloads, rather than opens, since it no longer has its
+                own button to say so. */}
+            <DownloadIcon fontSize="small" sx={{ color: 'text.disabled', flexShrink: 0 }} />
+          </Box>
+        ),
       },
       {
         field: 'summary',
         headerName: 'Ringkasan',
-        width: SUMMARY_COL_WIDTH,
+        width: 190,
         renderCell: (params) => {
           const total = params.row.classes.length
           const done = params.row.classes.filter((c) => c.status?.clockedOutAt).length
@@ -129,43 +135,19 @@ export function KehadiranGuruPage() {
           )
         },
       },
-      {
-        field: 'download',
-        headerName: '',
-        width: 150,
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        renderCell: (params) => {
-          const isDownloading = downloadingTeacherId === params.row.teacherId
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={isDownloading ? <CircularProgress size={14} /> : <DownloadIcon fontSize="small" />}
-                disabled={isDownloading}
-                // Laporan bulanan ini terpisah dari baris di grid, jadi klik tombolnya tidak
-                // boleh ikut membuka modal kehadiran hariannya.
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void handleDownload(params.row)
-                }}
-              >
-                {isDownloading ? 'Membuat…' : 'Download'}
-              </Button>
-            </Box>
-          )
-        },
-      },
     ],
-    [downloadingTeacherId],
+    [],
   )
 
   const handleCellClick = (params: GridCellParams<TeacherRow>) => {
-    if (params.field === 'download') return
-    setSelectedTeacher(params.row)
-    setDialogOpen(true)
+    if (params.field === 'teacherName') {
+      setConfirmDownloadTeacher(params.row)
+      return
+    }
+    if (params.field === 'summary') {
+      setSelectedTeacher(params.row)
+      setDialogOpen(true)
+    }
   }
 
   return (
@@ -174,8 +156,8 @@ export function KehadiranGuruPage() {
         Kehadiran Guru
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Pilih guru untuk melihat jam masuk/selesai per kelas, dibandingkan jadwal. Perhitungan gaji tetap dilakukan
-        manual dari data ini.
+        Klik nama guru untuk mengunduh laporan bulan ini, atau klik Ringkasan untuk mengisi/mengoreksi kehadiran
+        tanggal yang dipilih. Perhitungan gaji tetap dilakukan manual dari data ini.
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
@@ -210,6 +192,11 @@ export function KehadiranGuruPage() {
           {downloadError}
         </Alert>
       ) : null}
+      {downloading ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Menyiapkan PDF…
+        </Alert>
+      ) : null}
       {!loading && teacherRows.length === 0 ? (
         <Typography color="text.secondary">Tidak ada kelas aktif untuk tanggal ini.</Typography>
       ) : (
@@ -229,30 +216,24 @@ export function KehadiranGuruPage() {
               disableRowSelectionOnClick
               autoHeight
               onCellClick={handleCellClick}
-              sx={{
-                border: 'none',
-                '& .MuiDataGrid-cell': { cursor: 'pointer' },
-                // Sticky-pin Guru + Ringkasan (header and body cells share the same data-field
-                // attribute) so they stay put while Download scrolls underneath them.
-                '& [data-field="teacherName"]': {
-                  position: 'sticky',
-                  left: 0,
-                  zIndex: 2,
-                  bgcolor: 'background.paper',
-                },
-                '& [data-field="summary"]': {
-                  position: 'sticky',
-                  left: TEACHER_COL_WIDTH,
-                  zIndex: 2,
-                  bgcolor: 'background.paper',
-                  borderRight: 1,
-                  borderColor: 'divider',
-                },
-              }}
+              sx={{ border: 'none', '& .MuiDataGrid-cell': { cursor: 'pointer' } }}
             />
           </Paper>
         </Box>
       )}
+
+      <ConfirmDialog
+        open={confirmDownloadTeacher !== null}
+        title="Unduh Laporan Kehadiran"
+        description={`Unduh laporan kehadiran bulan ini untuk ${confirmDownloadTeacher?.teacherName ?? ''}?`}
+        confirmLabel="Unduh"
+        confirmColor="primary"
+        onCancel={() => setConfirmDownloadTeacher(null)}
+        onConfirm={() => {
+          if (confirmDownloadTeacher) void handleDownload(confirmDownloadTeacher)
+          setConfirmDownloadTeacher(null)
+        }}
+      />
 
       <TeacherAttendanceDialog
         open={dialogOpen}
