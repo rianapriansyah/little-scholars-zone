@@ -52,7 +52,7 @@ function rowSearchBlob(row: TeacherRow): string {
  * to fill in or correct today's punches. Payroll itself stays a manual process an admin runs off
  * this data; nothing here computes pay.
  */
-export function KehadiranGuruPage() {
+export function TeachersAttendancePage() {
   const [sessionDate, setSessionDate] = useState(() => todayIsoDateInWita())
   const [entries, setEntries] = useState<ClassroomTeacherAttendanceListEntry[]>([])
   const [loading, setLoading] = useState(true)
