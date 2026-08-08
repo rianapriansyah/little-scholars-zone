@@ -10,6 +10,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  InputAdornment,
   Switch,
   TextField,
   Typography,
@@ -19,6 +20,7 @@ import { createTeacherAccount } from '../../../lib/createTeacherAccount'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { TeacherRow } from '../../../types/teacher'
 import { composeEducation, splitEducation } from '../../../lib/teacherEducation'
+import { digitsOnly, groupDigits } from '../../../lib/formatIdr'
 import { uploadProfilePhoto } from '../../../lib/uploadProfilePhoto'
 
 type Props = {
@@ -51,6 +53,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
   const [startWorkingAt, setStartWorkingAt] = useState('')
   const [endWorkingAt, setEndWorkingAt] = useState('')
+  const [rate, setRate] = useState('')
 
   const phoneDigits = phone.replace(/\D/g, '')
 
@@ -70,6 +73,9 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     setPhotoPreviewUrl(teacher?.photo_url ?? null)
     setStartWorkingAt(teacher?.start_working_at ?? todayIsoDate())
     setEndWorkingAt(teacher?.end_working_at ?? '')
+    // Raw digits only, same reasoning as classroom price: numeric(12,2) can arrive with a
+    // fractional part that the grouped display and digitsOnly() would both mangle.
+    setRate(teacher?.rate != null ? String(Math.round(teacher.rate)) : '')
   }, [open, teacher])
 
   const handleClose = () => {
@@ -117,6 +123,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
       photo_url: photoUrl,
       start_working_at: startWorkingAt || todayIsoDate(),
       end_working_at: endWorkingAt || null,
+      rate: rate ? Number(rate) : null,
     }
 
     if (isEdit) {
@@ -270,6 +277,22 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
 
             {isEdit ? (
               <>
+                <Divider />
+                <Typography variant="subtitle2">Gaji</Typography>
+                {/* Money input follows the same pattern as Harga per Periode on Kelas: raw
+                    digits in state, dot-grouped for display, inputMode numeric with an Rp
+                    adornment. */}
+                <TextField
+                  size="small"
+                  label="Rate per Jam"
+                  value={groupDigits(rate)}
+                  onChange={(e) => setRate(digitsOnly(e.target.value))}
+                  fullWidth
+                  inputMode="numeric"
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
+                  helperText="Opsional. Dipakai untuk estimasi di laporan PDF Kehadiran Guru — bukan penggajian resmi."
+                />
+
                 <FormControlLabel
                   control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
                   label="Aktif"

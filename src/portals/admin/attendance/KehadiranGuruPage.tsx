@@ -17,6 +17,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 type TeacherRow = {
   teacherId: string
   teacherName: string
+  teacherRate: number | null
   classes: ClassroomTeacherAttendanceListEntry[]
 }
 
@@ -27,7 +28,12 @@ function groupByTeacher(entries: ClassroomTeacherAttendanceListEntry[]): Teacher
     if (existing) {
       existing.classes.push(entry)
     } else {
-      byTeacher.set(entry.teacherId, { teacherId: entry.teacherId, teacherName: entry.teacherName, classes: [entry] })
+      byTeacher.set(entry.teacherId, {
+        teacherId: entry.teacherId,
+        teacherName: entry.teacherName,
+        teacherRate: entry.teacherRate,
+        classes: [entry],
+      })
     }
   }
   const rows = [...byTeacher.values()]
@@ -88,6 +94,7 @@ export function KehadiranGuruPage() {
     setDownloadError(null)
     const result = await downloadTeacherAttendanceReport({
       teacherName: row.teacherName,
+      rate: row.teacherRate,
       classes: row.classes.map((c) => ({
         classroomTeacherId: c.classroomTeacherId,
         classroomLabel: c.classroomLabel,

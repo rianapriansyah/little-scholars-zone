@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentMonthRange, weekdaysInRange } from './teacherAttendanceReport'
+import { currentMonthRange, formatHours, weekdaysInRange } from './teacherAttendanceReport'
 
 describe('currentMonthRange', () => {
   it('returns the first and last day of the month, and an Indonesian label', () => {
@@ -43,5 +43,19 @@ describe('weekdaysInRange', () => {
 
   it('returns an empty list for a weekend-only range', () => {
     expect(weekdaysInRange('2026-08-01', '2026-08-02')).toEqual([])
+  })
+})
+
+describe('formatHours', () => {
+  it('drops the decimal for a whole number of hours', () => {
+    expect(formatHours(2400)).toBe('40')
+  })
+
+  it('keeps two decimals for a fractional hour count', () => {
+    expect(formatHours(2450)).toBe('40.83')
+  })
+
+  it('handles zero', () => {
+    expect(formatHours(0)).toBe('0')
   })
 })
