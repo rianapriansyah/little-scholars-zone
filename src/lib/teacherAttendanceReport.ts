@@ -109,12 +109,17 @@ export type TeacherAttendanceReportClass = {
   classroomLabel: string
 }
 
+const MARGIN_LEFT = 14
+const PAGE_BOTTOM_MARGIN = 16
+
 /**
  * Fetches the teacher's attendance for the current calendar month and downloads it as a PDF:
- * header (business name, teacher, period), then one table row per (weekday, class) in the
- * month. A day/class with no logged attendance still gets a row — "Belum Absen" — same
+ * header (business name, teacher, period), then one table per class the teacher teaches — a
+ * teacher with 4 classes gets 4 tables, each with its own "Total Durasi Mengajar" row — and
+ * finally one small summary table totalling every class's minutes for the month. A day with no
+ * logged attendance still gets a row in its class's table — "Belum Absen" — same
  * no-row-means-a-gap convention as the rest of this feature, so a forgotten punch is visible in
- * the printed report too, not silently skipped.
+ * the printed report too, not silently skipped (and doesn't count toward any total).
  */
 export async function downloadTeacherAttendanceReport(params: {
   teacherName: string
@@ -137,36 +142,90 @@ export async function downloadTeacherAttendanceReport(params: {
   }
 
   const dates = weekdaysInRange(start, end)
-  const body: string[][] = []
-  let rowNo = 1
-  for (const date of dates) {
-    for (const cls of classes) {
+
+  const doc = new jsPDF()
+  doc.setFontSize(14)
+  doc.text(BUSINESS_NAME, MARGIN_LEFT, 16)
+  doc.setFontSize(11)
+  doc.text(`Guru: ${teacherName}`, MARGIN_LEFT, 24)
+  doc.text(`Periode: ${label}`, MARGIN_LEFT, 30)
+
+  const pageHeight = doc.internal.pageSize.getHeight()
+  let cursorY = 38
+
+  /** Starts a new page if the next block wouldn't fit, so a heading is never stranded alone. */
+  function ensureSpace(neededHeight: number) {
+    if (cursorY + neededHeight > pageHeight - PAGE_BOTTOM_MARGIN) {
+      doc.addPage()
+      cursorY = 20
+    }
+  }
+
+  const classTotals: { classroomLabel: string; totalMinutes: number }[] = []
+
+  for (const cls of classes) {
+    let classTotalMinutes = 0
+    const body: (string | { content: string; colSpan?: number; styles?: Record<string, unknown> })[][] = []
+    let rowNo = 1
+    for (const date of dates) {
       const status = byKey.get(`${cls.classroomTeacherId}|${date}`) ?? null
       const arrival = status?.arrivalStatus ?? 'missing'
       const departure = status?.departureStatus ?? 'missing'
+      if (status?.minutesTaught != null) classTotalMinutes += status.minutesTaught
+
       body.push([
         String(rowNo++),
         dayjs(date).format('DD-MM-YYYY'),
-        cls.classroomLabel,
         formatClockTime(status?.clockedInAt ?? null),
         formatClockTime(status?.clockedOutAt ?? null),
         status?.minutesTaught != null ? `${status.minutesTaught} menit` : '—',
         summarizeKeterangan(arrival, departure),
       ])
     }
+    // The table's own footer row — bold, spanning the first four columns as a label so the
+    // total reads as a summary line, not just another day.
+    body.push([
+      { content: 'Total Durasi Mengajar', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right' } },
+      { content: `${classTotalMinutes} menit`, styles: { fontStyle: 'bold' } },
+      '',
+    ])
+    classTotals.push({ classroomLabel: cls.classroomLabel, totalMinutes: classTotalMinutes })
+
+    ensureSpace(24)
+    doc.setFontSize(11)
+    doc.text(cls.classroomLabel, MARGIN_LEFT, cursorY)
+    cursorY += 4
+
+    autoTable(doc, {
+      startY: cursorY,
+      margin: { left: MARGIN_LEFT },
+      head: [['No', 'Tanggal', 'Jam Masuk', 'Jam Selesai', 'Durasi', 'Keterangan']],
+      body,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [46, 87, 76] },
+    })
+
+    cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12
   }
 
-  const doc = new jsPDF()
-  doc.setFontSize(14)
-  doc.text(BUSINESS_NAME, 14, 16)
-  doc.setFontSize(11)
-  doc.text(`Guru: ${teacherName}`, 14, 24)
-  doc.text(`Periode: ${label}`, 14, 30)
+  // Grand summary: every class's monthly total in one place, plus the total across all of them.
+  const grandTotalMinutes = classTotals.reduce((sum, c) => sum + c.totalMinutes, 0)
+  ensureSpace(30)
+  doc.setFontSize(12)
+  doc.text('Ringkasan Total Durasi Bulan Ini', MARGIN_LEFT, cursorY)
+  cursorY += 4
 
   autoTable(doc, {
-    startY: 36,
-    head: [['No', 'Tanggal', 'Kelas', 'Jam Masuk', 'Jam Selesai', 'Durasi', 'Keterangan']],
-    body,
+    startY: cursorY,
+    margin: { left: MARGIN_LEFT },
+    head: [['Kelas', 'Total Durasi']],
+    body: [
+      ...classTotals.map((c) => [c.classroomLabel, `${c.totalMinutes} menit`]),
+      [
+        { content: 'Total Keseluruhan', styles: { fontStyle: 'bold' } },
+        { content: `${grandTotalMinutes} menit`, styles: { fontStyle: 'bold' } },
+      ],
+    ],
     styles: { fontSize: 9 },
     headStyles: { fillColor: [46, 87, 76] },
   })
