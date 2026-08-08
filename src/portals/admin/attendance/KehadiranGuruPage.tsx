@@ -77,17 +77,17 @@ export function KehadiranGuruPage() {
 
   const columns: GridColDef<TeacherRow>[] = useMemo(
     () => [
-      { field: 'teacherName', headerName: 'Guru', flex: 1, minWidth: 200 },
       {
-        field: 'classCount',
-        headerName: 'Jumlah Kelas',
-        width: 130,
-        valueGetter: (_v, row) => row.classes.length,
+        field: 'teacherName',
+        headerName: 'Guru',
+        flex: 1,
+        minWidth: 220,
+        valueGetter: (_v, row) => `${row.teacherName} (${row.classes.length} kelas)`,
       },
       {
         field: 'summary',
         headerName: 'Ringkasan',
-        width: 180,
+        width: 110,
         renderCell: (params) => {
           const total = params.row.classes.length
           const done = params.row.classes.filter((c) => c.status?.clockedOutAt).length
@@ -95,7 +95,7 @@ export function KehadiranGuruPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
               <Chip
                 size="small"
-                label={`${done}/${total} kelas selesai`}
+                label={`${done}/${total}`}
                 color={total > 0 && done === total ? 'success' : done > 0 ? 'warning' : 'default'}
                 variant={done > 0 ? 'filled' : 'outlined'}
               />

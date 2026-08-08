@@ -51,16 +51,20 @@ function Section({
         '&:last-of-type': { borderBottom: 0 },
       }}
     >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+      {/* Stacked into its own rows, not squeezed alongside the chips on one line — with two
+          chips plus an expand icon competing for space, a side-by-side layout leaves almost no
+          room for the title on a narrow screen, which is what forces every single word onto its
+          own line. Each row here always gets the full width instead. */}
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, '& .MuiAccordionSummary-content': { my: 1.25 } }}>
+        <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700 }}>
             {index}. {title}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ mb: chip ? 1 : 0 }}>
             {subtitle}
           </Typography>
+          {chip ? <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>{chip}</Box> : null}
         </Box>
-        {chip ? <Box sx={{ mr: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>{chip}</Box> : null}
       </AccordionSummary>
       <AccordionDetails sx={{ px: 0, pt: 0, pb: 2.5 }}>
         <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 2 }}>{children}</Box>
