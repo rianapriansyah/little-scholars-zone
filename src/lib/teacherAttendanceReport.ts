@@ -94,10 +94,11 @@ function formatClockTime(iso: string | null): string {
   return iso ? witaWallClockTime(iso) : '—'
 }
 
-/** 90 → "1.5", 120 → "2", for the "jam x rate" summary line. */
-export function formatHours(totalMinutes: number): string {
-  const hours = totalMinutes / 60
-  return Number.isInteger(hours) ? String(hours) : hours.toFixed(2)
+/** 907 → "15 jam 7 menit", 2400 → "40 jam", for the "jam x rate" summary line. */
+export function formatHoursMinutes(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return minutes === 0 ? `${hours} jam` : `${hours} jam ${minutes} menit`
 }
 
 /** One line of human-readable context — never used for payroll math, just for reading the PDF. */
@@ -225,15 +226,15 @@ export async function downloadTeacherAttendanceReport(params: {
   doc.text('Ringkasan Total Durasi Bulan Ini', MARGIN_LEFT, cursorY)
   cursorY += 4
 
-  // When a rate is set: "40 jam x Rp 8.000" then the estimated pay, both bold so they read as
-  // the bottom-line answer. Skipped (not shown as Rp 0) when the teacher has no rate configured
-  // yet — see the Rate section on the Edit Guru dialog.
+  // When a rate is set: "15 jam 7 menit x Rp 8.000" then the estimated pay, both bold so they
+  // read as the bottom-line answer. Skipped (not shown as Rp 0) when the teacher has no rate
+  // configured yet — see the Rate section on the Edit Guru dialog.
   const rateRows: (string | { content: string; styles?: Record<string, unknown> })[][] =
     rate != null
       ? [
           [
             'Total Keseluruhan dalam satuan Jam x Rate per Jam',
-            `${formatHours(grandTotalMinutes)} jam x ${formatIdr(rate)}`,
+            `${formatHoursMinutes(grandTotalMinutes)} x ${formatIdr(rate)}`,
           ],
           [
             { content: `Estimasi yang akan diterima ${teacherName}`, styles: { fontStyle: 'bold' } },
