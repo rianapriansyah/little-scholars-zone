@@ -147,6 +147,11 @@ describe('getTodaysClassStartInWita', () => {
     expect(result).toBeNull()
   })
 
+  it('with ignoreWeekday, still resolves on a WITA weekend', () => {
+    const referenceNow = new Date('2026-07-18T04:00:00Z') // 12:00 WITA, Saturday
+    expect(getTodaysClassStartInWita('10:00', referenceNow, true)).toEqual(new Date('2026-07-18T02:00:00Z'))
+  })
+
   it('uses the WITA calendar date near a UTC midnight boundary, not the UTC date', () => {
     // 2026-07-13T17:00:00Z = 2026-07-14T01:00:00 WITA — already Tuesday in WITA, still Monday in UTC.
     const referenceNow = new Date('2026-07-13T17:00:00Z')
@@ -168,6 +173,14 @@ describe('isWitaClassDay', () => {
   it('judges by the WITA day, not UTC', () => {
     // 2026-08-07T17:00:00Z = Saturday 01:00 WITA, still Friday in UTC.
     expect(isWitaClassDay(new Date('2026-08-07T17:00:00Z'))).toBe(false)
+  })
+
+  it('ignoreWeekday overrides a real weekend to true', () => {
+    expect(isWitaClassDay(new Date('2026-08-08T04:00:00Z'), true)).toBe(true) // Saturday
+  })
+
+  it('ignoreWeekday does not turn a weekday off', () => {
+    expect(isWitaClassDay(new Date('2026-08-03T04:00:00Z'), true)).toBe(true) // Monday
   })
 })
 

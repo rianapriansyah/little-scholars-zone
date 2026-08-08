@@ -38,6 +38,7 @@ import {
   fetchAttendanceForClassroomTeachers,
 } from '../../lib/classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceStatus } from '../../types/classroomTeacherAttendance'
+import { DAILY_REPORT_ENABLED, IGNORE_WEEKDAY_FOR_TESTING } from '../../lib/featureFlags'
 
 type GroupWithRoster = {
   id: string
@@ -166,7 +167,8 @@ export function TeacherRosterPage() {
     )
   }
 
-  const isClassDay = isWitaClassDay(now)
+  // IGNORE_WEEKDAY_FOR_TESTING is session-only (see featureFlags.ts) — normally false.
+  const isClassDay = isWitaClassDay(now, IGNORE_WEEKDAY_FOR_TESTING)
 
   /**
    * `groupId` is a classroom_teachers id — the same thing the Laporan Harian class picker is
@@ -258,10 +260,49 @@ export function TeacherRosterPage() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {groups.map((group) => {
             const { classroom } = group
-            const todaysStart = getTodaysClassStartInWita(classroom.time_start, now)
-            const todaysEnd = getTodaysClassEndInWita(classroom.time_end, now)
+            const todaysStart = getTodaysClassStartInWita(classroom.time_start, now, IGNORE_WEEKDAY_FOR_TESTING)
+            const todaysEnd = getTodaysClassEndInWita(classroom.time_end, now, IGNORE_WEEKDAY_FOR_TESTING)
             const status = todaysStart ? getClassStatus(todaysStart, now, todaysEnd) : null
             const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
+
+            const cardBody = (
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
+                    {classroom.label}
+                  </Typography>
+                  {status?.label ? (
+                    <Chip
+                      size="small"
+                      label={status.label}
+                      // Only the in-progress state is green; "Kelas selesai" must read as neutral.
+                      color={status.border === 'green' ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                  ) : null}
+                  {/* The chevron implies "tap for more" — only true while Laporan Harian is reachable. */}
+                  {DAILY_REPORT_ENABLED ? <ChevronRightIcon sx={{ color: 'text.disabled' }} /> : null}
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  Sen–Jum · {classroom.time_start.slice(0, 5)}
+                  {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
+                  {MAX_STUDENTS_PER_TEACHER} siswa
+                </Typography>
+                {group.roster.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Belum ada siswa yang terdaftar.
+                  </Typography>
+                ) : (
+                  <List dense disablePadding>
+                    {group.roster.map((r) => (
+                      <ListItem key={r.childId} disableGutters>
+                        <ListItemText primary={r.childName} />
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </CardContent>
+            )
 
             return (
               <Card
@@ -269,46 +310,18 @@ export function TeacherRosterPage() {
                 variant="outlined"
                 sx={borderColor ? { borderColor, borderWidth: 2 } : undefined}
               >
-                <CardActionArea
-                  onClick={() => openDailyReport(group.id)}
-                  aria-label={`Isi laporan harian untuk ${classroom.label}`}
-                >
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
-                      {classroom.label}
-                    </Typography>
-                    {status?.label ? (
-                      <Chip
-                        size="small"
-                        label={status.label}
-                        // Only the in-progress state is green; "Kelas selesai" must read as neutral.
-                        color={status.border === 'green' ? 'success' : 'default'}
-                        variant="outlined"
-                      />
-                    ) : null}
-                    <ChevronRightIcon sx={{ color: 'text.disabled' }} />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Sen–Jum · {classroom.time_start.slice(0, 5)}
-                    {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
-                    {MAX_STUDENTS_PER_TEACHER} siswa
-                  </Typography>
-                  {group.roster.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">
-                      Belum ada siswa yang terdaftar.
-                    </Typography>
-                  ) : (
-                    <List dense disablePadding>
-                      {group.roster.map((r) => (
-                        <ListItem key={r.childId} disableGutters>
-                          <ListItemText primary={r.childName} />
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                </CardContent>
-                </CardActionArea>
+                {/* Beta: Laporan Harian is disabled for the first week (see featureFlags.ts), so
+                    the card stops being a nav target and just displays the roster. */}
+                {DAILY_REPORT_ENABLED ? (
+                  <CardActionArea
+                    onClick={() => openDailyReport(group.id)}
+                    aria-label={`Isi laporan harian untuk ${classroom.label}`}
+                  >
+                    {cardBody}
+                  </CardActionArea>
+                ) : (
+                  cardBody
+                )}
                 <Box sx={{ px: 2, pb: 2 }}>{renderAttendanceControl(group, todaysStart, todaysEnd)}</Box>
               </Card>
             )

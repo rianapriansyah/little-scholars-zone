@@ -112,9 +112,14 @@ export function formatWitaDayAndDate(referenceNow: Date = new Date()): string {
 
 const WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
 
-/** Classrooms only run Monday–Friday, judged by the WITA calendar rather than the browser's. */
-export function isWitaClassDay(referenceNow: Date = new Date()): boolean {
-  return WEEKDAYS.has(getWitaDateParts(referenceNow).weekday)
+/**
+ * Classrooms only run Monday–Friday, judged by the WITA calendar rather than the browser's.
+ * `ignoreWeekday` is a narrow escape hatch for weekend testing/dry-runs (see
+ * IGNORE_WEEKDAY_FOR_TESTING in featureFlags.ts) — defaults off, so every existing caller keeps
+ * judging the real weekday unless it opts in.
+ */
+export function isWitaClassDay(referenceNow: Date = new Date(), ignoreWeekday = false): boolean {
+  return ignoreWeekday || WEEKDAYS.has(getWitaDateParts(referenceNow).weekday)
 }
 
 /**
@@ -122,8 +127,8 @@ export function isWitaClassDay(referenceNow: Date = new Date()): boolean {
  * weekend in WITA (classrooms only run Monday–Friday). Always uses Asia/Makassar (UTC+8, no
  * DST) regardless of the browser/server's local timezone.
  */
-function getTodaysWitaInstant(time: string, referenceNow: Date): Date | null {
-  if (!isWitaClassDay(referenceNow)) return null
+function getTodaysWitaInstant(time: string, referenceNow: Date, ignoreWeekday = false): Date | null {
+  if (!isWitaClassDay(referenceNow, ignoreWeekday)) return null
   const { year, month, day } = getWitaDateParts(referenceNow)
 
   const [hourStr, minuteStr] = time.split(':')
@@ -133,8 +138,12 @@ function getTodaysWitaInstant(time: string, referenceNow: Date): Date | null {
   return new Date(Date.UTC(year, month - 1, day, hour - WITA_UTC_OFFSET_HOURS, minute))
 }
 
-export function getTodaysClassStartInWita(timeStart: string, referenceNow: Date = new Date()): Date | null {
-  return getTodaysWitaInstant(timeStart, referenceNow)
+export function getTodaysClassStartInWita(
+  timeStart: string,
+  referenceNow: Date = new Date(),
+  ignoreWeekday = false,
+): Date | null {
+  return getTodaysWitaInstant(timeStart, referenceNow, ignoreWeekday)
 }
 
 /**
@@ -142,8 +151,12 @@ export function getTodaysClassStartInWita(timeStart: string, referenceNow: Date 
  * in the database, but keeping the guard means stale or hand-built data cannot crash the
  * teacher's home screen.
  */
-export function getTodaysClassEndInWita(timeEnd: string | null, referenceNow: Date = new Date()): Date | null {
-  return timeEnd ? getTodaysWitaInstant(timeEnd, referenceNow) : null
+export function getTodaysClassEndInWita(
+  timeEnd: string | null,
+  referenceNow: Date = new Date(),
+  ignoreWeekday = false,
+): Date | null {
+  return timeEnd ? getTodaysWitaInstant(timeEnd, referenceNow, ignoreWeekday) : null
 }
 
 /**
