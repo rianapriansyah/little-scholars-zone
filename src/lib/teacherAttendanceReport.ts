@@ -117,6 +117,41 @@ export type TeacherAttendanceReportClass = {
   classroomLabel: string
 }
 
+export type ClassMinutesTotal = TeacherAttendanceReportClass & { totalMinutes: number }
+
+/**
+ * The single source of truth for "how many minutes did this teacher teach this month" — every
+ * screen that shows a total (the PDF's tables, the PDF's grand summary, MyAttendancePage's Total
+ * Durasi tile) must go through this, so they can never disagree the way they did when
+ * MyAttendancePage summed raw attendance rows directly instead of going cell-by-cell like the
+ * PDF does.
+ *
+ * Only counts a (class, date) cell when `date` is in `dates` — a stray attendance row that
+ * doesn't land on one of those dates (e.g. a weekend test clock-in) is not a real class day and
+ * must not silently inflate a total or an estimated payout.
+ */
+export function summarizeAttendanceByClass(
+  classes: TeacherAttendanceReportClass[],
+  dates: string[],
+  attendanceRows: ClassroomTeacherAttendanceStatus[],
+): { classTotals: ClassMinutesTotal[]; grandTotalMinutes: number } {
+  const minutesByKey = new Map<string, number>()
+  for (const row of attendanceRows) {
+    if (row.minutesTaught != null) minutesByKey.set(`${row.classroomTeacherId}|${row.sessionDate}`, row.minutesTaught)
+  }
+
+  const classTotals = classes.map((cls) => {
+    let totalMinutes = 0
+    for (const date of dates) {
+      totalMinutes += minutesByKey.get(`${cls.classroomTeacherId}|${date}`) ?? 0
+    }
+    return { ...cls, totalMinutes }
+  })
+
+  const grandTotalMinutes = classTotals.reduce((sum, c) => sum + c.totalMinutes, 0)
+  return { classTotals, grandTotalMinutes }
+}
+
 const MARGIN_LEFT = 14
 const PAGE_BOTTOM_MARGIN = 16
 
@@ -153,6 +188,8 @@ export async function downloadTeacherAttendanceReport(params: {
   }
 
   const dates = weekdaysInRange(start, end)
+  const { classTotals, grandTotalMinutes } = summarizeAttendanceByClass(classes, dates, fetchResult.data)
+  const totalMinutesByClass = new Map(classTotals.map((c) => [c.classroomTeacherId, c.totalMinutes]))
 
   const doc = new jsPDF()
   doc.setFontSize(14)
@@ -172,17 +209,13 @@ export async function downloadTeacherAttendanceReport(params: {
     }
   }
 
-  const classTotals: { classroomLabel: string; totalMinutes: number }[] = []
-
   for (const cls of classes) {
-    let classTotalMinutes = 0
     const body: (string | { content: string; colSpan?: number; styles?: Record<string, unknown> })[][] = []
     let rowNo = 1
     for (const date of dates) {
       const status = byKey.get(`${cls.classroomTeacherId}|${date}`) ?? null
       const arrival = status?.arrivalStatus ?? 'missing'
       const departure = status?.departureStatus ?? 'missing'
-      if (status?.minutesTaught != null) classTotalMinutes += status.minutesTaught
 
       body.push([
         String(rowNo++),
@@ -194,13 +227,18 @@ export async function downloadTeacherAttendanceReport(params: {
       ])
     }
     // The table's own footer row — bold, spanning the first four columns as a label so the
-    // total reads as a summary line, not just another day.
+    // total reads as a summary line, not just another day. Reads from the shared
+    // summarizeAttendanceByClass result rather than re-accumulating, so this can never drift
+    // from the grand summary table below or from what MyAttendancePage shows on screen.
     body.push([
-      { content: 'Total Durasi Mengajar', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right' } },
-      { content: `${classTotalMinutes} menit`, styles: { fontStyle: 'bold' } },
+      {
+        content: 'Total Durasi Mengajar',
+        colSpan: 4,
+        styles: { fontStyle: 'bold', halign: 'right' },
+      },
+      { content: `${totalMinutesByClass.get(cls.classroomTeacherId) ?? 0} menit`, styles: { fontStyle: 'bold' } },
       '',
     ])
-    classTotals.push({ classroomLabel: cls.classroomLabel, totalMinutes: classTotalMinutes })
 
     ensureSpace(24)
     doc.setFontSize(11)
@@ -220,7 +258,6 @@ export async function downloadTeacherAttendanceReport(params: {
   }
 
   // Grand summary: every class's monthly total in one place, plus the total across all of them.
-  const grandTotalMinutes = classTotals.reduce((sum, c) => sum + c.totalMinutes, 0)
   ensureSpace(30)
   doc.setFontSize(12)
   doc.text('Ringkasan Total Durasi Bulan Ini', MARGIN_LEFT, cursorY)
