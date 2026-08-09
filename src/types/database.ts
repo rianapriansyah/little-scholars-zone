@@ -496,6 +496,144 @@ export type Database = {
           },
         ]
       }
+      registration_children: {
+        Row: {
+          birth_place: string | null
+          birthdate: string | null
+          child_id: string | null
+          classroom_id: string
+          created_at: string
+          full_name: string
+          id: string
+          notes: string | null
+          price: number
+          submission_id: string
+        }
+        Insert: {
+          birth_place?: string | null
+          birthdate?: string | null
+          child_id?: string | null
+          classroom_id: string
+          created_at?: string
+          full_name: string
+          id?: string
+          notes?: string | null
+          price: number
+          submission_id: string
+        }
+        Update: {
+          birth_place?: string | null
+          birthdate?: string | null
+          child_id?: string | null
+          classroom_id?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          notes?: string | null
+          price?: number
+          submission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_children_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_children_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_children_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "registration_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registration_submissions: {
+        Row: {
+          address: string | null
+          amount_total: number
+          contact_phone: string
+          family_id: string | null
+          family_name: string
+          father_name: string | null
+          father_occupation: string | null
+          father_phone: string | null
+          id: string
+          mother_name: string | null
+          mother_occupation: string | null
+          mother_phone: string | null
+          payment_note: string | null
+          receipt_path: string
+          reference_code: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string
+        }
+        Insert: {
+          address?: string | null
+          amount_total: number
+          contact_phone: string
+          family_id?: string | null
+          family_name: string
+          father_name?: string | null
+          father_occupation?: string | null
+          father_phone?: string | null
+          id?: string
+          mother_name?: string | null
+          mother_occupation?: string | null
+          mother_phone?: string | null
+          payment_note?: string | null
+          receipt_path: string
+          reference_code?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+        }
+        Update: {
+          address?: string | null
+          amount_total?: number
+          contact_phone?: string
+          family_id?: string | null
+          family_name?: string
+          father_name?: string | null
+          father_occupation?: string | null
+          father_phone?: string | null
+          id?: string
+          mother_name?: string | null
+          mother_occupation?: string | null
+          mother_phone?: string | null
+          payment_note?: string | null
+          receipt_path?: string
+          reference_code?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_submissions_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teachers: {
         Row: {
           active: boolean
@@ -611,6 +749,14 @@ export type Database = {
       }
     }
     Functions: {
+      approve_registration: {
+        Args: {
+          p_login_email: string
+          p_start_date: string
+          p_submission_id: string
+        }
+        Returns: string
+      }
       can_record_attendance: {
         Args: { p_classroom_id: string }
         Returns: boolean
@@ -651,6 +797,18 @@ export type Database = {
         Args: { p_auth_uid: string }
         Returns: string[]
       }
+      generate_registration_reference_code: { Args: never; Returns: string }
+      list_active_programs: {
+        Args: never
+        Returns: {
+          guaranteed_days: number
+          id: string
+          label: string
+          price: number
+          time_end: string
+          time_start: string
+        }[]
+      }
       record_attendance: {
         Args: {
           p_child_id: string
@@ -660,6 +818,10 @@ export type Database = {
           p_status: string
         }
         Returns: string
+      }
+      reject_registration: {
+        Args: { p_reason?: string; p_submission_id: string }
+        Returns: undefined
       }
       save_daily_report_items: {
         Args: {

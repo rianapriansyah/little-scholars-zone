@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveDestination } from '../lib/resolveDestination'
 import { isAdminBootstrapEnabled } from '../lib/bootstrapAdmin'
+import { PARENT_REGISTRATION_ENABLED } from '../lib/featureFlags'
 
 export function LoginPage() {
   const { user, loading: authLoading } = useAuth()
@@ -142,6 +143,14 @@ export function LoginPage() {
             Masuk
           </Button>
         </Box>
+        {PARENT_REGISTRATION_ENABLED ? (
+          <Typography variant="body2" sx={{ mt: 2 }}>
+            Orang tua baru?{' '}
+            <Link component={RouterLink} to="/register">
+              Daftar di sini
+            </Link>
+          </Typography>
+        ) : null}
         {isAdminBootstrapEnabled() ? (
           <Typography variant="body2" sx={{ mt: 2 }}>
             <Link component={RouterLink} to="/bootstrap-admin">

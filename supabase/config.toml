@@ -1,9 +1,16 @@
 # Supabase local / CLI config. Link your project with: supabase link
 # Deploy: npm run deploy:function:create-teacher-account
 # Deploy: npm run deploy:function:create-family-account
+# Deploy: npm run deploy:function:submit-registration
 
 [functions.create-teacher-account]
 verify_jwt = true
 
 [functions.create-family-account]
 verify_jwt = true
+
+# The only public endpoint in the project: the parent registration wizard runs before any
+# account exists, so there is no JWT to verify. Everything it accepts is validated inside the
+# function, which is also the only writer to the registration tables and receipts bucket.
+[functions.submit-registration]
+verify_jwt = false

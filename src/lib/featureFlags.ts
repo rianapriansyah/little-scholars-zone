@@ -10,3 +10,11 @@
  * entry points (TeacherLayout, TeacherRosterPage) read this one flag.
  */
 export const DAILY_REPORT_ENABLED = false
+
+/**
+ * Parent self-registration wizard (/register) and its "Daftar di sini" link on the login page.
+ * Off by default: the payment step needs real transfer instructions (bank/e-wallet details)
+ * before this can go live. Flip to true once those are in RegisterWizardPage and the
+ * migration + submit-registration function have been pushed/deployed.
+ */
+export const PARENT_REGISTRATION_ENABLED = false

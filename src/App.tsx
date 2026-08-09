@@ -5,6 +5,7 @@ import { AdminRoute } from './components/routing/AdminRoute'
 import { TeacherRoute } from './components/routing/TeacherRoute'
 import { ParentRoute } from './components/routing/ParentRoute'
 import { LoginPage } from './portals/LoginPage'
+import { RegisterWizardPage } from './portals/register/RegisterWizardPage'
 import { BootstrapAdminPage } from './portals/BootstrapAdminPage'
 import { ManageAccountPage } from './portals/ManageAccountPage'
 import { AdminLayout } from './portals/admin/AdminLayout'
@@ -19,6 +20,8 @@ import { CurriculumPage } from './portals/admin/curriculum/CurriculumPage'
 import { PeriodsPage } from './portals/admin/periods/PeriodsPage'
 import { PeriodDetailPage } from './portals/admin/periods/PeriodDetailPage'
 import { TeachersAttendancePage } from './portals/admin/attendance/TeachersAttendancePage'
+import { RegistrationsPage } from './portals/admin/registrations/RegistrationsPage'
+import { RegistrationDetailPage } from './portals/admin/registrations/RegistrationDetailPage'
 import { TeacherLayout } from './portals/teacher/TeacherLayout'
 import { TeacherRosterPage } from './portals/teacher/TeacherRosterPage'
 import { DailyReportPage } from './portals/teacher/DailyReportPage'
@@ -26,6 +29,7 @@ import { TeacherPeriodDetailPage } from './portals/teacher/TeacherPeriodDetailPa
 import { MyAttendancePage } from './portals/teacher/MyAttendancePage'
 import { ParentLayout } from './portals/parent/ParentLayout'
 import { ParentHomePage } from './portals/parent/ParentHomePage'
+import { PARENT_REGISTRATION_ENABLED } from './lib/featureFlags'
 
 export default function App() {
   return (
@@ -34,12 +38,20 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          {/* Route only exists once the payment step has real transfer details — see the flag's
+              own comment in featureFlags.ts. Not linked from anywhere while off, but a route
+              guard (not just a hidden link) is what actually keeps it unreachable. */}
+          {PARENT_REGISTRATION_ENABLED ? (
+            <Route path="/register" element={<RegisterWizardPage />} />
+          ) : null}
           <Route path="/bootstrap-admin" element={<BootstrapAdminPage />} />
 
           <Route path="/admin" element={<AdminRoute />}>
             <Route element={<AdminLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="registrations" element={<RegistrationsPage />} />
+              <Route path="registrations/:registrationId" element={<RegistrationDetailPage />} />
               <Route path="families" element={<FamiliesPage />} />
               <Route path="families/:familyId" element={<FamilyDetailPage />} />
               <Route path="children" element={<ChildrenPage />} />
