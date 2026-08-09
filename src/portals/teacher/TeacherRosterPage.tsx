@@ -38,7 +38,7 @@ import {
   fetchAttendanceForClassroomTeachers,
 } from '../../lib/classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceStatus } from '../../types/classroomTeacherAttendance'
-import { DAILY_REPORT_ENABLED, IGNORE_WEEKDAY_FOR_TESTING } from '../../lib/featureFlags'
+import { DAILY_REPORT_ENABLED } from '../../lib/featureFlags'
 
 type GroupWithRoster = {
   id: string
@@ -167,8 +167,7 @@ export function TeacherRosterPage() {
     )
   }
 
-  // IGNORE_WEEKDAY_FOR_TESTING is session-only (see featureFlags.ts) — normally false.
-  const isClassDay = isWitaClassDay(now, IGNORE_WEEKDAY_FOR_TESTING)
+  const isClassDay = isWitaClassDay(now)
 
   /**
    * `groupId` is a classroom_teachers id — the same thing the Laporan Harian class picker is
@@ -260,8 +259,8 @@ export function TeacherRosterPage() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {groups.map((group) => {
             const { classroom } = group
-            const todaysStart = getTodaysClassStartInWita(classroom.time_start, now, IGNORE_WEEKDAY_FOR_TESTING)
-            const todaysEnd = getTodaysClassEndInWita(classroom.time_end, now, IGNORE_WEEKDAY_FOR_TESTING)
+            const todaysStart = getTodaysClassStartInWita(classroom.time_start, now)
+            const todaysEnd = getTodaysClassEndInWita(classroom.time_end, now)
             const status = todaysStart ? getClassStatus(todaysStart, now, todaysEnd) : null
             const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
 

@@ -10,11 +10,3 @@
  * entry points (TeacherLayout, TeacherRosterPage) read this one flag.
  */
 export const DAILY_REPORT_ENABLED = false
-
-/**
- * TEMPORARY, this session only. Classrooms are normally treated as Monday–Friday only (see
- * isWitaClassDay in classStatus.ts), so visiting Kelas Saya on a weekend shows no classes at
- * all. The owner asked to see today's classes anyway, to check the attendance buttons over the
- * weekend. Set back to false once this session ends — nothing else needs to change.
- */
-export const IGNORE_WEEKDAY_FOR_TESTING = true
