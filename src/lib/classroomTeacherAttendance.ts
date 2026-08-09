@@ -98,6 +98,56 @@ export async function clockOutClassroomTeacher(classroomTeacherId: string): Prom
   return { ok: true, data }
 }
 
+export type ChainableClass = {
+  classroomTeacherId: string
+  timeStart: string
+  timeEnd: string
+}
+
+export type ChainLink = {
+  fromClassroomTeacherId: string
+  toClassroomTeacherId: string
+}
+
+/**
+ * Pairs of a teacher's classes that run back-to-back with no gap — one's scheduled end exactly
+ * matches the next's scheduled start. Drives the continue-or-stop dialog in TeacherRosterPage:
+ * tapping "Selesaikan Kelas" on the first class of a chain asks whether she's continuing straight
+ * into the next one, rather than making her tap in separately for it.
+ */
+export function buildContiguousChainLinks(classes: ChainableClass[]): ChainLink[] {
+  const sorted = [...classes].sort((a, b) => a.timeStart.localeCompare(b.timeStart))
+  const links: ChainLink[] = []
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i].timeEnd === sorted[i + 1].timeStart) {
+      links.push({
+        fromClassroomTeacherId: sorted[i].classroomTeacherId,
+        toClassroomTeacherId: sorted[i + 1].classroomTeacherId,
+      })
+    }
+  }
+  return links
+}
+
+/**
+ * "Selesaikan kelas dan lanjut ke kelas selanjutnya" — closes the source class and opens the
+ * destination class in one atomic, server-validated step, at the moment the teacher actually taps
+ * it. The RPC independently re-confirms the two classes are genuinely back-to-back rather than
+ * trusting buildContiguousChainLinks' client-side pairing blindly, and still enforces the normal
+ * clock-out window on the source class — this is a real clock-out, just a combined one.
+ */
+export async function clockOutAndContinueClassroomTeacher(
+  fromClassroomTeacherId: string,
+  toClassroomTeacherId: string,
+): Promise<Result<string>> {
+  const { data, error } = await supabase.rpc('clock_out_and_continue_classroom_teacher', {
+    p_from_classroom_teacher_id: fromClassroomTeacherId,
+    p_to_classroom_teacher_id: toClassroomTeacherId,
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data }
+}
+
 /**
  * Every active classroom_teacher, joined with that date's attendance status if one exists —
  * the admin Kehadiran Guru roster. Classes with no row at all still appear, with `status: null`,

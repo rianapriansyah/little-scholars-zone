@@ -10,6 +10,10 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   List,
   ListItem,
   ListItemText,
@@ -33,7 +37,9 @@ import {
 import { teacherDisplayName } from '../../lib/teacherName'
 import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
 import {
+  buildContiguousChainLinks,
   clockInClassroomTeacher,
+  clockOutAndContinueClassroomTeacher,
   clockOutClassroomTeacher,
   fetchAttendanceForClassroomTeachers,
 } from '../../lib/classroomTeacherAttendance'
@@ -44,6 +50,14 @@ type GroupWithRoster = {
   id: string
   classroom: ClassroomRow
   roster: { childId: string; childName: string }[]
+}
+
+/** Which class to prompt about continuing into, shown by the confirmation dialog below. */
+type ContinueDialogState = {
+  fromId: string
+  toId: string
+  fromLabel: string
+  toLabel: string
 }
 
 const STATUS_BORDER_COLOR: Record<ClassStatusBorder, string | undefined> = {
@@ -73,6 +87,8 @@ export function TeacherRosterPage() {
   const [attendance, setAttendance] = useState<Map<string, ClassroomTeacherAttendanceStatus>>(new Map())
   const [clockingId, setClockingId] = useState<string | null>(null)
   const [clockError, setClockError] = useState<string | null>(null)
+  const [continueDialog, setContinueDialog] = useState<ContinueDialogState | null>(null)
+  const [continuing, setContinuing] = useState(false)
   const now = useNow()
 
   useEffect(() => {
@@ -159,6 +175,27 @@ export function TeacherRosterPage() {
     await refreshAttendance(groupId)
   }
 
+  /** "Selesaikan kelas" from the confirmation dialog — same action as the plain button, plus closing the dialog. */
+  async function handleFinishOnly(groupId: string) {
+    await handleClockOut(groupId)
+    setContinueDialog(null)
+  }
+
+  /** "Selesaikan kelas dan lanjut ke kelas selanjutnya" — one tap closes the current class and opens the next. */
+  async function handleFinishAndContinue(fromId: string, toId: string) {
+    setContinuing(true)
+    setClockError(null)
+    const result = await clockOutAndContinueClassroomTeacher(fromId, toId)
+    setContinuing(false)
+    setContinueDialog(null)
+    if (!result.ok) {
+      setClockError(result.error)
+      return
+    }
+    await refreshAttendance(fromId)
+    await refreshAttendance(toId)
+  }
+
   if (!teacher || loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
@@ -170,12 +207,44 @@ export function TeacherRosterPage() {
   const isClassDay = isWitaClassDay(now)
 
   /**
+   * Pairs of the teacher's own classes that run back-to-back today, e.g. an 08:00-10:00 class
+   * immediately followed by a 10:00-12:00 one. Drives whether tapping "Selesaikan Kelas" shows
+   * the continue-or-stop dialog below — the teacher decides in the moment, nothing is timed or
+   * automatic, see clockOutAndContinueClassroomTeacher for the server-side re-validation.
+   */
+  const chainLinks = buildContiguousChainLinks(
+    groups.map((g) => ({ classroomTeacherId: g.id, timeStart: g.classroom.time_start, timeEnd: g.classroom.time_end })),
+  )
+
+  /**
    * `groupId` is a classroom_teachers id — the same thing the Laporan Harian class picker is
    * keyed on — so the report screen opens straight on this class instead of whichever one
    * happened to sort first.
    */
   function openDailyReport(groupId: string) {
     void navigate('/teacher/daily-report', { state: { classroomTeacherId: groupId } })
+  }
+
+  /**
+   * "Selesaikan Kelas" tap handler. If this class chains straight into another one that hasn't
+   * been clocked in yet, ask which she means instead of guessing — otherwise just clock out.
+   */
+  function handleFinishClick(group: GroupWithRoster) {
+    const link = chainLinks.find((l) => l.fromClassroomTeacherId === group.id)
+    if (link) {
+      const toRecord = attendance.get(link.toClassroomTeacherId)
+      if (!toRecord?.clockedInAt) {
+        const toGroup = groups.find((g) => g.id === link.toClassroomTeacherId)
+        setContinueDialog({
+          fromId: group.id,
+          toId: link.toClassroomTeacherId,
+          fromLabel: group.classroom.label,
+          toLabel: toGroup?.classroom.label ?? 'kelas selanjutnya',
+        })
+        return
+      }
+    }
+    void handleClockOut(group.id)
   }
 
   /**
@@ -203,7 +272,7 @@ export function TeacherRosterPage() {
           size="small"
           variant="outlined"
           disabled={!canClockOut || isClocking}
-          onClick={() => void handleClockOut(group.id)}
+          onClick={() => handleFinishClick(group)}
         >
           {isClocking ? 'Menyimpan…' : 'Selesaikan Kelas'}
         </Button>
@@ -327,6 +396,35 @@ export function TeacherRosterPage() {
           })}
         </Box>
       )}
+
+      <Dialog open={continueDialog !== null} onClose={() => setContinueDialog(null)}>
+        {continueDialog ? (
+          <>
+            <DialogTitle>Selesaikan {continueDialog.fromLabel}?</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" color="text.secondary">
+                {continueDialog.toLabel} dimulai langsung setelah kelas ini berakhir. Pilih salah satu di bawah ini.
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ flexDirection: 'column', alignItems: 'stretch', gap: 1, px: 3, pb: 2 }}>
+              <Button
+                variant="contained"
+                disabled={continuing}
+                onClick={() => void handleFinishAndContinue(continueDialog.fromId, continueDialog.toId)}
+              >
+                Selesaikan kelas dan lanjut ke kelas selanjutnya
+              </Button>
+              <Button
+                variant="outlined"
+                disabled={clockingId === continueDialog.fromId}
+                onClick={() => void handleFinishOnly(continueDialog.fromId)}
+              >
+                Selesaikan kelas
+              </Button>
+            </DialogActions>
+          </>
+        ) : null}
+      </Dialog>
     </Box>
   )
 }

@@ -623,6 +623,13 @@ export type Database = {
         Args: { p_classroom_teacher_id: string }
         Returns: string
       }
+      clock_out_and_continue_classroom_teacher: {
+        Args: {
+          p_from_classroom_teacher_id: string
+          p_to_classroom_teacher_id: string
+        }
+        Returns: string
+      }
       clock_out_classroom_teacher: {
         Args: { p_classroom_teacher_id: string }
         Returns: string
