@@ -204,9 +204,25 @@ function ClassAttendanceForm({
         minRows={2}
         helperText="Opsional. Alasan koreksi atau pengisian manual."
       />
-      <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
-        {saving ? 'Menyimpan…' : 'Simpan'}
-      </Button>
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        {/* Fills the fields only — does not save on its own — so the admin can still glance at
+            or adjust jam masuk/selesai before committing with Simpan, same as any manual edit. */}
+        <Button
+          variant="outlined"
+          onClick={() => {
+            setClockedInTime(entry.timeStart.slice(0, 5))
+            setClockedOutTime(entry.timeEnd.slice(0, 5))
+            setSaved(false)
+          }}
+          disabled={saving}
+          sx={{ flex: 1 }}
+        >
+          Tepat Waktu
+        </Button>
+        <Button variant="contained" onClick={() => void handleSave()} disabled={saving} sx={{ flex: 1 }}>
+          {saving ? 'Menyimpan…' : 'Simpan'}
+        </Button>
+      </Box>
     </Box>
   )
 }
