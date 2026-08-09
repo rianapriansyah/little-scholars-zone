@@ -176,7 +176,7 @@ export function TeacherRosterPage() {
    * happened to sort first.
    */
   function openDailyReport(groupId: string) {
-    void navigate('/teacher/laporan-harian', { state: { classroomTeacherId: groupId } })
+    void navigate('/teacher/daily-report', { state: { classroomTeacherId: groupId } })
   }
 
   /**

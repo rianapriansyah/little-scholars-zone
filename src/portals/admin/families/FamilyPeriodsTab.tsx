@@ -92,7 +92,7 @@ function ChildPeriods({ child }: { child: ChildRow }) {
               {periods.map((period) => (
                 <TableRow key={period.id} hover>
                   <TableCell>
-                    <Link component={RouterLink} to={`/admin/periode/${period.id}`} underline="hover">
+                    <Link component={RouterLink} to={`/admin/periods/${period.id}`} underline="hover">
                       #{period.periodNo}
                     </Link>
                   </TableCell>

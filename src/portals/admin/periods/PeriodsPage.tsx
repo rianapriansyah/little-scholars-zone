@@ -78,7 +78,7 @@ export function PeriodsPage() {
   )
 
   const handleCellClick = (params: GridCellParams<LearningPeriodListEntry>) => {
-    void navigate(`/admin/periode/${params.row.id}`)
+    void navigate(`/admin/periods/${params.row.id}`)
   }
 
   return (

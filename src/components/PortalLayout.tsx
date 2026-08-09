@@ -30,8 +30,8 @@ type Props = {
 /**
  * A nav item matches if the pathname equals it or is nested under it (e.g. "/admin/families"
  * matches "/admin/families/xyz"). When multiple items match (e.g. "/teacher" and
- * "/teacher/kelola-akun" both match "/teacher/kelola-akun"), only the longest — most specific
- * — match wins, so a detail/sub-route never highlights an unrelated sibling nav item.
+ * "/teacher/manage-account" both match "/teacher/manage-account"), only the longest — most
+ * specific — match wins, so a detail/sub-route never highlights an unrelated sibling nav item.
  */
 function findSelectedTo(pathname: string, allTos: string[]): string | undefined {
   const matches = allTos.filter((to) => pathname === to || pathname.startsWith(`${to}/`))

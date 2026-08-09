@@ -8,7 +8,7 @@ export function PeriodDetailPage() {
   return (
     <Box>
       <Breadcrumbs sx={{ mb: 1 }}>
-        <Link component={RouterLink} to="/admin/periode" underline="hover" color="inherit">
+        <Link component={RouterLink} to="/admin/periods" underline="hover" color="inherit">
           Periode Belajar
         </Link>
         <Typography color="text.primary">Detail</Typography>
