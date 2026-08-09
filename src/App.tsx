@@ -47,10 +47,10 @@ export default function App() {
               <Route path="classrooms" element={<ClassroomsPage />} />
               <Route path="classrooms/:classroomId" element={<ClassroomDetailPage />} />
               <Route path="curriculum" element={<CurriculumPage />} />
-              <Route path="periode" element={<PeriodsPage />} />
-              <Route path="periode/:periodId" element={<PeriodDetailPage />} />
+              <Route path="periods" element={<PeriodsPage />} />
+              <Route path="periods/:periodId" element={<PeriodDetailPage />} />
               <Route path="teachers-attendance" element={<TeachersAttendancePage />} />
-              <Route path="kelola-akun" element={<ManageAccountPage />} />
+              <Route path="manage-account" element={<ManageAccountPage />} />
             </Route>
           </Route>
 
@@ -58,16 +58,16 @@ export default function App() {
             <Route element={<TeacherLayout />}>
               <Route index element={<TeacherRosterPage />} />
               <Route path="my-attendance" element={<MyAttendancePage />} />
-              <Route path="laporan-harian" element={<DailyReportPage />} />
-              <Route path="periode/:periodId" element={<TeacherPeriodDetailPage />} />
-              <Route path="kelola-akun" element={<ManageAccountPage />} />
+              <Route path="daily-report" element={<DailyReportPage />} />
+              <Route path="periods/:periodId" element={<TeacherPeriodDetailPage />} />
+              <Route path="manage-account" element={<ManageAccountPage />} />
             </Route>
           </Route>
 
           <Route path="/parent" element={<ParentRoute />}>
             <Route element={<ParentLayout />}>
               <Route index element={<ParentHomePage />} />
-              <Route path="kelola-akun" element={<ManageAccountPage />} />
+              <Route path="manage-account" element={<ManageAccountPage />} />
             </Route>
           </Route>
 
