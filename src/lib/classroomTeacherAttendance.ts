@@ -111,9 +111,9 @@ export type ChainLink = {
 
 /**
  * Pairs of a teacher's classes that run back-to-back with no gap — one's scheduled end exactly
- * matches the next's scheduled start. Drives the automatic clock-out/clock-in transition: a
- * teacher only taps in for the first class of a chain, and each link here is a boundary the app
- * crosses on its own once the source class's real end time arrives.
+ * matches the next's scheduled start. Drives the continue-or-stop dialog in TeacherRosterPage:
+ * tapping "Selesaikan Kelas" on the first class of a chain asks whether she's continuing straight
+ * into the next one, rather than making her tap in separately for it.
  */
 export function buildContiguousChainLinks(classes: ChainableClass[]): ChainLink[] {
   const sorted = [...classes].sort((a, b) => a.timeStart.localeCompare(b.timeStart))
@@ -130,16 +130,17 @@ export function buildContiguousChainLinks(classes: ChainableClass[]): ChainLink[
 }
 
 /**
- * Closes the source class and opens the destination class in one atomic, server-validated step
- * — the RPC independently re-confirms the two classes are genuinely back-to-back and that the
- * source's scheduled end has actually arrived, rather than trusting buildContiguousChainLinks'
- * client-side pairing blindly.
+ * "Selesaikan kelas dan lanjut ke kelas selanjutnya" — closes the source class and opens the
+ * destination class in one atomic, server-validated step, at the moment the teacher actually taps
+ * it. The RPC independently re-confirms the two classes are genuinely back-to-back rather than
+ * trusting buildContiguousChainLinks' client-side pairing blindly, and still enforces the normal
+ * clock-out window on the source class — this is a real clock-out, just a combined one.
  */
-export async function autoTransitionClassroomTeacher(
+export async function clockOutAndContinueClassroomTeacher(
   fromClassroomTeacherId: string,
   toClassroomTeacherId: string,
 ): Promise<Result<string>> {
-  const { data, error } = await supabase.rpc('auto_transition_classroom_teacher', {
+  const { data, error } = await supabase.rpc('clock_out_and_continue_classroom_teacher', {
     p_from_classroom_teacher_id: fromClassroomTeacherId,
     p_to_classroom_teacher_id: toClassroomTeacherId,
   })

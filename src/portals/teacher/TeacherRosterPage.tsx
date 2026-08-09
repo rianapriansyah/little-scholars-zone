@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import {
@@ -10,6 +10,10 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   List,
   ListItem,
   ListItemText,
@@ -33,9 +37,9 @@ import {
 import { teacherDisplayName } from '../../lib/teacherName'
 import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
 import {
-  autoTransitionClassroomTeacher,
   buildContiguousChainLinks,
   clockInClassroomTeacher,
+  clockOutAndContinueClassroomTeacher,
   clockOutClassroomTeacher,
   fetchAttendanceForClassroomTeachers,
 } from '../../lib/classroomTeacherAttendance'
@@ -46,6 +50,14 @@ type GroupWithRoster = {
   id: string
   classroom: ClassroomRow
   roster: { childId: string; childName: string }[]
+}
+
+/** Which class to prompt about continuing into, shown by the confirmation dialog below. */
+type ContinueDialogState = {
+  fromId: string
+  toId: string
+  fromLabel: string
+  toLabel: string
 }
 
 const STATUS_BORDER_COLOR: Record<ClassStatusBorder, string | undefined> = {
@@ -75,10 +87,9 @@ export function TeacherRosterPage() {
   const [attendance, setAttendance] = useState<Map<string, ClassroomTeacherAttendanceStatus>>(new Map())
   const [clockingId, setClockingId] = useState<string | null>(null)
   const [clockError, setClockError] = useState<string | null>(null)
+  const [continueDialog, setContinueDialog] = useState<ContinueDialogState | null>(null)
+  const [continuing, setContinuing] = useState(false)
   const now = useNow()
-  /** classroom_teacher_id (the "from" side) currently mid-transition, so a repeated tick of
-   * `now` can't fire the same auto-transition again before the previous call's result lands. */
-  const transitioningRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!teacher) return
@@ -164,56 +175,26 @@ export function TeacherRosterPage() {
     await refreshAttendance(groupId)
   }
 
-  /**
-   * Crosses back-to-back class boundaries on the teacher's behalf: if the "from" class is
-   * clocked in but not out, its scheduled end has actually arrived, and the "to" class hasn't
-   * been clocked in yet, close one and open the other with no tap required. Checked every time
-   * `now` ticks (every 30s, same clock driving the rest of this page) or attendance/groups
-   * change. `isWitaClassDay` is called directly here rather than reusing the later `isClassDay`
-   * const, since hooks must run unconditionally before the loading early-return below.
-   */
-  useEffect(() => {
-    if (groups.length === 0) return
-    if (!isWitaClassDay(now)) return
+  /** "Selesaikan kelas" from the confirmation dialog — same action as the plain button, plus closing the dialog. */
+  async function handleFinishOnly(groupId: string) {
+    await handleClockOut(groupId)
+    setContinueDialog(null)
+  }
 
-    const links = buildContiguousChainLinks(
-      groups.map((g) => ({
-        classroomTeacherId: g.id,
-        timeStart: g.classroom.time_start,
-        timeEnd: g.classroom.time_end,
-      })),
-    )
-
-    for (const link of links) {
-      if (transitioningRef.current.has(link.fromClassroomTeacherId)) continue
-
-      const fromRecord = attendance.get(link.fromClassroomTeacherId)
-      if (!fromRecord?.clockedInAt || fromRecord.clockedOutAt) continue
-
-      const toRecord = attendance.get(link.toClassroomTeacherId)
-      if (toRecord?.clockedInAt) continue
-
-      const toGroup = groups.find((g) => g.id === link.toClassroomTeacherId)
-      if (!toGroup) continue
-      const todaysToStart = getTodaysClassStartInWita(toGroup.classroom.time_start, now)
-      if (!todaysToStart || now.getTime() < todaysToStart.getTime()) continue
-
-      transitioningRef.current.add(link.fromClassroomTeacherId)
-      void (async () => {
-        const result = await autoTransitionClassroomTeacher(
-          link.fromClassroomTeacherId,
-          link.toClassroomTeacherId,
-        )
-        transitioningRef.current.delete(link.fromClassroomTeacherId)
-        if (!result.ok) {
-          setClockError(result.error)
-          return
-        }
-        await refreshAttendance(link.fromClassroomTeacherId)
-        await refreshAttendance(link.toClassroomTeacherId)
-      })()
+  /** "Selesaikan kelas dan lanjut ke kelas selanjutnya" — one tap closes the current class and opens the next. */
+  async function handleFinishAndContinue(fromId: string, toId: string) {
+    setContinuing(true)
+    setClockError(null)
+    const result = await clockOutAndContinueClassroomTeacher(fromId, toId)
+    setContinuing(false)
+    setContinueDialog(null)
+    if (!result.ok) {
+      setClockError(result.error)
+      return
     }
-  }, [now, groups, attendance])
+    await refreshAttendance(fromId)
+    await refreshAttendance(toId)
+  }
 
   if (!teacher || loading) {
     return (
@@ -226,12 +207,44 @@ export function TeacherRosterPage() {
   const isClassDay = isWitaClassDay(now)
 
   /**
+   * Pairs of the teacher's own classes that run back-to-back today, e.g. an 08:00-10:00 class
+   * immediately followed by a 10:00-12:00 one. Drives whether tapping "Selesaikan Kelas" shows
+   * the continue-or-stop dialog below — the teacher decides in the moment, nothing is timed or
+   * automatic, see clockOutAndContinueClassroomTeacher for the server-side re-validation.
+   */
+  const chainLinks = buildContiguousChainLinks(
+    groups.map((g) => ({ classroomTeacherId: g.id, timeStart: g.classroom.time_start, timeEnd: g.classroom.time_end })),
+  )
+
+  /**
    * `groupId` is a classroom_teachers id — the same thing the Laporan Harian class picker is
    * keyed on — so the report screen opens straight on this class instead of whichever one
    * happened to sort first.
    */
   function openDailyReport(groupId: string) {
     void navigate('/teacher/daily-report', { state: { classroomTeacherId: groupId } })
+  }
+
+  /**
+   * "Selesaikan Kelas" tap handler. If this class chains straight into another one that hasn't
+   * been clocked in yet, ask which she means instead of guessing — otherwise just clock out.
+   */
+  function handleFinishClick(group: GroupWithRoster) {
+    const link = chainLinks.find((l) => l.fromClassroomTeacherId === group.id)
+    if (link) {
+      const toRecord = attendance.get(link.toClassroomTeacherId)
+      if (!toRecord?.clockedInAt) {
+        const toGroup = groups.find((g) => g.id === link.toClassroomTeacherId)
+        setContinueDialog({
+          fromId: group.id,
+          toId: link.toClassroomTeacherId,
+          fromLabel: group.classroom.label,
+          toLabel: toGroup?.classroom.label ?? 'kelas selanjutnya',
+        })
+        return
+      }
+    }
+    void handleClockOut(group.id)
   }
 
   /**
@@ -259,7 +272,7 @@ export function TeacherRosterPage() {
           size="small"
           variant="outlined"
           disabled={!canClockOut || isClocking}
-          onClick={() => void handleClockOut(group.id)}
+          onClick={() => handleFinishClick(group)}
         >
           {isClocking ? 'Menyimpan…' : 'Selesaikan Kelas'}
         </Button>
@@ -383,6 +396,35 @@ export function TeacherRosterPage() {
           })}
         </Box>
       )}
+
+      <Dialog open={continueDialog !== null} onClose={() => setContinueDialog(null)}>
+        {continueDialog ? (
+          <>
+            <DialogTitle>Selesaikan {continueDialog.fromLabel}?</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" color="text.secondary">
+                {continueDialog.toLabel} dimulai langsung setelah kelas ini berakhir. Pilih salah satu di bawah ini.
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ flexDirection: 'column', alignItems: 'stretch', gap: 1, px: 3, pb: 2 }}>
+              <Button
+                variant="contained"
+                disabled={continuing}
+                onClick={() => void handleFinishAndContinue(continueDialog.fromId, continueDialog.toId)}
+              >
+                Selesaikan kelas dan lanjut ke kelas selanjutnya
+              </Button>
+              <Button
+                variant="outlined"
+                disabled={clockingId === continueDialog.fromId}
+                onClick={() => void handleFinishOnly(continueDialog.fromId)}
+              >
+                Selesaikan kelas
+              </Button>
+            </DialogActions>
+          </>
+        ) : null}
+      </Dialog>
     </Box>
   )
 }

@@ -3,12 +3,8 @@ import type { Database } from './database'
 export type ClassroomTeacherAttendanceRow = Database['public']['Tables']['classroom_teachers_attendances']['Row']
 export type ClassroomTeacherAttendanceStatusRow = Database['public']['Views']['classroom_teachers_attendance_status']['Row']
 
-/**
- * Mirrors the clocked_in_source/clocked_out_source CHECK constraint. 'auto' means
- * auto_transition_classroom_teacher closed/opened this row because it's back-to-back with an
- * adjacent class — nobody tapped anything, the schedule left no gap to tap in.
- */
-export const ATTENDANCE_SOURCES = ['teacher', 'admin', 'auto'] as const
+/** Mirrors the clocked_in_source/clocked_out_source CHECK constraint. */
+export const ATTENDANCE_SOURCES = ['teacher', 'admin'] as const
 
 export type AttendanceSource = (typeof ATTENDANCE_SOURCES)[number]
 

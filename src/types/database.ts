@@ -611,13 +611,6 @@ export type Database = {
       }
     }
     Functions: {
-      auto_transition_classroom_teacher: {
-        Args: {
-          p_from_classroom_teacher_id: string
-          p_to_classroom_teacher_id: string
-        }
-        Returns: string
-      }
       can_record_attendance: {
         Args: { p_classroom_id: string }
         Returns: boolean
@@ -628,6 +621,13 @@ export type Database = {
       }
       clock_in_classroom_teacher: {
         Args: { p_classroom_teacher_id: string }
+        Returns: string
+      }
+      clock_out_and_continue_classroom_teacher: {
+        Args: {
+          p_from_classroom_teacher_id: string
+          p_to_classroom_teacher_id: string
+        }
         Returns: string
       }
       clock_out_classroom_teacher: {
