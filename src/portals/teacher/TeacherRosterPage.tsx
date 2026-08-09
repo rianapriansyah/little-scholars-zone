@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import {
@@ -33,6 +33,8 @@ import {
 import { teacherDisplayName } from '../../lib/teacherName'
 import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
 import {
+  autoTransitionClassroomTeacher,
+  buildContiguousChainLinks,
   clockInClassroomTeacher,
   clockOutClassroomTeacher,
   fetchAttendanceForClassroomTeachers,
@@ -74,6 +76,9 @@ export function TeacherRosterPage() {
   const [clockingId, setClockingId] = useState<string | null>(null)
   const [clockError, setClockError] = useState<string | null>(null)
   const now = useNow()
+  /** classroom_teacher_id (the "from" side) currently mid-transition, so a repeated tick of
+   * `now` can't fire the same auto-transition again before the previous call's result lands. */
+  const transitioningRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!teacher) return
@@ -158,6 +163,57 @@ export function TeacherRosterPage() {
     }
     await refreshAttendance(groupId)
   }
+
+  /**
+   * Crosses back-to-back class boundaries on the teacher's behalf: if the "from" class is
+   * clocked in but not out, its scheduled end has actually arrived, and the "to" class hasn't
+   * been clocked in yet, close one and open the other with no tap required. Checked every time
+   * `now` ticks (every 30s, same clock driving the rest of this page) or attendance/groups
+   * change. `isWitaClassDay` is called directly here rather than reusing the later `isClassDay`
+   * const, since hooks must run unconditionally before the loading early-return below.
+   */
+  useEffect(() => {
+    if (groups.length === 0) return
+    if (!isWitaClassDay(now)) return
+
+    const links = buildContiguousChainLinks(
+      groups.map((g) => ({
+        classroomTeacherId: g.id,
+        timeStart: g.classroom.time_start,
+        timeEnd: g.classroom.time_end,
+      })),
+    )
+
+    for (const link of links) {
+      if (transitioningRef.current.has(link.fromClassroomTeacherId)) continue
+
+      const fromRecord = attendance.get(link.fromClassroomTeacherId)
+      if (!fromRecord?.clockedInAt || fromRecord.clockedOutAt) continue
+
+      const toRecord = attendance.get(link.toClassroomTeacherId)
+      if (toRecord?.clockedInAt) continue
+
+      const toGroup = groups.find((g) => g.id === link.toClassroomTeacherId)
+      if (!toGroup) continue
+      const todaysToStart = getTodaysClassStartInWita(toGroup.classroom.time_start, now)
+      if (!todaysToStart || now.getTime() < todaysToStart.getTime()) continue
+
+      transitioningRef.current.add(link.fromClassroomTeacherId)
+      void (async () => {
+        const result = await autoTransitionClassroomTeacher(
+          link.fromClassroomTeacherId,
+          link.toClassroomTeacherId,
+        )
+        transitioningRef.current.delete(link.fromClassroomTeacherId)
+        if (!result.ok) {
+          setClockError(result.error)
+          return
+        }
+        await refreshAttendance(link.fromClassroomTeacherId)
+        await refreshAttendance(link.toClassroomTeacherId)
+      })()
+    }
+  }, [now, groups, attendance])
 
   if (!teacher || loading) {
     return (
