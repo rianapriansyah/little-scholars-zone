@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Box, Card, CardContent, CircularProgress, Paper, Tooltip, Typography, alpha } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
+import { isWitaClassDay, todayIsoDateInWita } from '../../../lib/classStatus'
+import { fetchAttendanceRoster } from '../../../lib/classroomTeacherAttendance'
+import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
+import { IncompleteAttendanceCard } from './IncompleteAttendanceCard'
 
 type Counts = { total: number; active: number }
 
@@ -74,18 +78,23 @@ export function DashboardPage() {
   const [teacherCounts, setTeacherCounts] = useState<Counts>({ total: 0, active: 0 })
   const [childCounts, setChildCounts] = useState<Counts>({ total: 0, active: 0 })
   const [classroomBars, setClassroomBars] = useState<ClassroomBar[]>([])
+  const [attendanceEntries, setAttendanceEntries] = useState<ClassroomTeacherAttendanceListEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const [classroomsRes, teachersRes, childrenRes, groupsRes, enrollmentsRes] = await Promise.all([
+    // Classrooms only run Monday–Friday, but classroom_teachers itself carries no notion of
+    // that — fetching the roster on a weekend would show every teacher as "incomplete" since
+    // nobody clocks in then, so the fetch is skipped outright rather than fetched and hidden.
+    const [classroomsRes, teachersRes, childrenRes, groupsRes, enrollmentsRes, attendanceResult] = await Promise.all([
       supabase.from('classrooms').select('id, label, active').order('label'),
       supabase.from('teachers').select('id, active'),
       supabase.from('children').select('id, active'),
       supabase.from('classroom_teachers').select('id, classroom_id'),
       supabase.from('children_classrooms').select('classroom_teacher_id').is('ended_at', null),
+      isWitaClassDay() ? fetchAttendanceRoster(todayIsoDateInWita()) : Promise.resolve({ ok: true as const, data: [] }),
     ])
     setLoading(false)
 
@@ -94,6 +103,9 @@ export function DashboardPage() {
       setError(qError.message)
       return
     }
+    // A failed attendance fetch doesn't block the rest of the dashboard — it just leaves the
+    // incomplete-attendance card empty, same severity as any other card having nothing to show.
+    if (attendanceResult.ok) setAttendanceEntries(attendanceResult.data)
 
     const classrooms = classroomsRes.data ?? []
     const teachers = teachersRes.data ?? []
@@ -147,6 +159,8 @@ export function DashboardPage() {
         <StatTile label="Guru" counts={teacherCounts} />
         <StatTile label="Siswa" counts={childCounts} />
       </Box>
+
+      <IncompleteAttendanceCard entries={attendanceEntries} isClassDay={isWitaClassDay()} onSaved={() => void load()} />
 
       <Paper variant="outlined" sx={{ borderRadius: 2, p: { xs: 2, sm: 3 } }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5 }}>

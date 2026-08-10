@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { Result } from './result'
 import { teacherDisplayName } from './teacherName'
+import { getTodaysClassEndInWita } from './classStatus'
 import {
   ATTENDANCE_SOURCES,
   type AttendanceSource,
@@ -194,6 +195,88 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   }
   entries.sort((a, b) => a.classroomLabel.localeCompare(b.classroomLabel))
   return { ok: true, data: entries }
+}
+
+/** One row per teacher — the raw classroom_teacher-level entries collapsed under their teacher. */
+export type TeacherAttendanceGroup = {
+  teacherId: string
+  teacherName: string
+  teacherRate: number | null
+  classes: ClassroomTeacherAttendanceListEntry[]
+}
+
+/**
+ * Collapses fetchAttendanceRoster's per-class rows to one row per teacher — the shape both the
+ * Kehadiran Guru table and the dashboard's incomplete-attendance card need, so there is exactly
+ * one grouping implementation to keep in sync with the roster query.
+ */
+export function groupAttendanceByTeacher(entries: ClassroomTeacherAttendanceListEntry[]): TeacherAttendanceGroup[] {
+  const byTeacher = new Map<string, TeacherAttendanceGroup>()
+  for (const entry of entries) {
+    const existing = byTeacher.get(entry.teacherId)
+    if (existing) {
+      existing.classes.push(entry)
+    } else {
+      byTeacher.set(entry.teacherId, {
+        teacherId: entry.teacherId,
+        teacherName: entry.teacherName,
+        teacherRate: entry.teacherRate,
+        classes: [entry],
+      })
+    }
+  }
+  const rows = [...byTeacher.values()]
+  rows.sort((a, b) => a.teacherName.localeCompare(b.teacherName))
+  return rows
+}
+
+export type IncompleteClass = {
+  classroomTeacherId: string
+  classroomLabel: string
+  /** Which half is missing. A class with neither punch is reported as 'clock_in'. */
+  missing: 'clock_in' | 'clock_out'
+}
+
+export type IncompleteTeacherAttendance = {
+  teacherId: string
+  teacherName: string
+  classes: IncompleteClass[]
+}
+
+/**
+ * Teachers with at least one class today whose scheduled end has already passed but isn't
+ * fully clocked — missing a clock-in, a clock-out, or both. A class that hasn't ended yet is
+ * never flagged; nothing is wrong until its window has actually closed. `now` is a parameter
+ * (not read internally) so this stays a pure function of its inputs, same reasoning as the rest
+ * of classStatus.ts's window checks.
+ *
+ * getTodaysClassEndInWita returns null on a WITA weekend, which doubles as the weekend guard
+ * here for free — nothing is ever flagged on a day classes don't run.
+ */
+export function findIncompleteTeacherAttendance(
+  entries: ClassroomTeacherAttendanceListEntry[],
+  now: Date,
+): IncompleteTeacherAttendance[] {
+  const result: IncompleteTeacherAttendance[] = []
+  for (const group of groupAttendanceByTeacher(entries)) {
+    const incompleteClasses: IncompleteClass[] = []
+    for (const cls of group.classes) {
+      const scheduledEnd = getTodaysClassEndInWita(cls.timeEnd, now)
+      if (!scheduledEnd || scheduledEnd.getTime() > now.getTime()) continue
+      if (cls.status?.clockedOutAt) continue
+
+      incompleteClasses.push({
+        classroomTeacherId: cls.classroomTeacherId,
+        classroomLabel: cls.classroomLabel,
+        missing: cls.status?.clockedInAt ? 'clock_out' : 'clock_in',
+      })
+    }
+    if (incompleteClasses.length > 0) {
+      result.push({ teacherId: group.teacherId, teacherName: group.teacherName, classes: incompleteClasses })
+    }
+  }
+  result.sort((a, b) => a.teacherName.localeCompare(b.teacherName))
+  return result
 }
 
 /**

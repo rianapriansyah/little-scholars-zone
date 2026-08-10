@@ -5,7 +5,7 @@ import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
-import { fetchAttendanceRoster } from '../../../lib/classroomTeacherAttendance'
+import { fetchAttendanceRoster, groupAttendanceByTeacher, type TeacherAttendanceGroup } from '../../../lib/classroomTeacherAttendance'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { downloadTeacherAttendanceReport } from '../../../lib/teacherAttendanceReport'
 import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
@@ -14,32 +14,7 @@ import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 /** One row per teacher — the raw classroom_teacher-level rows only ever show up inside the modal. */
-type TeacherRow = {
-  teacherId: string
-  teacherName: string
-  teacherRate: number | null
-  classes: ClassroomTeacherAttendanceListEntry[]
-}
-
-function groupByTeacher(entries: ClassroomTeacherAttendanceListEntry[]): TeacherRow[] {
-  const byTeacher = new Map<string, TeacherRow>()
-  for (const entry of entries) {
-    const existing = byTeacher.get(entry.teacherId)
-    if (existing) {
-      existing.classes.push(entry)
-    } else {
-      byTeacher.set(entry.teacherId, {
-        teacherId: entry.teacherId,
-        teacherName: entry.teacherName,
-        teacherRate: entry.teacherRate,
-        classes: [entry],
-      })
-    }
-  }
-  const rows = [...byTeacher.values()]
-  rows.sort((a, b) => a.teacherName.localeCompare(b.teacherName))
-  return rows
-}
+type TeacherRow = TeacherAttendanceGroup
 
 function rowSearchBlob(row: TeacherRow): string {
   return `${row.teacherName} ${row.classes.map((c) => c.classroomLabel).join(' ')}`.toLowerCase()
@@ -81,7 +56,7 @@ export function TeachersAttendancePage() {
     void load()
   }, [load])
 
-  const teacherRows = useMemo(() => groupByTeacher(entries), [entries])
+  const teacherRows = useMemo(() => groupAttendanceByTeacher(entries), [entries])
 
   const filteredRows = useMemo(
     () => teacherRows.filter((row) => matchesSearchTokens(rowSearchBlob(row), keyword)),
