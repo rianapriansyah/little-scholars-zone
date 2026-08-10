@@ -239,7 +239,8 @@ export function RegistrationDetailPage() {
                 <Field label="Catatan" value={child.notes} />
                 <Divider sx={{ my: 1 }} />
                 <Field label="Program" value={child.classroomLabel} />
-                <Field label="Biaya" value={formatIdr(child.price)} />
+                <Field label="Biaya Program" value={formatIdr(child.price)} />
+                <Field label="Perlengkapan Wajib" value={formatIdr(child.equipmentFee)} />
               </Paper>
             )
           })}

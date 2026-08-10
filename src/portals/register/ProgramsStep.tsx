@@ -1,16 +1,18 @@
 import { Alert, Box, MenuItem, Paper, TextField, Typography } from '@mui/material'
 import { formatIdr } from '../../lib/formatIdr'
-import type { DraftChild, ProgramOption } from '../../lib/registrationDraft'
+import { mandatoryFeeTotal, type DraftChild, type FeeItemOption, type ProgramOption } from '../../lib/registrationDraft'
 
 type Props = {
   children: DraftChild[]
   programs: ProgramOption[]
+  feeItems: FeeItemOption[]
   onChange: (children: DraftChild[]) => void
 }
 
-export function ProgramsStep({ children, programs, onChange }: Props) {
+export function ProgramsStep({ children, programs, feeItems, onChange }: Props) {
   const byId = new Map(programs.map((program) => [program.id, program]))
-  const total = children.reduce((sum, child) => sum + (byId.get(child.classroomId)?.price ?? 0), 0)
+  const programsTotal = children.reduce((sum, child) => sum + (byId.get(child.classroomId)?.price ?? 0), 0)
+  const equipmentTotal = mandatoryFeeTotal(feeItems) * children.length
 
   function setClassroom(key: string, classroomId: string) {
     onChange(children.map((child) => (child.key === key ? { ...child, classroomId } : child)))
@@ -55,7 +57,18 @@ export function ProgramsStep({ children, programs, onChange }: Props) {
       })}
 
       <Alert severity="info">
-        Total: <strong>{formatIdr(total)}</strong>
+        Biaya Program: <strong>{formatIdr(programsTotal)}</strong>
+        {equipmentTotal > 0 ? (
+          <>
+            {' '}
+            + Perlengkapan Wajib: <strong>{formatIdr(equipmentTotal)}</strong>
+            <br />
+            <Typography component="span" variant="body2">
+              Total: <strong>{formatIdr(programsTotal + equipmentTotal)}</strong> (rincian perlengkapan di
+              langkah pembayaran)
+            </Typography>
+          </>
+        ) : null}
       </Alert>
     </Box>
   )

@@ -503,6 +503,7 @@ export type Database = {
           child_id: string | null
           classroom_id: string
           created_at: string
+          equipment_fee: number
           full_name: string
           id: string
           notes: string | null
@@ -515,6 +516,7 @@ export type Database = {
           child_id?: string | null
           classroom_id: string
           created_at?: string
+          equipment_fee: number
           full_name: string
           id?: string
           notes?: string | null
@@ -527,6 +529,7 @@ export type Database = {
           child_id?: string | null
           classroom_id?: string
           created_at?: string
+          equipment_fee?: number
           full_name?: string
           id?: string
           notes?: string | null
@@ -556,6 +559,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      registration_fee_items: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          items: string[]
+          label: string
+          price: number
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          items?: string[]
+          label: string
+          price: number
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          items?: string[]
+          label?: string
+          price?: number
+          sort_order?: number
+        }
+        Relationships: []
       }
       registration_submissions: {
         Row: {
@@ -807,6 +840,16 @@ export type Database = {
           price: number
           time_end: string
           time_start: string
+        }[]
+      }
+      list_registration_fee_items: {
+        Args: never
+        Returns: {
+          id: string
+          items: string[]
+          label: string
+          price: number
+          sort_order: number
         }[]
       }
       record_attendance: {

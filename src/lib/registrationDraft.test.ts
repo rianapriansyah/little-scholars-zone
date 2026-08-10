@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   emptyChild,
   emptyDraft,
+  mandatoryFeeTotal,
   registrationTotal,
   toSubmitPayload,
   validateChildrenStep,
@@ -9,6 +10,7 @@ import {
   validateParentsStep,
   validateProgramsStep,
   validateStep,
+  type FeeItemOption,
   type ProgramOption,
   type RegistrationDraft,
 } from './registrationDraft'
@@ -18,6 +20,11 @@ const TODAY = '2026-08-10'
 const PROGRAMS: ProgramOption[] = [
   { id: 'kelas-a', label: 'Kelas A', timeStart: '08:00', timeEnd: '10:00', price: 500000, guaranteedDays: 20 },
   { id: 'kelas-b', label: 'Kelas B', timeStart: '10:00', timeEnd: '12:00', price: 750000, guaranteedDays: 24 },
+]
+
+const FEE_ITEMS: FeeItemOption[] = [
+  { id: 'seragam', label: 'Seragam', price: 450000, items: ['1 tas'], sortOrder: 1 },
+  { id: 'alat-tulis', label: 'Alat Tulis', price: 250000, items: ['Buku gambar 4 pcs'], sortOrder: 2 },
 ]
 
 function draftWith(overrides: Partial<RegistrationDraft> = {}): RegistrationDraft {
@@ -124,20 +131,47 @@ describe('validatePaymentStep', () => {
   })
 })
 
+describe('mandatoryFeeTotal', () => {
+  it('sums every active fee item — the per-child equipment kit cost', () => {
+    expect(mandatoryFeeTotal(FEE_ITEMS)).toBe(700_000)
+  })
+
+  it('is zero when there are no fee items', () => {
+    expect(mandatoryFeeTotal([])).toBe(0)
+  })
+})
+
 describe('registrationTotal', () => {
-  it('sums the chosen program price per child', () => {
+  it('sums the chosen program price per child, with no fee items', () => {
     const draft = draftWith({ children: [childWith(), childWith({ key: 'k2', classroomId: 'kelas-b' })] })
-    expect(registrationTotal(draft, PROGRAMS)).toBe(1_250_000)
+    expect(registrationTotal(draft.children, PROGRAMS, [])).toBe(1_250_000)
   })
 
   it('counts the same program twice for two siblings', () => {
     const draft = draftWith({ children: [childWith(), childWith({ key: 'k2' })] })
-    expect(registrationTotal(draft, PROGRAMS)).toBe(1_000_000)
+    expect(registrationTotal(draft.children, PROGRAMS, [])).toBe(1_000_000)
   })
 
   it('treats an unchosen or unknown program as zero rather than NaN', () => {
     const draft = draftWith({ children: [childWith({ classroomId: '' })] })
-    expect(registrationTotal(draft, PROGRAMS)).toBe(0)
+    expect(registrationTotal(draft.children, PROGRAMS, [])).toBe(0)
+  })
+
+  it('adds the mandatory equipment fee once per child, on top of their program', () => {
+    const draft = draftWith({ children: [childWith()] })
+    // 500,000 (Kelas A) + 700,000 (Seragam + Alat Tulis)
+    expect(registrationTotal(draft.children, PROGRAMS, FEE_ITEMS)).toBe(1_200_000)
+  })
+
+  it('charges the equipment fee per sibling, not once per family', () => {
+    const draft = draftWith({ children: [childWith(), childWith({ key: 'k2' })] })
+    // 2 x (500,000 + 700,000)
+    expect(registrationTotal(draft.children, PROGRAMS, FEE_ITEMS)).toBe(2_400_000)
+  })
+
+  it('still charges the equipment fee even for a child with no program chosen yet', () => {
+    const draft = draftWith({ children: [childWith({ classroomId: '' })] })
+    expect(registrationTotal(draft.children, PROGRAMS, FEE_ITEMS)).toBe(700_000)
   })
 })
 

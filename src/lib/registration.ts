@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import type { Result } from './result'
-import type { SubmitPayload, ProgramOption, ReceiptMeta } from './registrationDraft'
+import type { FeeItemOption, SubmitPayload, ProgramOption, ReceiptMeta } from './registrationDraft'
 
 export type RegistrationStatus = 'pending' | 'approved' | 'rejected'
 
@@ -24,6 +24,7 @@ export type RegistrationChildDetail = {
   classroomId: string
   classroomLabel: string
   price: number
+  equipmentFee: number
 }
 
 export type RegistrationDetail = RegistrationSummary & {
@@ -54,6 +55,20 @@ export async function fetchPublicPrograms(): Promise<Result<ProgramOption[]>> {
     guaranteedDays: row.guaranteed_days,
   }))
   return { ok: true, data: programs }
+}
+
+/** Mandatory per-child equipment fees (uniform, stationery) — nothing to select, just to show. */
+export async function fetchMandatoryFeeItems(): Promise<Result<FeeItemOption[]>> {
+  const { data, error } = await supabase.rpc('list_registration_fee_items')
+  if (error) return { ok: false, error: error.message }
+  const items: FeeItemOption[] = (data ?? []).map((row) => ({
+    id: row.id,
+    label: row.label,
+    price: Number(row.price),
+    items: row.items ?? [],
+    sortOrder: row.sort_order,
+  }))
+  return { ok: true, data: items }
 }
 
 /**
@@ -145,6 +160,7 @@ export async function fetchRegistrationSubmission(id: string): Promise<Result<Re
     notes: string | null
     classroom_id: string
     price: number
+    equipment_fee: number
     classrooms: { label: string } | null
   }[]
 
@@ -179,6 +195,7 @@ export async function fetchRegistrationSubmission(id: string): Promise<Result<Re
         classroomId: child.classroom_id,
         classroomLabel: child.classrooms?.label ?? '—',
         price: Number(child.price),
+        equipmentFee: Number(child.equipment_fee),
       })),
     },
   }

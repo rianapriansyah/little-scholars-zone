@@ -58,6 +58,19 @@ export type ProgramOption = {
   guaranteedDays: number
 }
 
+/**
+ * One row of list_registration_fee_items() — a mandatory per-child charge (uniform,
+ * stationery) nobody selects, unlike a program. Every child in a registration owes the sum of
+ * every active row here, once each.
+ */
+export type FeeItemOption = {
+  id: string
+  label: string
+  price: number
+  items: string[]
+  sortOrder: number
+}
+
 /** Only the parts of a File the rules care about — so tests need no File object. */
 export type ReceiptMeta = {
   name: string
@@ -151,14 +164,25 @@ export function validatePaymentStep(receipt: ReceiptMeta | null): string | null 
   return null
 }
 
+/** Sum of every active mandatory fee item's price — what one child's equipment kit costs. */
+export function mandatoryFeeTotal(feeItems: FeeItemOption[]): number {
+  return feeItems.reduce((sum, item) => sum + item.price, 0)
+}
+
 /**
- * What the parent is told they owe. The server recomputes this from classrooms.price and
- * stores its own answer — this one is display only, so a stale price list cannot become the
- * amount on record.
+ * What the parent is told they owe: each child's program price plus the mandatory equipment
+ * fee, once per child. The server recomputes this from classrooms.price and
+ * registration_fee_items and stores its own answer — this one is display only, so a stale
+ * price list cannot become the amount on record.
  */
-export function registrationTotal(draft: RegistrationDraft, programs: ProgramOption[]): number {
+export function registrationTotal(
+  children: DraftChild[],
+  programs: ProgramOption[],
+  feeItems: FeeItemOption[],
+): number {
   const priceById = new Map(programs.map((program) => [program.id, program.price]))
-  return draft.children.reduce((sum, child) => sum + (priceById.get(child.classroomId) ?? 0), 0)
+  const perChildFee = mandatoryFeeTotal(feeItems)
+  return children.reduce((sum, child) => sum + (priceById.get(child.classroomId) ?? 0) + perChildFee, 0)
 }
 
 /** Validation for one step, by index into REGISTRATION_STEPS. */

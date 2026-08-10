@@ -2,11 +2,19 @@ import { useEffect, useState } from 'react'
 import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { formatIdr } from '../../lib/formatIdr'
-import { validatePaymentStep, type DraftChild, type ProgramOption } from '../../lib/registrationDraft'
+import {
+  mandatoryFeeTotal,
+  validatePaymentStep,
+  type DraftChild,
+  type FeeItemOption,
+  type ProgramOption,
+} from '../../lib/registrationDraft'
+import { MandatoryFeeCard } from './MandatoryFeeCard'
 
 type Props = {
   children: DraftChild[]
   programs: ProgramOption[]
+  feeItems: FeeItemOption[]
   paymentNote: string
   receipt: File | null
   onReceiptChange: (file: File | null) => void
@@ -23,13 +31,16 @@ const TRANSFER_INSTRUCTIONS = [
 export function PaymentStep({
   children,
   programs,
+  feeItems,
   paymentNote,
   receipt,
   onReceiptChange,
   onPaymentNoteChange,
 }: Props) {
   const byId = new Map(programs.map((program) => [program.id, program]))
-  const total = children.reduce((sum, child) => sum + (byId.get(child.classroomId)?.price ?? 0), 0)
+  const programsTotal = children.reduce((sum, child) => sum + (byId.get(child.classroomId)?.price ?? 0), 0)
+  const equipmentTotal = mandatoryFeeTotal(feeItems) * children.length
+  const total = programsTotal + equipmentTotal
   const receiptError = validatePaymentStep(
     receipt ? { name: receipt.name, size: receipt.size, type: receipt.type } : null,
   )
@@ -54,8 +65,14 @@ export function PaymentStep({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Alert severity="info">
+        Biaya Program: {formatIdr(programsTotal)}
+        <br />
+        Perlengkapan Wajib: {formatIdr(equipmentTotal)}
+        <br />
         Total Pembayaran: <strong>{formatIdr(total)}</strong>
       </Alert>
+
+      <MandatoryFeeCard feeItems={feeItems} childCount={children.length} />
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         {TRANSFER_INSTRUCTIONS.map((line) => (

@@ -2,11 +2,13 @@ import { Alert, Box, Divider, Paper, Typography } from '@mui/material'
 import dayjs from 'dayjs'
 import { formatAge } from '../../lib/calculateAge'
 import { formatIdr } from '../../lib/formatIdr'
-import type { ProgramOption, RegistrationDraft } from '../../lib/registrationDraft'
+import { mandatoryFeeTotal, type FeeItemOption, type ProgramOption, type RegistrationDraft } from '../../lib/registrationDraft'
+import { MandatoryFeeCard } from './MandatoryFeeCard'
 
 type Props = {
   draft: RegistrationDraft
   programs: ProgramOption[]
+  feeItems: FeeItemOption[]
   receipt: File | null
 }
 
@@ -19,9 +21,11 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function ReviewStep({ draft, programs, receipt }: Props) {
+export function ReviewStep({ draft, programs, feeItems, receipt }: Props) {
   const byId = new Map(programs.map((program) => [program.id, program]))
-  const total = draft.children.reduce((sum, child) => sum + (byId.get(child.classroomId)?.price ?? 0), 0)
+  const programsTotal = draft.children.reduce((sum, child) => sum + (byId.get(child.classroomId)?.price ?? 0), 0)
+  const equipmentTotal = mandatoryFeeTotal(feeItems) * draft.children.length
+  const total = programsTotal + equipmentTotal
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -46,12 +50,19 @@ export function ReviewStep({ draft, programs, receipt }: Props) {
             {age ? <Row label="Usia" value={age} /> : null}
             <Divider sx={{ my: 1 }} />
             <Row label="Program" value={program?.label ?? '—'} />
-            <Row label="Biaya" value={program ? formatIdr(program.price) : '—'} />
+            <Row label="Biaya Program" value={program ? formatIdr(program.price) : '—'} />
+            <Row label="Perlengkapan Wajib" value={formatIdr(mandatoryFeeTotal(feeItems))} />
           </Paper>
         )
       })}
 
+      <MandatoryFeeCard feeItems={feeItems} childCount={draft.children.length} />
+
       <Alert severity="info">
+        Biaya Program: {formatIdr(programsTotal)}
+        <br />
+        Perlengkapan Wajib: {formatIdr(equipmentTotal)}
+        <br />
         Total Pembayaran: <strong>{formatIdr(total)}</strong>
       </Alert>
 

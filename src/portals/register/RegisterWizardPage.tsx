@@ -22,10 +22,16 @@ import {
   toSubmitPayload,
   validateStep,
   type DraftChild,
+  type FeeItemOption,
   type ProgramOption,
   type RegistrationDraft,
 } from '../../lib/registrationDraft'
-import { fetchPublicPrograms, receiptMetaFromFile, submitRegistration } from '../../lib/registration'
+import {
+  fetchMandatoryFeeItems,
+  fetchPublicPrograms,
+  receiptMetaFromFile,
+  submitRegistration,
+} from '../../lib/registration'
 import { buildWhatsAppMeUrl } from '../../lib/whatsappLink'
 import { todayIsoDateInWita } from '../../lib/classStatus'
 import { ParentsStep } from './ParentsStep'
@@ -55,6 +61,7 @@ export function RegisterWizardPage() {
   const [draft, setDraft] = useState<RegistrationDraft>(() => loadStoredDraft(emptyDraft(crypto.randomUUID())))
   const [step, setStep] = useState(0)
   const [programs, setPrograms] = useState<ProgramOption[]>([])
+  const [feeItems, setFeeItems] = useState<FeeItemOption[]>([])
   const [programsLoading, setProgramsLoading] = useState(true)
   const [programsError, setProgramsError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<File | null>(null)
@@ -65,13 +72,24 @@ export function RegisterWizardPage() {
   useEffect(() => {
     void (async () => {
       setProgramsLoading(true)
-      const result = await fetchPublicPrograms()
+      const [programsResult, feeItemsResult] = await Promise.all([
+        fetchPublicPrograms(),
+        fetchMandatoryFeeItems(),
+      ])
       setProgramsLoading(false)
-      if (!result.ok) {
-        setProgramsError(result.error)
+      if (!programsResult.ok) {
+        setProgramsError(programsResult.error)
         return
       }
-      setPrograms(result.data)
+      // Fee items failing is treated as fatal too, same as programs: the total shown here is
+      // what the parent transfers before anyone reviews it, so showing an incomplete total
+      // (missing the mandatory equipment fee) is worse than blocking the form outright.
+      if (!feeItemsResult.ok) {
+        setProgramsError(feeItemsResult.error)
+        return
+      }
+      setPrograms(programsResult.data)
+      setFeeItems(feeItemsResult.data)
     })()
   }, [])
 
@@ -190,19 +208,27 @@ export function RegisterWizardPage() {
               {step === 0 ? <ParentsStep draft={draft} onChange={patchDraft} /> : null}
               {step === 1 ? <ChildrenStep children={draft.children} onChange={setChildren} /> : null}
               {step === 2 ? (
-                <ProgramsStep children={draft.children} programs={programs} onChange={setChildren} />
+                <ProgramsStep
+                  children={draft.children}
+                  programs={programs}
+                  feeItems={feeItems}
+                  onChange={setChildren}
+                />
               ) : null}
               {step === 3 ? (
                 <PaymentStep
                   children={draft.children}
                   programs={programs}
+                  feeItems={feeItems}
                   paymentNote={draft.paymentNote}
                   receipt={receipt}
                   onReceiptChange={setReceipt}
                   onPaymentNoteChange={(paymentNote) => patchDraft({ paymentNote })}
                 />
               ) : null}
-              {step === 4 ? <ReviewStep draft={draft} programs={programs} receipt={receipt} /> : null}
+              {step === 4 ? (
+                <ReviewStep draft={draft} programs={programs} feeItems={feeItems} receipt={receipt} />
+              ) : null}
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3 }}>
                 <Button onClick={handleBack} disabled={step === 0 || submitting}>

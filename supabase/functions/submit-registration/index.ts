@@ -174,7 +174,27 @@ async function handleSubmit(
     return jsonResponse({ error: 'Salah satu program yang dipilih sudah tidak tersedia. Muat ulang halaman.' }, 400)
   }
 
-  const amountTotal = children.reduce((sum, child) => sum + priceById.get(child.classroom_id!)!, 0)
+  // Mandatory per-child equipment fee (uniform + stationery) — every child owes this on top of
+  // their program, so it is not something the client selects. Snapshotted here for the same
+  // reason program prices are: a later price change in registration_fee_items must not rewrite
+  // what this family already paid for.
+  const { data: feeItems, error: feeItemsError } = await adminClient
+    .from('registration_fee_items')
+    .select('price')
+    .eq('active', true)
+  if (feeItemsError) {
+    console.error('fee items lookup:', feeItemsError.message)
+    return jsonResponse({ error: 'Gagal memuat biaya perlengkapan wajib.' }, 500)
+  }
+  const equipmentFeePerChild = ((feeItems ?? []) as { price: number }[]).reduce(
+    (sum: number, row) => sum + Number(row.price),
+    0,
+  )
+
+  const amountTotal = children.reduce(
+    (sum, child) => sum + priceById.get(child.classroom_id!)! + equipmentFeePerChild,
+    0,
+  )
 
   // Cheap abuse / double-submit guard for an unauthenticated endpoint.
   const since = new Date(Date.now() - DUPLICATE_WINDOW_MINUTES * 60_000).toISOString()
@@ -232,6 +252,7 @@ async function handleSubmit(
       notes: child.notes,
       classroom_id: child.classroom_id,
       price: priceById.get(child.classroom_id!)!,
+      equipment_fee: equipmentFeePerChild,
     })),
   )
 
