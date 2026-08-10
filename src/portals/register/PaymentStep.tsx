@@ -13,13 +13,11 @@ type Props = {
   onPaymentNoteChange: (value: string) => void
 }
 
-// TODO: replace with the center's real bank / e-wallet details before flipping
-// PARENT_REGISTRATION_ENABLED on (see featureFlags.ts).
 const TRANSFER_INSTRUCTIONS = [
   'Transfer ke rekening berikut, lalu unggah bukti pembayarannya di bawah:',
-  'Bank: —',
-  'No. Rekening: —',
-  'Atas Nama: —',
+  'Bank: Mandiri',
+  'No. Rekening: 1330030611560',
+  'Atas Nama: Dewi Cahyanti Wahyu Ningsih',
 ]
 
 export function PaymentStep({
