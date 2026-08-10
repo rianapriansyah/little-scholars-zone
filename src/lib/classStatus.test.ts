@@ -92,8 +92,9 @@ describe('getClockInWindowStatus', () => {
     expect(getClockInWindowStatus(start, new Date(start.getTime() + 5 * 60_000))).toBe('open')
   })
 
-  it('is missed more than 5 minutes after start', () => {
-    expect(getClockInWindowStatus(start, new Date(start.getTime() + 5 * 60_000 + 1))).toBe('missed')
+  it('stays open indefinitely after start, unlike the old missed cutoff', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() + 5 * 60_000 + 1))).toBe('open')
+    expect(getClockInWindowStatus(start, new Date(start.getTime() + 3 * 60 * 60_000))).toBe('open')
   })
 })
 

@@ -105,9 +105,10 @@ export function formatHoursMinutes(totalMinutes: number): string {
 function summarizeKeterangan(arrival: ArrivalStatus, departure: DepartureStatus): string {
   if (arrival === 'missing' && departure === 'missing') return 'Belum Absen'
   const notes: string[] = []
-  if (arrival === 'late') notes.push('Terlambat')
+  if (arrival === 'late') notes.push('Telat')
   if (arrival === 'missing') notes.push('Belum Absen Masuk')
   if (departure === 'early') notes.push('Pulang Cepat')
+  if (departure === 'overtime') notes.push('Over Time')
   if (departure === 'missing') notes.push('Belum Absen Selesai')
   return notes.length > 0 ? notes.join(', ') : 'Tepat Waktu'
 }

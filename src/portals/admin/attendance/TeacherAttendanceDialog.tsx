@@ -89,7 +89,7 @@ function StatusChips({ entry }: { entry: ClassroomTeacherAttendanceListEntry }) 
       <Chip
         size="small"
         label={DEPARTURE_STATUS_LABELS[departure]}
-        color={departure === 'on_time' ? 'success' : departure === 'early' ? 'warning' : 'default'}
+        color={departure === 'on_time' ? 'success' : departure === 'early' || departure === 'overtime' ? 'warning' : 'default'}
         variant={departure === 'missing' ? 'outlined' : 'filled'}
       />
     </>

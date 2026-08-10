@@ -34,18 +34,19 @@ export function getClassStatus(startTime: Date, now: Date, endTime: Date | null 
   return { border: 'default', label: null }
 }
 
-export type ClockInWindowStatus = 'too_early' | 'open' | 'missed'
+export type ClockInWindowStatus = 'too_early' | 'open'
 
 /**
- * Masuk Kelas is only pressable within 5 minutes either side of the scheduled start — 'missed'
- * (not just disabled forever) once that window has passed, since a genuinely late teacher must
- * have an admin log it instead of self-reporting an arrival time that no longer reflects when
- * they actually pressed the button.
+ * Masuk Kelas opens 5 minutes before the scheduled start and never closes again — unlike the
+ * old 'missed' cutoff, a genuinely late teacher can still tap it herself. What actually gets
+ * recorded once she does (normalised to the start on time, kept real if late) is decided
+ * server-side in clock_in_classroom_teacher and read back afterwards as arrivalStatus, so there
+ * is no client-side equivalent to keep in sync — this only governs whether the button itself is
+ * pressable yet.
  */
 export function getClockInWindowStatus(startTime: Date, now: Date): ClockInWindowStatus {
   const minutesFromStart = (now.getTime() - startTime.getTime()) / 60_000
   if (minutesFromStart < -5) return 'too_early'
-  if (minutesFromStart > 5) return 'missed'
   return 'open'
 }
 

@@ -33,6 +33,7 @@ import {
   isWitaClassDay,
   todayIsoDateInWita,
   type ClassStatusBorder,
+  type ClockInWindowStatus,
 } from '../../lib/classStatus'
 import { teacherDisplayName } from '../../lib/teacherName'
 import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
@@ -258,9 +259,17 @@ export function TeacherRosterPage() {
     const isClocking = clockingId === group.id
 
     if (record?.clockedOutAt) {
+      // arrivalStatus/departureStatus already reflect what clock_in_classroom_teacher /
+      // clock_out_classroom_teacher actually recorded (normalised to the schedule when on
+      // time, kept real when not) — nothing to recompute here, just surface the flags.
+      const notes = [
+        record.arrivalStatus === 'late' ? 'Telat' : null,
+        record.departureStatus === 'overtime' ? 'Over Time' : null,
+      ].filter((note): note is string => note !== null)
       return (
         <Typography variant="body2" color="text.secondary">
           Kelas selesai · {record.minutesTaught ?? '—'} menit
+          {notes.length > 0 ? ` · ${notes.join(', ')}` : ''}
         </Typography>
       )
     }
@@ -268,34 +277,34 @@ export function TeacherRosterPage() {
     if (record?.clockedInAt) {
       const canClockOut = isClockOutWindowOpen(todaysEnd, now)
       return (
-        <Button
-          size="small"
-          variant="outlined"
-          disabled={!canClockOut || isClocking}
-          onClick={() => handleFinishClick(group)}
-        >
-          {isClocking ? 'Menyimpan…' : 'Selesaikan Kelas'}
-        </Button>
+        <Box>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={!canClockOut || isClocking}
+            onClick={() => handleFinishClick(group)}
+          >
+            {isClocking ? 'Menyimpan…' : 'Selesaikan Kelas'}
+          </Button>
+          {record.arrivalStatus === 'late' ? (
+            <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5 }}>
+              Telat
+            </Typography>
+          ) : null}
+        </Box>
       )
     }
 
-    const windowStatus = getClockInWindowStatus(todaysStart, now)
+    const windowStatus: ClockInWindowStatus = getClockInWindowStatus(todaysStart, now)
     return (
-      <Box>
-        <Button
-          size="small"
-          variant="contained"
-          disabled={windowStatus !== 'open' || isClocking}
-          onClick={() => void handleClockIn(group.id)}
-        >
-          {isClocking ? 'Menyimpan…' : 'Masuk Kelas'}
-        </Button>
-        {windowStatus === 'missed' ? (
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-            Lewat jendela absen masuk — hubungi admin untuk mencatatnya.
-          </Typography>
-        ) : null}
-      </Box>
+      <Button
+        size="small"
+        variant="contained"
+        disabled={windowStatus !== 'open' || isClocking}
+        onClick={() => void handleClockIn(group.id)}
+      >
+        {isClocking ? 'Menyimpan…' : 'Masuk Kelas'}
+      </Button>
     )
   }
 

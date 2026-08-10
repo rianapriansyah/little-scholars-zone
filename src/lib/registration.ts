@@ -215,16 +215,20 @@ export async function fetchReceiptSignedUrl(receiptPath: string): Promise<Result
  * (all inside approve_registration), then hands off to create-family-account for the login —
  * same two-step split the admin "Tambah Keluarga" flow already uses, so the caller can show
  * the same CredentialsRevealDialog.
+ *
+ * startDates is keyed by registration_children.id, one entry per child in the submission —
+ * siblings can start on different dates (different programs, different readiness), so this is
+ * never a single date applied to everyone.
  */
 export async function approveRegistration(params: {
   submissionId: string
   loginEmail: string
-  startDate: string
+  startDates: Record<string, string>
 }): Promise<Result<{ familyId: string }>> {
   const { data, error } = await supabase.rpc('approve_registration', {
     p_submission_id: params.submissionId,
     p_login_email: params.loginEmail,
-    p_start_date: params.startDate,
+    p_start_dates: params.startDates,
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data: { familyId: data } }

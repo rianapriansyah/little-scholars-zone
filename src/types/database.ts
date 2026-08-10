@@ -785,7 +785,7 @@ export type Database = {
       approve_registration: {
         Args: {
           p_login_email: string
-          p_start_date: string
+          p_start_dates: Json
           p_submission_id: string
         }
         Returns: string

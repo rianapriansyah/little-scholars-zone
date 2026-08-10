@@ -64,7 +64,9 @@ export function RegistrationDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null)
 
-  const [startDate, setStartDate] = useState(() => todayIsoDateInWita())
+  // registration_children.id -> ISO start date. Per child, not one date for the whole
+  // submission — siblings can start on different dates.
+  const [startDates, setStartDates] = useState<Record<string, string>>({})
   const [approving, setApproving] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -97,20 +99,39 @@ export function RegistrationDetailPage() {
     void load()
   }, [load])
 
+  // Defaults every child to today without ever clobbering a date the admin already typed —
+  // only fills in entries that are still missing, so a re-render or a load() re-fire after a
+  // partial-failure retry can't silently reset what's already been picked.
+  useEffect(() => {
+    if (!detail) return
+    setStartDates((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const child of detail.children) {
+        if (!(child.id in next)) {
+          next[child.id] = todayIsoDateInWita()
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [detail])
+
   const isPending = detail?.status === 'pending'
   const isPdfReceipt = detail?.receiptPath.toLowerCase().endsWith('.pdf') ?? false
 
   async function handleApprove() {
     if (!detail || !registrationId) return
-    if (!startDate) {
-      setError('Pilih tanggal mulai periode belajar.')
+    const missing = detail.children.find((child) => !startDates[child.id])
+    if (missing) {
+      setError(`Pilih tanggal mulai periode belajar untuk ${missing.fullName}.`)
       return
     }
     setApproving(true)
     setError(null)
 
     const loginEmail = await generateUniqueFamilyEmail(detail.familyName)
-    const approveResult = await approveRegistration({ submissionId: registrationId, loginEmail, startDate })
+    const approveResult = await approveRegistration({ submissionId: registrationId, loginEmail, startDates })
     if (!approveResult.ok) {
       setApproving(false)
       setError(approveResult.error)
@@ -241,6 +262,19 @@ export function RegistrationDetailPage() {
                 <Field label="Program" value={child.classroomLabel} />
                 <Field label="Biaya Program" value={formatIdr(child.price)} />
                 <Field label="Perlengkapan Wajib" value={formatIdr(child.equipmentFee)} />
+                {isPending ? (
+                  <TextField
+                    size="small"
+                    label="Tanggal Mulai Periode Belajar"
+                    type="date"
+                    value={startDates[child.id] ?? ''}
+                    onChange={(e) => setStartDates((prev) => ({ ...prev, [child.id]: e.target.value }))}
+                    required
+                    fullWidth
+                    sx={{ mt: 1.5, maxWidth: 260 }}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                  />
+                ) : null}
               </Paper>
             )
           })}
@@ -271,19 +305,10 @@ export function RegistrationDetailPage() {
 
           {isPending ? (
             <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Tinjau</Typography>
-              <TextField
-                size="small"
-                label="Tanggal Mulai Periode Belajar"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-                fullWidth
-                sx={{ mb: 2, maxWidth: 260 }}
-                slotProps={{ inputLabel: { shrink: true } }}
-                helperText="Berlaku untuk semua anak pada pendaftaran ini."
-              />
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Tinjau</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                Tanggal mulai periode belajar diisi per anak, pada masing-masing kartu di atas.
+              </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Button
                   color="error"
@@ -295,7 +320,7 @@ export function RegistrationDetailPage() {
                 </Button>
                 <Button
                   variant="contained"
-                  disabled={approving || rejecting || !startDate}
+                  disabled={approving || rejecting || detail.children.some((child) => !startDates[child.id])}
                   onClick={() => void handleApprove()}
                 >
                   {approving ? 'Memproses…' : 'Setujui'}

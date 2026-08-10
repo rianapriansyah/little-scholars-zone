@@ -8,26 +8,37 @@ export const ATTENDANCE_SOURCES = ['teacher', 'admin'] as const
 
 export type AttendanceSource = (typeof ATTENDANCE_SOURCES)[number]
 
-/** Mirrors the view's arrival_status CASE. 'late' only ever appears on an admin-entered row —
- * the teacher-facing clock-in RPC refuses the tap once the 5-minute window has passed. */
+/**
+ * Mirrors the view's arrival_status CASE. clock_in_classroom_teacher normalises an on-time tap
+ * (within 5 minutes either side of the scheduled start) to exactly the scheduled start itself,
+ * so 'late' means the recorded time is the teacher's real, later tap — the button no longer
+ * refuses a late tap, it just stops normalising it.
+ */
 export const ARRIVAL_STATUSES = ['on_time', 'late', 'missing'] as const
 
 export type ArrivalStatus = (typeof ARRIVAL_STATUSES)[number]
 
-/** Mirrors the view's departure_status CASE. */
-export const DEPARTURE_STATUSES = ['on_time', 'early', 'missing'] as const
+/**
+ * Mirrors the view's departure_status CASE. clock_out_classroom_teacher normalises any tap from
+ * 5 minutes before the scheduled end through the end itself to exactly the scheduled end, so
+ * 'overtime' means the real tap happened after the class was scheduled to finish. 'early' can
+ * only appear on an admin-entered correction now — the teacher RPC can no longer produce a
+ * clocked_out_at earlier than scheduled_end.
+ */
+export const DEPARTURE_STATUSES = ['on_time', 'early', 'overtime', 'missing'] as const
 
 export type DepartureStatus = (typeof DEPARTURE_STATUSES)[number]
 
 export const ARRIVAL_STATUS_LABELS: Record<ArrivalStatus, string> = {
   on_time: 'Tepat Waktu',
-  late: 'Terlambat',
+  late: 'Telat',
   missing: 'Belum Absen Masuk',
 }
 
 export const DEPARTURE_STATUS_LABELS: Record<DepartureStatus, string> = {
   on_time: 'Tepat Waktu',
   early: 'Pulang Cepat',
+  overtime: 'Over Time',
   missing: 'Belum Absen Selesai',
 }
 
