@@ -19,11 +19,11 @@ export const ARRIVAL_STATUSES = ['on_time', 'late', 'missing'] as const
 export type ArrivalStatus = (typeof ARRIVAL_STATUSES)[number]
 
 /**
- * Mirrors the view's departure_status CASE. clock_out_classroom_teacher normalises any tap from
- * 5 minutes before the scheduled end through the end itself to exactly the scheduled end, so
- * 'overtime' means the real tap happened after the class was scheduled to finish. 'early' can
- * only appear on an admin-entered correction now — the teacher RPC can no longer produce a
- * clocked_out_at earlier than scheduled_end.
+ * Mirrors the view's departure_status CASE. clock_out_classroom_teacher normalises any tap
+ * within 5 minutes either side of the scheduled end to exactly the scheduled end — symmetric
+ * grace, same as arrival — so 'overtime' means the real tap landed more than 5 minutes past the
+ * scheduled end. 'early' can only appear on an admin-entered correction now — a normalised
+ * teacher punch is never earlier than exactly scheduled_end.
  */
 export const DEPARTURE_STATUSES = ['on_time', 'early', 'overtime', 'missing'] as const
 
