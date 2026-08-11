@@ -111,6 +111,15 @@ describe('groupAttendanceByTeacher', () => {
   it('returns nothing for an empty roster', () => {
     expect(groupAttendanceByTeacher([])).toEqual([])
   })
+
+  it("orders a teacher's classes by start time, not by classroom label", () => {
+    const groups = groupAttendanceByTeacher([
+      entry({ classroomTeacherId: 'ct1', classroomLabel: 'Kelas Zebra', timeStart: '13:30:00' }),
+      entry({ classroomTeacherId: 'ct2', classroomLabel: 'Kelas Awan', timeStart: '08:00:00' }),
+      entry({ classroomTeacherId: 'ct3', classroomLabel: 'Kelas Bulan', timeStart: '10:00:00' }),
+    ])
+    expect(groups[0].classes.map((c) => c.classroomLabel)).toEqual(['Kelas Awan', 'Kelas Bulan', 'Kelas Zebra'])
+  })
 })
 
 describe('findIncompleteTeacherAttendance', () => {

@@ -209,6 +209,10 @@ export type TeacherAttendanceGroup = {
  * Collapses fetchAttendanceRoster's per-class rows to one row per teacher — the shape both the
  * Kehadiran Guru table and the dashboard's incomplete-attendance card need, so there is exactly
  * one grouping implementation to keep in sync with the roster query.
+ *
+ * Each teacher's classes come out ordered by time_start — fetchAttendanceRoster itself sorts by
+ * classroom label, which reads as arbitrary in TeacherAttendanceDialog's numbered list; a
+ * teacher's day should read top-to-bottom the way she actually teaches it.
  */
 export function groupAttendanceByTeacher(entries: ClassroomTeacherAttendanceListEntry[]): TeacherAttendanceGroup[] {
   const byTeacher = new Map<string, TeacherAttendanceGroup>()
@@ -226,6 +230,9 @@ export function groupAttendanceByTeacher(entries: ClassroomTeacherAttendanceList
     }
   }
   const rows = [...byTeacher.values()]
+  for (const row of rows) {
+    row.classes.sort((a, b) => a.timeStart.localeCompare(b.timeStart))
+  }
   rows.sort((a, b) => a.teacherName.localeCompare(b.teacherName))
   return rows
 }
