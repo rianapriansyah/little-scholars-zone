@@ -4,13 +4,22 @@ import { Alert, Box, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { isNearingEnd } from '../../../lib/attendanceQuota'
+import { formatIdr } from '../../../lib/formatIdr'
 import { fetchOpenPeriods } from '../../../lib/learningPeriods'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
 import type { LearningPeriodListEntry } from '../../../types/attendance'
+import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/payment'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-function periodSearchBlob(row: LearningPeriodListEntry): string {
+/** A learning period row plus its invoice, merged client-side after both fetches resolve. */
+type PeriodRow = LearningPeriodListEntry & {
+  paymentStatus: PaymentStatus | null
+  paymentAmount: number | null
+}
+
+function periodSearchBlob(row: PeriodRow): string {
   return `${row.childName} ${row.classroomLabel}`.toLowerCase()
 }
 
@@ -20,7 +29,7 @@ function periodSearchBlob(row: LearningPeriodListEntry): string {
  */
 export function PeriodsPage() {
   const navigate = useNavigate()
-  const [rows, setRows] = useState<LearningPeriodListEntry[]>([])
+  const [rows, setRows] = useState<PeriodRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 })
@@ -29,13 +38,25 @@ export function PeriodsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const result = await fetchOpenPeriods()
-    setLoading(false)
-    if (!result.ok) {
-      setError(result.error)
+    const periodsResult = await fetchOpenPeriods()
+    if (!periodsResult.ok) {
+      setLoading(false)
+      setError(periodsResult.error)
       return
     }
-    setRows(result.data)
+
+    // Best-effort merge: a failed payment lookup still shows the periods, just with an empty
+    // Pembayaran column, rather than blanking the whole grid.
+    const paymentsResult = await fetchPaymentPeriodsByLearningPeriodIds(periodsResult.data.map((p) => p.id))
+    const paymentsByPeriodId = paymentsResult.ok ? paymentsResult.data : new Map()
+
+    setLoading(false)
+    setRows(
+      periodsResult.data.map((period) => {
+        const payment = paymentsByPeriodId.get(period.id)
+        return { ...period, paymentStatus: payment?.status ?? null, paymentAmount: payment?.amount ?? null }
+      }),
+    )
   }, [])
 
   useEffect(() => {
@@ -47,7 +68,7 @@ export function PeriodsPage() {
     [rows, keyword],
   )
 
-  const columns: GridColDef<LearningPeriodListEntry>[] = useMemo(
+  const columns: GridColDef<PeriodRow>[] = useMemo(
     () => [
       { field: 'childName', headerName: 'Siswa', flex: 1, minWidth: 180 },
       { field: 'classroomLabel', headerName: 'Kelas', flex: 1, minWidth: 150 },
@@ -73,11 +94,33 @@ export function PeriodsPage() {
           />
         ),
       },
+      {
+        field: 'paymentStatus',
+        headerName: 'Pembayaran',
+        width: 130,
+        renderCell: (params) =>
+          params.row.paymentStatus ? (
+            <Chip
+              size="small"
+              label={PAYMENT_STATUS_LABELS[params.row.paymentStatus]}
+              color={params.row.paymentStatus === 'paid' ? 'success' : 'warning'}
+              variant={params.row.paymentStatus === 'paid' ? 'filled' : 'outlined'}
+            />
+          ) : (
+            '—'
+          ),
+      },
+      {
+        field: 'paymentAmount',
+        headerName: 'Nominal',
+        width: 130,
+        valueGetter: (_v, row) => (row.paymentAmount != null ? formatIdr(row.paymentAmount) : '—'),
+      },
     ],
     [],
   )
 
-  const handleCellClick = (params: GridCellParams<LearningPeriodListEntry>) => {
+  const handleCellClick = (params: GridCellParams<PeriodRow>) => {
     void navigate(`/admin/periods/${params.row.id}`)
   }
 

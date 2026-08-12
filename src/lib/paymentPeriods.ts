@@ -21,6 +21,26 @@ export async function fetchPaymentPeriodForLearningPeriod(
   return { ok: true, data: parsed }
 }
 
+/**
+ * learning_period_id → its payment_period, for merging payment info onto a list of periods
+ * already fetched elsewhere (e.g. PeriodsPage's DataGrid) without a per-row round trip.
+ */
+export async function fetchPaymentPeriodsByLearningPeriodIds(
+  learningPeriodIds: string[],
+): Promise<Result<Map<string, PaymentPeriod>>> {
+  if (learningPeriodIds.length === 0) return { ok: true, data: new Map() }
+
+  const { data, error } = await supabase.from('payment_periods').select('*').in('learning_period_id', learningPeriodIds)
+  if (error) return { ok: false, error: error.message }
+
+  const byLearningPeriodId = new Map<string, PaymentPeriod>()
+  for (const row of data ?? []) {
+    const parsed = parsePaymentPeriod(row)
+    if (parsed) byLearningPeriodId.set(parsed.learningPeriodId, parsed)
+  }
+  return { ok: true, data: byLearningPeriodId }
+}
+
 /** Embedded names Postgrest returns alongside a payment_periods row for the admin queue/tab. */
 type PaymentPeriodWithNames = PaymentPeriodRow & {
   children: { full_name: string } | null
