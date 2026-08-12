@@ -16,6 +16,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       child_attendances: {
@@ -496,6 +521,80 @@ export type Database = {
           },
         ]
       }
+      payment_periods: {
+        Row: {
+          amount: number
+          child_id: string
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          id: string
+          learning_period_id: string
+          paid_at: string | null
+          payment_note: string | null
+          receipt_path: string | null
+          registration_submission_id: string | null
+          status: string
+        }
+        Insert: {
+          amount: number
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          learning_period_id: string
+          paid_at?: string | null
+          payment_note?: string | null
+          receipt_path?: string | null
+          registration_submission_id?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          learning_period_id?: string
+          paid_at?: string | null
+          payment_note?: string | null
+          receipt_path?: string | null
+          registration_submission_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_periods_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_periods_learning_period_id_fkey"
+            columns: ["learning_period_id"]
+            isOneToOne: true
+            referencedRelation: "learning_period_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_periods_learning_period_id_fkey"
+            columns: ["learning_period_id"]
+            isOneToOne: true
+            referencedRelation: "learning_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_periods_registration_submission_id_fkey"
+            columns: ["registration_submission_id"]
+            isOneToOne: false
+            referencedRelation: "registration_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       registration_children: {
         Row: {
           birth_place: string | null
@@ -852,6 +951,10 @@ export type Database = {
           sort_order: number
         }[]
       }
+      mark_payment_period_paid: {
+        Args: { p_note?: string; p_payment_period_id: string }
+        Returns: undefined
+      }
       record_attendance: {
         Args: {
           p_child_id: string
@@ -1029,6 +1132,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

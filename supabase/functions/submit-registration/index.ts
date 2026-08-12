@@ -22,7 +22,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const BUCKET = 'registration-receipts'
+const BUCKET = 'payment-receipts'
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
 const ALLOWED_RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
 const MAX_CHILDREN = 10
