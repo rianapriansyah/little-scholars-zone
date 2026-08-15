@@ -75,3 +75,18 @@ export function buildInvoiceMessage(data: InvoiceData): string {
     .filter((line): line is string => line !== null)
     .join('\n')
 }
+
+/**
+ * Prefilled WhatsApp text for a period already marked paid — the counterpart to
+ * buildInvoiceMessage. Whoever calls this opens the receipt (if any) in a separate tab first;
+ * this text has no file of its own to reference, same "attach by hand" limitation as the
+ * invoice.
+ */
+export function buildPaymentConfirmationMessage(data: InvoiceData): string {
+  return [
+    `Halo ${data.familyName},`,
+    ``,
+    `Pembayaran periode belajar ${data.childName} — ${data.classroomLabel} periode #${data.periodNo} sebesar ` +
+      `${formatIdr(data.amount)} telah kami terima. Terima kasih!`,
+  ].join('\n')
+}

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Alert, Box, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
+import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
 import { isNearingEnd } from '../../../lib/attendanceQuota'
-import { formatIdr } from '../../../lib/formatIdr'
 import { fetchOpenPeriods } from '../../../lib/learningPeriods'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
@@ -13,10 +13,9 @@ import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/paymen
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-/** A learning period row plus its invoice, merged client-side after both fetches resolve. */
+/** A learning period row plus its invoice status, merged client-side after both fetches resolve. */
 type PeriodRow = LearningPeriodListEntry & {
   paymentStatus: PaymentStatus | null
-  paymentAmount: number | null
 }
 
 function periodSearchBlob(row: PeriodRow): string {
@@ -34,6 +33,7 @@ export function PeriodsPage() {
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 })
   const [keyword, setKeyword] = useState('')
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -52,10 +52,10 @@ export function PeriodsPage() {
 
     setLoading(false)
     setRows(
-      periodsResult.data.map((period) => {
-        const payment = paymentsByPeriodId.get(period.id)
-        return { ...period, paymentStatus: payment?.status ?? null, paymentAmount: payment?.amount ?? null }
-      }),
+      periodsResult.data.map((period) => ({
+        ...period,
+        paymentStatus: paymentsByPeriodId.get(period.id)?.status ?? null,
+      })),
     )
   }, [])
 
@@ -97,7 +97,7 @@ export function PeriodsPage() {
       {
         field: 'paymentStatus',
         headerName: 'Pembayaran',
-        width: 130,
+        width: 140,
         renderCell: (params) =>
           params.row.paymentStatus ? (
             <Chip
@@ -110,17 +110,15 @@ export function PeriodsPage() {
             '—'
           ),
       },
-      {
-        field: 'paymentAmount',
-        headerName: 'Nominal',
-        width: 130,
-        valueGetter: (_v, row) => (row.paymentAmount != null ? formatIdr(row.paymentAmount) : '—'),
-      },
     ],
     [],
   )
 
   const handleCellClick = (params: GridCellParams<PeriodRow>) => {
+    if (params.field === 'paymentStatus') {
+      setSelectedPeriod(params.row)
+      return
+    }
     void navigate(`/admin/periods/${params.row.id}`)
   }
 
@@ -172,6 +170,19 @@ export function PeriodsPage() {
           </Paper>
         </Box>
       )}
+
+      {selectedPeriod ? (
+        <PaymentPeriodDialog
+          open
+          learningPeriodId={selectedPeriod.id}
+          childName={selectedPeriod.childName}
+          classroomLabel={selectedPeriod.classroomLabel}
+          periodNo={selectedPeriod.periodNo}
+          startDate={selectedPeriod.startDate}
+          onClose={() => setSelectedPeriod(null)}
+          onChanged={() => void load()}
+        />
+      ) : null}
     </Box>
   )
 }

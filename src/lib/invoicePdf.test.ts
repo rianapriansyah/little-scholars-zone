@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildInvoiceMessage, type InvoiceData } from './invoicePdf'
+import { buildInvoiceMessage, buildPaymentConfirmationMessage, type InvoiceData } from './invoicePdf'
 
 const base: InvoiceData = {
   familyName: 'Keluarga Test',
@@ -34,5 +34,20 @@ describe('buildInvoiceMessage', () => {
     const message = buildInvoiceMessage(base)
     expect(message).toContain('Bank: Mandiri')
     expect(message).toContain('1330030611560')
+  })
+})
+
+describe('buildPaymentConfirmationMessage', () => {
+  it('includes the family, child, program, period and amount', () => {
+    const message = buildPaymentConfirmationMessage(base)
+    expect(message).toContain('Keluarga Test')
+    expect(message).toContain('Budi')
+    expect(message).toContain('TK A')
+    expect(message).toContain('#2')
+    expect(message).toContain('Rp 350.000')
+  })
+
+  it('does not repeat the bank transfer details', () => {
+    expect(buildPaymentConfirmationMessage(base)).not.toContain('Bank: Mandiri')
   })
 })

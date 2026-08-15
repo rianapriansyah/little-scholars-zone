@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
-import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import {
   Accordion,
   AccordionDetails,
@@ -12,29 +10,25 @@ import {
   Box,
   Button,
   Chip,
-  IconButton,
   Link,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
-  Tooltip,
   Typography,
 } from '@mui/material'
+import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
 import { ResponsiveTableContainer } from '../../../components/ResponsiveTableContainer'
-import { SendInvoiceDialog } from '../../../components/SendInvoiceDialog'
 import { isNearingEnd } from '../../../lib/attendanceQuota'
-import { formatIdr } from '../../../lib/formatIdr'
-import type { InvoiceData } from '../../../lib/invoicePdf'
 import { fetchPeriodsForChild } from '../../../lib/learningPeriods'
-import { fetchPaymentPeriodsForChild, markPaymentPeriodPaid, markPaymentPeriodUnpaid } from '../../../lib/paymentPeriods'
+import { fetchPaymentPeriodsForChild } from '../../../lib/paymentPeriods'
+import type { PaymentPeriodListEntry } from '../../../lib/paymentPeriods'
 import { supabase } from '../../../lib/supabase'
 import type { LearningPeriodListEntry } from '../../../types/attendance'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { PAYMENT_STATUS_LABELS } from '../../../types/payment'
-import type { PaymentPeriodListEntry } from '../../../lib/paymentPeriods'
 import { LearningPeriodDialog } from './LearningPeriodDialog'
 
 type Props = {
@@ -48,8 +42,7 @@ function ChildPeriods({ child, family }: { child: ChildRow; family: FamilyRow })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null)
-  const [markingId, setMarkingId] = useState<string | null>(null)
+  const [selectedPeriod, setSelectedPeriod] = useState<LearningPeriodListEntry | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -72,30 +65,6 @@ function ChildPeriods({ child, family }: { child: ChildRow; family: FamilyRow })
   useEffect(() => {
     void load()
   }, [load])
-
-  async function handleTogglePaid(payment: PaymentPeriodListEntry) {
-    setMarkingId(payment.id)
-    const result =
-      payment.status === 'paid' ? await markPaymentPeriodUnpaid(payment.id) : await markPaymentPeriodPaid(payment.id)
-    setMarkingId(null)
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-    void load()
-  }
-
-  function handleOpenInvoice(period: LearningPeriodListEntry, payment: PaymentPeriodListEntry | undefined) {
-    setInvoiceData({
-      familyName: family.name,
-      childName: child.full_name,
-      classroomLabel: period.classroomLabel,
-      periodNo: period.periodNo,
-      startDate: period.startDate,
-      amount: payment?.amount ?? 0,
-      dueDate: payment?.dueDate ?? null,
-    })
-  }
 
   return (
     <Box>
@@ -132,7 +101,6 @@ function ChildPeriods({ child, family }: { child: ChildRow; family: FamilyRow })
                 <TableCell align="right">Sisa</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Pembayaran</TableCell>
-                <TableCell align="right">Invoice</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -167,40 +135,17 @@ function ChildPeriods({ child, family }: { child: ChildRow; family: FamilyRow })
                         variant={period.isActive ? 'filled' : 'outlined'}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => setSelectedPeriod(period)} sx={{ cursor: 'pointer' }}>
                       {payment ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip
-                            size="small"
-                            label={`${PAYMENT_STATUS_LABELS[payment.status]} · ${formatIdr(payment.amount)}`}
-                            color={payment.status === 'paid' ? 'success' : 'warning'}
-                            variant={payment.status === 'paid' ? 'filled' : 'outlined'}
-                          />
-                          <Button
-                            size="small"
-                            onClick={() => void handleTogglePaid(payment)}
-                            disabled={markingId === payment.id}
-                          >
-                            {payment.status === 'paid' ? 'Batalkan' : 'Tandai Lunas'}
-                          </Button>
-                        </Box>
+                        <Chip
+                          size="small"
+                          label={PAYMENT_STATUS_LABELS[payment.status]}
+                          color={payment.status === 'paid' ? 'success' : 'warning'}
+                          variant={payment.status === 'paid' ? 'filled' : 'outlined'}
+                        />
                       ) : (
                         '—'
                       )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Kirim Invoice">
-                        <span>
-                          <IconButton
-                            size="small"
-                            color="success"
-                            onClick={() => handleOpenInvoice(period, payment)}
-                            disabled={!payment}
-                          >
-                            {payment?.status === 'unpaid' ? <WhatsAppIcon fontSize="small" /> : <ReceiptLongIcon fontSize="small" />}
-                          </IconButton>
-                        </span>
-                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 )
@@ -218,12 +163,16 @@ function ChildPeriods({ child, family }: { child: ChildRow; family: FamilyRow })
         onSaved={() => void load()}
       />
 
-      {invoiceData ? (
-        <SendInvoiceDialog
+      {selectedPeriod ? (
+        <PaymentPeriodDialog
           open
-          invoice={invoiceData}
-          phone={family.contact_phone}
-          onClose={() => setInvoiceData(null)}
+          learningPeriodId={selectedPeriod.id}
+          childName={child.full_name}
+          classroomLabel={selectedPeriod.classroomLabel}
+          periodNo={selectedPeriod.periodNo}
+          startDate={selectedPeriod.startDate}
+          onClose={() => setSelectedPeriod(null)}
+          onChanged={() => void load()}
         />
       ) : null}
     </Box>
