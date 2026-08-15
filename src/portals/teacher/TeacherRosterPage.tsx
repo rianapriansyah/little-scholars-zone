@@ -207,6 +207,11 @@ export function TeacherRosterPage() {
 
   const isClassDay = isWitaClassDay(now)
 
+  // Flexi-hours groups (e.g. Pembuatan Konten) have no real schedule — they're never hidden on
+  // a weekend and never chain with anything, unlike real classes below.
+  const flexiGroups = groups.filter((g) => g.classroom.is_flexi_hours)
+  const scheduledGroups = groups.filter((g) => !g.classroom.is_flexi_hours)
+
   /**
    * Pairs of the teacher's own classes that run back-to-back today, e.g. an 08:00-10:00 class
    * immediately followed by a 10:00-12:00 one. Drives whether tapping "Selesaikan Kelas" shows
@@ -214,7 +219,11 @@ export function TeacherRosterPage() {
    * automatic, see clockOutAndContinueClassroomTeacher for the server-side re-validation.
    */
   const chainLinks = buildContiguousChainLinks(
-    groups.map((g) => ({ classroomTeacherId: g.id, timeStart: g.classroom.time_start, timeEnd: g.classroom.time_end })),
+    scheduledGroups.map((g) => ({
+      classroomTeacherId: g.id,
+      timeStart: g.classroom.time_start,
+      timeEnd: g.classroom.time_end,
+    })),
   )
 
   /**
@@ -254,9 +263,34 @@ export function TeacherRosterPage() {
    * never also triggers the card's navigate-to-Laporan-Harian click.
    */
   function renderAttendanceControl(group: GroupWithRoster, todaysStart: Date | null, todaysEnd: Date | null) {
-    if (!todaysStart || !todaysEnd) return null
     const record = attendance.get(group.id)
     const isClocking = clockingId === group.id
+
+    if (group.classroom.is_flexi_hours) {
+      // No schedule to gate against — always clickable, any time, any day. Never chains (that's
+      // a real-class concept), so this calls handleClockOut directly rather than handleFinishClick.
+      if (record?.clockedOutAt) {
+        return (
+          <Typography variant="body2" color="text.secondary">
+            Selesai · {record.minutesTaught ?? '—'} menit
+          </Typography>
+        )
+      }
+      if (record?.clockedInAt) {
+        return (
+          <Button size="small" variant="outlined" disabled={isClocking} onClick={() => void handleClockOut(group.id)}>
+            {isClocking ? 'Menyimpan…' : 'Selesai'}
+          </Button>
+        )
+      }
+      return (
+        <Button size="small" variant="contained" disabled={isClocking} onClick={() => void handleClockIn(group.id)}>
+          {isClocking ? 'Menyimpan…' : 'Mulai'}
+        </Button>
+      )
+    }
+
+    if (!todaysStart || !todaysEnd) return null
 
     if (record?.clockedOutAt) {
       // arrivalStatus/departureStatus already reflect what clock_in_classroom_teacher /
@@ -308,6 +342,88 @@ export function TeacherRosterPage() {
     )
   }
 
+  /**
+   * One card, shared by flexi-hours work items (Pembuatan Konten) and real scheduled classes —
+   * the two differ in schedule/roster display and in whether getClassStatus applies at all, but
+   * render through the same Card/CardActionArea/attendance-control shape either way.
+   */
+  function renderCard(group: GroupWithRoster) {
+    const { classroom } = group
+    const isFlexi = classroom.is_flexi_hours
+    const todaysStart = isFlexi ? null : getTodaysClassStartInWita(classroom.time_start, now)
+    const todaysEnd = isFlexi ? null : getTodaysClassEndInWita(classroom.time_end, now)
+    const status = todaysStart ? getClassStatus(todaysStart, now, todaysEnd) : null
+    const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
+    // No roster/curriculum to report on for an internal work item — the card never becomes a
+    // Laporan Harian nav target regardless of the feature flag.
+    const canOpenDailyReport = DAILY_REPORT_ENABLED && !isFlexi
+
+    const cardBody = (
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
+            {classroom.label}
+          </Typography>
+          {status?.label ? (
+            <Chip
+              size="small"
+              label={status.label}
+              // Only the in-progress state is green; "Kelas selesai" must read as neutral.
+              color={status.border === 'green' ? 'success' : 'default'}
+              variant="outlined"
+            />
+          ) : null}
+          {/* The chevron implies "tap for more" — only true while Laporan Harian is reachable. */}
+          {canOpenDailyReport ? <ChevronRightIcon sx={{ color: 'text.disabled' }} /> : null}
+        </Box>
+        {isFlexi ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Jadwal fleksibel · kapan saja
+          </Typography>
+        ) : (
+          <>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Sen–Jum · {classroom.time_start.slice(0, 5)}
+              {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
+              {MAX_STUDENTS_PER_TEACHER} siswa
+            </Typography>
+            {group.roster.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                Belum ada siswa yang terdaftar.
+              </Typography>
+            ) : (
+              <List dense disablePadding>
+                {group.roster.map((r) => (
+                  <ListItem key={r.childId} disableGutters>
+                    <ListItemText primary={r.childName} />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </>
+        )}
+      </CardContent>
+    )
+
+    return (
+      <Card key={group.id} variant="outlined" sx={borderColor ? { borderColor, borderWidth: 2 } : undefined}>
+        {/* Beta: Laporan Harian is disabled for the first week (see featureFlags.ts), so
+            the card stops being a nav target and just displays the roster. */}
+        {canOpenDailyReport ? (
+          <CardActionArea
+            onClick={() => openDailyReport(group.id)}
+            aria-label={`Isi laporan harian untuk ${classroom.label}`}
+          >
+            {cardBody}
+          </CardActionArea>
+        ) : (
+          cardBody
+        )}
+        <Box sx={{ px: 2, pb: 2 }}>{renderAttendanceControl(group, todaysStart, todaysEnd)}</Box>
+      </Card>
+    )
+  }
+
   return (
     <Box>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
@@ -329,80 +445,19 @@ export function TeacherRosterPage() {
 
       {groups.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
-      ) : !isClassDay ? (
-        // Classrooms run Mon–Fri, so listing them on a weekend would invite attendance for a
-        // day that never happened.
-        <Typography color="text.secondary">Tidak ada kelas hari ini.</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {groups.map((group) => {
-            const { classroom } = group
-            const todaysStart = getTodaysClassStartInWita(classroom.time_start, now)
-            const todaysEnd = getTodaysClassEndInWita(classroom.time_end, now)
-            const status = todaysStart ? getClassStatus(todaysStart, now, todaysEnd) : null
-            const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
-
-            const cardBody = (
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                  <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
-                    {classroom.label}
-                  </Typography>
-                  {status?.label ? (
-                    <Chip
-                      size="small"
-                      label={status.label}
-                      // Only the in-progress state is green; "Kelas selesai" must read as neutral.
-                      color={status.border === 'green' ? 'success' : 'default'}
-                      variant="outlined"
-                    />
-                  ) : null}
-                  {/* The chevron implies "tap for more" — only true while Laporan Harian is reachable. */}
-                  {DAILY_REPORT_ENABLED ? <ChevronRightIcon sx={{ color: 'text.disabled' }} /> : null}
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Sen–Jum · {classroom.time_start.slice(0, 5)}
-                  {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
-                  {MAX_STUDENTS_PER_TEACHER} siswa
-                </Typography>
-                {group.roster.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    Belum ada siswa yang terdaftar.
-                  </Typography>
-                ) : (
-                  <List dense disablePadding>
-                    {group.roster.map((r) => (
-                      <ListItem key={r.childId} disableGutters>
-                        <ListItemText primary={r.childName} />
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-              </CardContent>
-            )
-
-            return (
-              <Card
-                key={group.id}
-                variant="outlined"
-                sx={borderColor ? { borderColor, borderWidth: 2 } : undefined}
-              >
-                {/* Beta: Laporan Harian is disabled for the first week (see featureFlags.ts), so
-                    the card stops being a nav target and just displays the roster. */}
-                {DAILY_REPORT_ENABLED ? (
-                  <CardActionArea
-                    onClick={() => openDailyReport(group.id)}
-                    aria-label={`Isi laporan harian untuk ${classroom.label}`}
-                  >
-                    {cardBody}
-                  </CardActionArea>
-                ) : (
-                  cardBody
-                )}
-                <Box sx={{ px: 2, pb: 2 }}>{renderAttendanceControl(group, todaysStart, todaysEnd)}</Box>
-              </Card>
-            )
-          })}
+          {/* Flexi-hours work items (Pembuatan Konten) have no weekday schedule to hide on a
+              weekend — always shown, regardless of isClassDay, unlike the real classes below. */}
+          {flexiGroups.map(renderCard)}
+          {isClassDay ? (
+            scheduledGroups.map(renderCard)
+          ) : scheduledGroups.length > 0 ? (
+            // Classrooms run Mon–Fri, so listing them on a weekend would invite attendance for
+            // a day that never happened. Only shown when there's actually a scheduled class to
+            // say this about — a content-creator-only teacher has none, so nothing here either.
+            <Typography color="text.secondary">Tidak ada kelas hari ini.</Typography>
+          ) : null}
         </Box>
       )}
 
