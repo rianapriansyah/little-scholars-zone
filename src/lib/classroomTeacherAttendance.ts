@@ -157,7 +157,9 @@ export async function clockOutAndContinueClassroomTeacher(
 export async function fetchAttendanceRoster(sessionDate: string): Promise<Result<ClassroomTeacherAttendanceListEntry[]>> {
   const { data: groupRows, error: gError } = await supabase
     .from('classroom_teachers')
-    .select('id, teacher_id, classrooms(label, time_start, time_end, active), teachers(full_name, call_name, rate)')
+    .select(
+      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours), teachers(full_name, call_name, rate)',
+    )
   if (gError) return { ok: false, error: gError.message }
 
   const { data: statusRows, error: sError } = await supabase
@@ -175,7 +177,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   const entries: ClassroomTeacherAttendanceListEntry[] = []
   for (const group of groupRows ?? []) {
     const classroom = group.classrooms as unknown as
-      | { label: string; time_start: string; time_end: string; active: boolean }
+      | { label: string; time_start: string; time_end: string; active: boolean; is_flexi_hours: boolean }
       | null
     const teacher = group.teachers as unknown as
       | { full_name: string; call_name: string | null; rate: number | null }
@@ -190,6 +192,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
       teacherRate: teacher?.rate ?? null,
       timeStart: classroom.time_start,
       timeEnd: classroom.time_end,
+      isFlexiHours: classroom.is_flexi_hours,
       status: byClassroomTeacher.get(group.id) ?? null,
     })
   }
@@ -268,6 +271,9 @@ export function findIncompleteTeacherAttendance(
   for (const group of groupAttendanceByTeacher(entries)) {
     const incompleteClasses: IncompleteClass[] = []
     for (const cls of group.classes) {
+      // Flexi-hours work (Pembuatan Konten) has no real end time to have missed — flagging it
+      // would just nag admins every evening about a clock-out that was never due.
+      if (cls.isFlexiHours) continue
       const scheduledEnd = getTodaysClassEndInWita(cls.timeEnd, now)
       if (!scheduledEnd || scheduledEnd.getTime() > now.getTime()) continue
       if (cls.status?.clockedOutAt) continue

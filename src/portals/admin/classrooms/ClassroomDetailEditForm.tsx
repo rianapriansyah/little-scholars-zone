@@ -47,6 +47,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
     const [price, setPrice] = useState('')
     const [guaranteedDays, setGuaranteedDays] = useState('20')
     const [active, setActive] = useState(true)
+    const [isBillable, setIsBillable] = useState(true)
+    const [isFlexiHours, setIsFlexiHours] = useState(false)
     const [roster, setRoster] = useState<RosterEntry[]>([])
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
@@ -62,6 +64,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       setPrice(classroom ? String(Math.round(classroom.price)) : '')
       setGuaranteedDays(String(classroom?.guaranteed_days ?? 20))
       setActive(classroom?.active ?? true)
+      setIsBillable(classroom?.is_billable ?? true)
+      setIsFlexiHours(classroom?.is_flexi_hours ?? false)
       setError(null)
       setTeacherNames([])
 
@@ -118,14 +122,16 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         return
       }
       // `price` holds digits only, so this cannot be negative or non-finite — an empty field
-      // is the only way it goes wrong.
-      if (price === '') {
+      // is the only way it goes wrong. Not required when non-billable: price/guaranteed_days
+      // are meaningless for an internal work program nobody is ever charged for, so they're
+      // hidden from the form entirely and just saved as 0/the column default.
+      if (isBillable && price === '') {
         setError('Masukkan harga program. Isi 0 bila kelas ini memang tidak dipungut biaya.')
         return
       }
-      const priceValue = Number(price)
-      const guaranteedDaysValue = Number(guaranteedDays)
-      if (!Number.isInteger(guaranteedDaysValue) || guaranteedDaysValue < 1) {
+      const priceValue = isBillable ? Number(price) : 0
+      const guaranteedDaysValue = isBillable ? Number(guaranteedDays) : 20
+      if (isBillable && (!Number.isInteger(guaranteedDaysValue) || guaranteedDaysValue < 1)) {
         setError('Jumlah hari dijamin harus bilangan bulat minimal 1.')
         return
       }
@@ -141,6 +147,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             price: priceValue,
             guaranteed_days: guaranteedDaysValue,
             active,
+            is_billable: isBillable,
+            is_flexi_hours: isFlexiHours,
           })
           .eq('id', classroom.id)
         setSaving(false)
@@ -155,6 +163,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           time_end: timeEnd,
           price: priceValue,
           guaranteed_days: guaranteedDaysValue,
+          is_billable: isBillable,
+          is_flexi_hours: isFlexiHours,
         })
         setSaving(false)
         if (iErr) {
@@ -240,37 +250,63 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           </Box>
 
           <Divider />
-          <Typography variant="subtitle2">Program & Biaya</Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-            {/* Money input follows car-rental: raw digits in state, dot-grouped for display,
-                inputMode numeric with an Rp adornment. type="number" would let a spinner,
-                a minus sign and exponent notation into a price. */}
-            <TextField
-              size="small"
-              label="Harga per Periode"
-              value={groupDigits(price)}
-              onChange={(e) => setPrice(digitsOnly(e.target.value))}
-              required
-              fullWidth
-              inputMode="numeric"
-              slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
-              helperText="Biaya satu periode belajar di kelas ini."
+          <FormControlLabel
+            control={<Switch checked={isBillable} onChange={(e) => setIsBillable(e.target.checked)} />}
+            label="Bisa Ditagih"
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5 }}>
+            {isBillable
+              ? 'Kelas nyata yang dibayar keluarga — muncul di wizard pendaftaran dan pilihan periode belajar.'
+              : 'Program internal (mis. piket kebersihan, pembuatan konten) — tidak pernah ditagih, tidak muncul di pendaftaran. Guru/staf tetap absen masuk/keluar lewat penugasan biasa.'}
+          </Typography>
+
+          {isBillable ? (
+            <>
+              <Typography variant="subtitle2">Program & Biaya</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                {/* Money input follows car-rental: raw digits in state, dot-grouped for display,
+                    inputMode numeric with an Rp adornment. type="number" would let a spinner,
+                    a minus sign and exponent notation into a price. */}
+                <TextField
+                  size="small"
+                  label="Harga per Periode"
+                  value={groupDigits(price)}
+                  onChange={(e) => setPrice(digitsOnly(e.target.value))}
+                  required
+                  fullWidth
+                  inputMode="numeric"
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
+                  helperText="Biaya satu periode belajar di kelas ini."
+                />
+                <TextField
+                  size="small"
+                  label="Hari Dijamin"
+                  type="number"
+                  value={guaranteedDays}
+                  onChange={(e) => setGuaranteedDays(e.target.value)}
+                  required
+                  fullWidth
+                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                  helperText="Dipakai untuk periode baru. Periode yang sudah berjalan tidak ikut berubah."
+                />
+              </Box>
+            </>
+          ) : (
+            <FormControlLabel
+              control={<Switch checked={isFlexiHours} onChange={(e) => setIsFlexiHours(e.target.checked)} />}
+              label="Jam Fleksibel"
             />
-            <TextField
-              size="small"
-              label="Hari Dijamin"
-              type="number"
-              value={guaranteedDays}
-              onChange={(e) => setGuaranteedDays(e.target.value)}
-              required
-              fullWidth
-              slotProps={{ htmlInput: { min: 1, step: 1 } }}
-              helperText="Dipakai untuk periode baru. Periode yang sudah berjalan tidak ikut berubah."
-            />
-          </Box>
+          )}
+          {!isBillable && isFlexiHours ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5 }}>
+              Waktu Mulai/Selesai di atas hanya ditampilkan, tidak dipakai untuk membatasi jam absen — guru/staf bisa
+              absen masuk/keluar kapan saja.
+            </Typography>
+          ) : null}
 
           {isEdit ? (
             <>
+              <Divider />
               <FormControlLabel control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />} label="Aktif" />
 
               <Divider />

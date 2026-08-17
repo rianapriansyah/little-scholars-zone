@@ -30,7 +30,13 @@ export function TeachersPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const { data, error: qError } = await supabase.from('teachers').select('*').order('full_name')
+    // Inactive teachers sink to the bottom of the grid rather than sorting alphabetically
+    // alongside active ones; full_name is the secondary sort within each group.
+    const { data, error: qError } = await supabase
+      .from('teachers')
+      .select('*')
+      .order('active', { ascending: false })
+      .order('full_name')
     setLoading(false)
     if (qError) {
       setError(qError.message)
@@ -90,7 +96,6 @@ export function TeachersPage() {
         },
       },
       { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
-      { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
       {
         field: 'active',
         headerName: 'Status',
@@ -99,7 +104,7 @@ export function TeachersPage() {
           params.row.active ? (
             <Chip size="small" label="Aktif" color="success" variant="outlined" />
           ) : (
-            <Chip size="small" label="Nonaktif" color="default" variant="outlined" />
+            <Chip size="small" label="Nonaktif" color="error" variant="outlined" />
           ),
       },
       {

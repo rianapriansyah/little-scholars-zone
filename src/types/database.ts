@@ -275,6 +275,8 @@ export type Database = {
           created_at: string | null
           guaranteed_days: number
           id: string
+          is_billable: boolean
+          is_flexi_hours: boolean
           label: string
           price: number
           time_end: string
@@ -285,6 +287,8 @@ export type Database = {
           created_at?: string | null
           guaranteed_days?: number
           id?: string
+          is_billable?: boolean
+          is_flexi_hours?: boolean
           label: string
           price: number
           time_end: string
@@ -295,6 +299,8 @@ export type Database = {
           created_at?: string | null
           guaranteed_days?: number
           id?: string
+          is_billable?: boolean
+          is_flexi_hours?: boolean
           label?: string
           price?: number
           time_end?: string

@@ -271,67 +271,74 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                   </Tooltip>
                 </Box>
 
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Siswa ({group.roster.length}/{MAX_STUDENTS_PER_TEACHER})
-                </Typography>
-                {group.roster.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Belum ada siswa yang terdaftar.
-                  </Typography>
-                ) : (
-                  <List dense disablePadding sx={{ mb: 1 }}>
-                    {group.roster.map((r) => (
-                      <ListItem key={r.enrollmentId} disableGutters>
-                        <ListItemText primary={r.childName} />
-                        <ListItemSecondaryAction>
-                          <IconButton
-                            size="small"
-                            aria-label="Hapus siswa"
-                            disabled={busy}
-                            onClick={() => void handleRemoveStudent(r.childId)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </ListItemSecondaryAction>
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
+                {/* Non-billable programs (Piket Pagi, Pembuatan Konten) have no roster — nobody
+                    is ever enrolled into an internal work item, so the whole Siswa section is
+                    just noise here. */}
+                {classroom.is_billable ? (
+                  <>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Siswa ({group.roster.length}/{MAX_STUDENTS_PER_TEACHER})
+                    </Typography>
+                    {group.roster.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        Belum ada siswa yang terdaftar.
+                      </Typography>
+                    ) : (
+                      <List dense disablePadding sx={{ mb: 1 }}>
+                        {group.roster.map((r) => (
+                          <ListItem key={r.enrollmentId} disableGutters>
+                            <ListItemText primary={r.childName} />
+                            <ListItemSecondaryAction>
+                              <IconButton
+                                size="small"
+                                aria-label="Hapus siswa"
+                                disabled={busy}
+                                onClick={() => void handleRemoveStudent(r.childId)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </ListItemSecondaryAction>
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
 
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <TextField
-                    size="small"
-                    select
-                    label="Tambah Siswa"
-                    value={addSelections[group.id] ?? ''}
-                    onChange={(e) => setAddSelections((prev) => ({ ...prev, [group.id]: e.target.value }))}
-                    fullWidth
-                    disabled={atCapacity || availableChildren.length === 0}
-                    helperText={
-                      !atCapacity && availableChildren.length === 0
-                        ? 'Tidak ada siswa dengan periode belajar aktif di kelas ini. Buat periode dulu di Detail Keluarga → Periode Belajar.'
-                        : undefined
-                    }
-                  >
-                    {availableChildren.map((c) => {
-                      const existing = activeEnrollments.get(c.id)
-                      return (
-                        <MenuItem key={c.id} value={c.id}>
-                          {c.full_name}
-                          {existing ? ` (saat ini: ${existing.label})` : ''}
-                        </MenuItem>
-                      )
-                    })}
-                  </TextField>
-                  <Button
-                    variant="outlined"
-                    disabled={!addSelections[group.id] || busy || atCapacity}
-                    onClick={() => void handleAddStudent(group.id)}
-                    sx={{ whiteSpace: 'nowrap' }}
-                  >
-                    Tambah
-                  </Button>
-                </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <TextField
+                        size="small"
+                        select
+                        label="Tambah Siswa"
+                        value={addSelections[group.id] ?? ''}
+                        onChange={(e) => setAddSelections((prev) => ({ ...prev, [group.id]: e.target.value }))}
+                        fullWidth
+                        disabled={atCapacity || availableChildren.length === 0}
+                        helperText={
+                          !atCapacity && availableChildren.length === 0
+                            ? 'Tidak ada siswa dengan periode belajar aktif di kelas ini. Buat periode dulu di Detail Keluarga → Periode Belajar.'
+                            : undefined
+                        }
+                      >
+                        {availableChildren.map((c) => {
+                          const existing = activeEnrollments.get(c.id)
+                          return (
+                            <MenuItem key={c.id} value={c.id}>
+                              {c.full_name}
+                              {existing ? ` (saat ini: ${existing.label})` : ''}
+                            </MenuItem>
+                          )
+                        })}
+                      </TextField>
+                      <Button
+                        variant="outlined"
+                        disabled={!addSelections[group.id] || busy || atCapacity}
+                        onClick={() => void handleAddStudent(group.id)}
+                        sx={{ whiteSpace: 'nowrap' }}
+                      >
+                        Tambah
+                      </Button>
+                    </Box>
+                  </>
+                ) : null}
               </Paper>
             )
           })

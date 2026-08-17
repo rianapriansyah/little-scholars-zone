@@ -12,9 +12,10 @@ export type AttendanceSource = (typeof ATTENDANCE_SOURCES)[number]
  * Mirrors the view's arrival_status CASE. clock_in_classroom_teacher normalises an on-time tap
  * (within 5 minutes either side of the scheduled start) to exactly the scheduled start itself,
  * so 'late' means the recorded time is the teacher's real, later tap — the button no longer
- * refuses a late tap, it just stops normalising it.
+ * refuses a late tap, it just stops normalising it. 'not_applicable' is for an is_flexi_hours
+ * classroom (e.g. Pembuatan Konten) — there is no real schedule to be late or early against.
  */
-export const ARRIVAL_STATUSES = ['on_time', 'late', 'missing'] as const
+export const ARRIVAL_STATUSES = ['on_time', 'late', 'missing', 'not_applicable'] as const
 
 export type ArrivalStatus = (typeof ARRIVAL_STATUSES)[number]
 
@@ -23,9 +24,10 @@ export type ArrivalStatus = (typeof ARRIVAL_STATUSES)[number]
  * within 5 minutes either side of the scheduled end to exactly the scheduled end — symmetric
  * grace, same as arrival — so 'overtime' means the real tap landed more than 5 minutes past the
  * scheduled end. 'early' can only appear on an admin-entered correction now — a normalised
- * teacher punch is never earlier than exactly scheduled_end.
+ * teacher punch is never earlier than exactly scheduled_end. 'not_applicable' mirrors
+ * ArrivalStatus's — same is_flexi_hours reasoning.
  */
-export const DEPARTURE_STATUSES = ['on_time', 'early', 'overtime', 'missing'] as const
+export const DEPARTURE_STATUSES = ['on_time', 'early', 'overtime', 'missing', 'not_applicable'] as const
 
 export type DepartureStatus = (typeof DEPARTURE_STATUSES)[number]
 
@@ -33,6 +35,7 @@ export const ARRIVAL_STATUS_LABELS: Record<ArrivalStatus, string> = {
   on_time: 'Tepat Waktu',
   late: 'Telat',
   missing: 'Belum Absen Masuk',
+  not_applicable: 'Tidak Berjadwal',
 }
 
 export const DEPARTURE_STATUS_LABELS: Record<DepartureStatus, string> = {
@@ -40,6 +43,7 @@ export const DEPARTURE_STATUS_LABELS: Record<DepartureStatus, string> = {
   early: 'Pulang Cepat',
   overtime: 'Over Time',
   missing: 'Belum Absen Selesai',
+  not_applicable: 'Tidak Berjadwal',
 }
 
 /**
@@ -76,6 +80,8 @@ export type ClassroomTeacherAttendanceListEntry = {
   teacherRate: number | null
   timeStart: string
   timeEnd: string
+  /** No real schedule to clock in/out against (e.g. Pembuatan Konten) — see classrooms.is_flexi_hours. */
+  isFlexiHours: boolean
   /** null means no row exists yet for this class on this date — nobody has logged anything. */
   status: ClassroomTeacherAttendanceStatus | null
 }
