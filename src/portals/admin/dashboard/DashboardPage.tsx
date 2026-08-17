@@ -89,7 +89,9 @@ export function DashboardPage() {
     // that — fetching the roster on a weekend would show every teacher as "incomplete" since
     // nobody clocks in then, so the fetch is skipped outright rather than fetched and hidden.
     const [classroomsRes, teachersRes, childrenRes, groupsRes, enrollmentsRes, attendanceResult] = await Promise.all([
-      supabase.from('classrooms').select('id, label, active').order('label'),
+      // is_billable excludes internal work programs (cleaning duty, content creation) — this
+      // tile and the enrollment bar chart below are both about real, fee-paying classrooms.
+      supabase.from('classrooms').select('id, label, active').eq('is_billable', true).order('label'),
       supabase.from('teachers').select('id, active'),
       supabase.from('children').select('id, active'),
       supabase.from('classroom_teachers').select('id, classroom_id'),

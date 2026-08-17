@@ -81,7 +81,23 @@ export function ClassroomsPage() {
 
   const columns: GridColDef<ClassroomView>[] = useMemo(
     () => [
-      { field: 'label', headerName: 'Kelas', flex: 1, minWidth: 200 },
+      {
+        field: 'label',
+        headerName: 'Kelas',
+        flex: 1,
+        minWidth: 220,
+        renderCell: (params) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
+            <Typography variant="body2">{params.row.label}</Typography>
+            {/* Internal work program (cleaning duty, content creation) — never a real class a
+                family enrolls a child into. Distinct from the grid so it can't be mistaken
+                for one while browsing this list. */}
+            {!params.row.is_billable ? (
+              <Chip size="small" label="Non-Billable" color="default" variant="outlined" />
+            ) : null}
+          </Box>
+        ),
+      },
       {
         field: 'time_start',
         headerName: 'Waktu',

@@ -35,6 +35,7 @@ function entry(overrides: Partial<ClassroomTeacherAttendanceListEntry> = {}): Cl
     teacherRate: null,
     timeStart: '08:00:00',
     timeEnd: '10:00:00', // 2026-07-14T02:00:00Z in WITA
+    isFlexiHours: false,
     status: null,
     ...overrides,
   }
@@ -174,6 +175,11 @@ describe('findIncompleteTeacherAttendance', () => {
   it('is empty on a WITA weekend, since no class has a "today" end time to compare against', () => {
     const saturday = new Date('2026-07-18T04:00:00Z') // 12:00 WITA, Saturday
     const result = findIncompleteTeacherAttendance([entry({ status: null })], saturday)
+    expect(result).toEqual([])
+  })
+
+  it('never flags an is_flexi_hours work item, even with no punches after its nominal end', () => {
+    const result = findIncompleteTeacherAttendance([entry({ isFlexiHours: true, status: null })], classEnded)
     expect(result).toEqual([])
   })
 
