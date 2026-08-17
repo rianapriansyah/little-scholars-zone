@@ -23,6 +23,7 @@ import {
 import { AttendanceStatusSelector } from '../../components/AttendanceStatusSelector'
 import { DailyReportMateriPreview } from '../../components/DailyReportMateriPreview'
 import { MasteryLevelSelector } from '../../components/MasteryLevelSelector'
+import { DAILY_REPORT_MATERI_ENABLED } from '../../lib/featureFlags'
 import { saveDailyReportMateri, submitDailyReport } from '../../lib/dailyReport'
 import { buildEntries, isSelectionUnchanged, toRpcEntries, toSelection } from '../../lib/dailyReportEntries'
 import { recordAttendance } from '../../lib/learningPeriods'
@@ -33,15 +34,13 @@ import { CURRICULUM_SUBJECTS, CURRICULUM_SUBJECT_LABELS, isCurriculumSubject } f
 import type { CurriculumItemRow, CurriculumSubject } from '../../types/curriculumItem'
 import type { DailyReportEntry, DailyReportMateri } from '../../types/dailyReport'
 
-/** A numbered, collapsible division of the record, separated from its neighbours by a rule. */
+/** A collapsible division of the record, separated from its neighbours by a rule. */
 function Section({
-  index,
   title,
   chip,
   defaultExpanded = false,
   children,
 }: {
-  index: number
   title: string
   chip?: ReactNode
   defaultExpanded?: boolean
@@ -62,9 +61,7 @@ function Section({
       }}
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
-        <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>
-          {index}. {title}
-        </Typography>
+        <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>{title}</Typography>
         {chip ? <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>{chip}</Box> : null}
       </AccordionSummary>
       <AccordionDetails sx={{ px: 0, pt: 0, pb: 2.5 }}>{children}</AccordionDetails>
@@ -105,8 +102,8 @@ type Props = {
 }
 
 /**
- * One child's whole day, as a modal over the roster: a header, then numbered collapsible
- * divisions — kuota, kehadiran (with its own submit), materi, and the parent preview.
+ * One child's whole day, as a modal over the roster: a header, then collapsible divisions —
+ * kuota, kehadiran (with its own submit), materi, and the parent preview.
  *
  * Attendance is submitted explicitly rather than on tap, so a mis-tap costs nothing until the
  * teacher confirms it — and Materi only unlocks once a 'present' record actually exists.
@@ -292,7 +289,6 @@ export function DailyReportStudentDialog({
             it is the admin's concern at renewal time. It stays on the period detail screen and
             the admin renewal queue. */}
         <Section
-          index={1}
           title="Kehadiran"
           defaultExpanded
           chip={
@@ -354,8 +350,8 @@ export function DailyReportStudentDialog({
           )}
         </Section>
 
+        {DAILY_REPORT_MATERI_ENABLED && (
         <Section
-          index={2}
           title="Materi Hari Ini"
           defaultExpanded
           chip={entries.length > 0 ? <Chip size="small" label={`${entries.length} materi`} color="primary" /> : null}
@@ -445,8 +441,9 @@ export function DailyReportStudentDialog({
             </Box>
           )}
         </Section>
+        )}
 
-        <Section index={3} title="Pratinjau untuk Orang Tua">
+        <Section title="Pratinjau untuk Orang Tua">
           <Panel>
             <DailyReportMateriPreview entries={entries} />
           </Panel>

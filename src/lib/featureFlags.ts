@@ -12,6 +12,13 @@
 export const DAILY_REPORT_ENABLED = true
 
 /**
+ * Beta restriction (owner request, week of 2026-08-18): the teacher can record attendance and
+ * send the parent preview, but filling in Materi Hari Ini itself is on hold, so that section is
+ * hidden inside DailyReportStudentDialog. Set back to true to restore it.
+ */
+export const DAILY_REPORT_MATERI_ENABLED = false
+
+/**
  * Parent self-registration wizard (/register) and its "Daftar di sini" link on the login page.
  * Live as of 2026-08-10 — real transfer instructions are in PaymentStep.tsx (Bank Mandiri,
  * a/n Dewi Cahyanti Wahyu Ningsih) and the migration + submit-registration function are
