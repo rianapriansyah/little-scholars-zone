@@ -9,7 +9,7 @@
  * portal's nav and from the "Kelas Saya" class cards. Set back to true to restore it — both
  * entry points (TeacherLayout, TeacherRosterPage) read this one flag.
  */
-export const DAILY_REPORT_ENABLED = false
+export const DAILY_REPORT_ENABLED = true
 
 /**
  * Parent self-registration wizard (/register) and its "Daftar di sini" link on the login page.
