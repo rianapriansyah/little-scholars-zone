@@ -90,7 +90,7 @@ export async function submitRegistration(
 
   const { path, token } = urlResult.data
   const { error: uploadError } = await supabase.storage
-    .from('registration-receipts')
+    .from('payment-receipts')
     .uploadToSignedUrl(path, token, receipt)
   if (uploadError) {
     return { ok: false, error: `Gagal mengunggah bukti pembayaran: ${uploadError.message}` }
@@ -201,14 +201,9 @@ export async function fetchRegistrationSubmission(id: string): Promise<Result<Re
   }
 }
 
-/** Short-lived signed URL for the private receipt — admin only, per the storage policy. */
-export async function fetchReceiptSignedUrl(receiptPath: string): Promise<Result<string>> {
-  const { data, error } = await supabase.storage
-    .from('registration-receipts')
-    .createSignedUrl(receiptPath, 60 * 10)
-  if (error || !data) return { ok: false, error: error?.message ?? 'Gagal memuat bukti pembayaran.' }
-  return { ok: true, data: data.signedUrl }
-}
+/** Re-exported for callers already importing it from here; lives in receiptStorage.ts because
+ * payment_periods.receipt_path shares the same bucket and needs the same helper. */
+export { fetchReceiptSignedUrl } from './receiptStorage'
 
 /**
  * Approves a submission: creates the family, its children, and a learning period per child

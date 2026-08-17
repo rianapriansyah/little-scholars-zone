@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { formatIdr } from '../../lib/formatIdr'
+import { BANK_ACCOUNT_LINES } from '../../lib/paymentInstructions'
 import {
   mandatoryFeeTotal,
   validatePaymentStep,
@@ -23,9 +24,7 @@ type Props = {
 
 const TRANSFER_INSTRUCTIONS = [
   'Transfer ke rekening berikut, lalu unggah bukti pembayarannya di bawah:',
-  'Bank: Mandiri',
-  'No. Rekening: 1330030611560',
-  'Atas Nama: Dewi Cahyanti Wahyu Ningsih',
+  ...BANK_ACCOUNT_LINES,
 ]
 
 export function PaymentStep({

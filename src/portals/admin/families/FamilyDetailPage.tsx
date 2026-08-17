@@ -114,7 +114,7 @@ export function FamilyDetailPage() {
           {tab === 0 ? (
             <FamilyChildrenTab familyId={familyId} initialExpandedId={focusChildId} refreshKey={childrenRefreshKey} />
           ) : null}
-          {tab === 1 ? <FamilyPeriodsTab familyId={familyId} /> : null}
+          {tab === 1 ? <FamilyPeriodsTab familyId={familyId} family={family} /> : null}
           {tab === 2 ? <FamilyDetailEditForm family={family} onSaved={() => void load()} /> : null}
         </Box>
       </Paper>
