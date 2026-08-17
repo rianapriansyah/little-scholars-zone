@@ -68,6 +68,13 @@ const STATUS_BORDER_COLOR: Record<ClassStatusBorder, string | undefined> = {
   default: undefined,
 }
 
+/** getClassStatus's labels assume a real class — drop the "Kelas" wording on a non-billable
+ *  work item (Piket Pagi) so the chip doesn't call it a "kelas". */
+const NON_BILLABLE_STATUS_LABEL: Record<string, string> = {
+  'Kelas selesai': 'Selesai',
+  'Kelas sedang berjalan': 'Sedang Berjalan',
+}
+
 /** Live-updating check of every 30s so the border/label advance without a page reload. */
 function useNow(intervalMs = 30_000): Date {
   const [now, setNow] = useState(() => new Date())
@@ -124,7 +131,10 @@ export function TeacherRosterPage() {
         })
         results.push({ id: group.id, classroom, roster })
       }
-      results.sort((a, b) => a.classroom.label.localeCompare(b.classroom.label))
+      // By scheduled start time, not label — a teacher's day should read top-to-bottom the way
+      // she actually works it, and that ordering applies the same whether the card is a real
+      // billable class or an internal work program (Piket Pagi, Pembuatan Konten).
+      results.sort((a, b) => a.classroom.time_start.localeCompare(b.classroom.time_start))
 
       const attendanceResult = await fetchAttendanceForClassroomTeachers(
         results.map((r) => r.id),
@@ -209,8 +219,12 @@ export function TeacherRosterPage() {
 
   // Flexi-hours groups (e.g. Pembuatan Konten) have no real schedule — they're never hidden on
   // a weekend and never chain with anything, unlike real classes below.
-  const flexiGroups = groups.filter((g) => g.classroom.is_flexi_hours)
   const scheduledGroups = groups.filter((g) => !g.classroom.is_flexi_hours)
+  // What actually renders today: every flexi-hours group plus, on an actual class day, every
+  // scheduled one — still in the same single time_start order groups was sorted in above, so a
+  // Piket Pagi at 07:00 and a class at 08:00 interleave correctly instead of one block always
+  // coming before the other.
+  const visibleGroups = groups.filter((g) => g.classroom.is_flexi_hours || isClassDay)
 
   /**
    * Pairs of the teacher's own classes that run back-to-back today, e.g. an 08:00-10:00 class
@@ -265,6 +279,7 @@ export function TeacherRosterPage() {
   function renderAttendanceControl(group: GroupWithRoster, todaysStart: Date | null, todaysEnd: Date | null) {
     const record = attendance.get(group.id)
     const isClocking = clockingId === group.id
+    const isBillable = group.classroom.is_billable
 
     if (group.classroom.is_flexi_hours) {
       // No schedule to gate against — always clickable, any time, any day. Never chains (that's
@@ -302,7 +317,7 @@ export function TeacherRosterPage() {
       ].filter((note): note is string => note !== null)
       return (
         <Typography variant="body2" color="text.secondary">
-          Kelas selesai · {record.minutesTaught ?? '—'} menit
+          {isBillable ? 'Kelas selesai' : 'Selesai'} · {record.minutesTaught ?? '—'} menit
           {notes.length > 0 ? ` · ${notes.join(', ')}` : ''}
         </Typography>
       )
@@ -318,7 +333,7 @@ export function TeacherRosterPage() {
             disabled={!canClockOut || isClocking}
             onClick={() => handleFinishClick(group)}
           >
-            {isClocking ? 'Menyimpan…' : 'Selesaikan Kelas'}
+            {isClocking ? 'Menyimpan…' : isBillable ? 'Selesaikan Kelas' : 'Selesaikan'}
           </Button>
           {record.arrivalStatus === 'late' ? (
             <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5 }}>
@@ -337,7 +352,7 @@ export function TeacherRosterPage() {
         disabled={windowStatus !== 'open' || isClocking}
         onClick={() => void handleClockIn(group.id)}
       >
-        {isClocking ? 'Menyimpan…' : 'Masuk Kelas'}
+        {isClocking ? 'Menyimpan…' : isBillable ? 'Masuk Kelas' : 'Masuk'}
       </Button>
     )
   }
@@ -350,13 +365,15 @@ export function TeacherRosterPage() {
   function renderCard(group: GroupWithRoster) {
     const { classroom } = group
     const isFlexi = classroom.is_flexi_hours
+    const isBillable = classroom.is_billable
     const todaysStart = isFlexi ? null : getTodaysClassStartInWita(classroom.time_start, now)
     const todaysEnd = isFlexi ? null : getTodaysClassEndInWita(classroom.time_end, now)
     const status = todaysStart ? getClassStatus(todaysStart, now, todaysEnd) : null
+    const statusLabel = status?.label ? (isBillable ? status.label : (NON_BILLABLE_STATUS_LABEL[status.label] ?? status.label)) : null
     const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
     // No roster/curriculum to report on for an internal work item — the card never becomes a
     // Laporan Harian nav target regardless of the feature flag.
-    const canOpenDailyReport = DAILY_REPORT_ENABLED && !isFlexi
+    const canOpenDailyReport = DAILY_REPORT_ENABLED && isBillable
 
     const cardBody = (
       <CardContent>
@@ -364,12 +381,12 @@ export function TeacherRosterPage() {
           <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
             {classroom.label}
           </Typography>
-          {status?.label ? (
+          {statusLabel ? (
             <Chip
               size="small"
-              label={status.label}
-              // Only the in-progress state is green; "Kelas selesai" must read as neutral.
-              color={status.border === 'green' ? 'success' : 'default'}
+              label={statusLabel}
+              // Only the in-progress state is green; "selesai" must read as neutral.
+              color={status?.border === 'green' ? 'success' : 'default'}
               variant="outlined"
             />
           ) : null}
@@ -380,7 +397,7 @@ export function TeacherRosterPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Jadwal fleksibel · kapan saja
           </Typography>
-        ) : (
+        ) : isBillable ? (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Sen–Jum · {classroom.time_start.slice(0, 5)}
@@ -401,6 +418,13 @@ export function TeacherRosterPage() {
               </List>
             )}
           </>
+        ) : (
+          // Non-billable work item with a real schedule (Piket Pagi): no roster/capacity to
+          // show, just when it runs.
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Sen–Jum · {classroom.time_start.slice(0, 5)}
+            {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''}
+          </Typography>
         )}
       </CardContent>
     )
@@ -445,20 +469,15 @@ export function TeacherRosterPage() {
 
       {groups.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
+      ) : visibleGroups.length > 0 ? (
+        // One list, in time_start order, mixing flexi-hours work items in among real classes —
+        // if nothing is visible here groups.length > 0 still holds, which can only mean every
+        // group is a scheduled class hidden by the weekend guard below.
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>{visibleGroups.map(renderCard)}</Box>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* Flexi-hours work items (Pembuatan Konten) have no weekday schedule to hide on a
-              weekend — always shown, regardless of isClassDay, unlike the real classes below. */}
-          {flexiGroups.map(renderCard)}
-          {isClassDay ? (
-            scheduledGroups.map(renderCard)
-          ) : scheduledGroups.length > 0 ? (
-            // Classrooms run Mon–Fri, so listing them on a weekend would invite attendance for
-            // a day that never happened. Only shown when there's actually a scheduled class to
-            // say this about — a content-creator-only teacher has none, so nothing here either.
-            <Typography color="text.secondary">Tidak ada kelas hari ini.</Typography>
-          ) : null}
-        </Box>
+        // Classrooms run Mon–Fri, so listing them on a weekend would invite attendance for a day
+        // that never happened.
+        <Typography color="text.secondary">Tidak ada kelas hari ini.</Typography>
       )}
 
       <Dialog open={continueDialog !== null} onClose={() => setContinueDialog(null)}>
