@@ -119,9 +119,11 @@ export function PeriodsPage() {
       {
         field: 'actions',
         headerName: '',
-        width: 56,
+        width: 70,
         sortable: false,
         filterable: false,
+        resizable: false,
+        disableColumnMenu: true,
         renderCell: (params) => (
           <Tooltip title="Hapus Periode">
             <IconButton
