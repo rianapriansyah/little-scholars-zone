@@ -96,7 +96,6 @@ export function TeachersPage() {
         },
       },
       { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
-      { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
       {
         field: 'active',
         headerName: 'Status',
