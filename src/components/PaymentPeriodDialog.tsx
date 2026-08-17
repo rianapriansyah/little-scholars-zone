@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import DeleteIcon from '@mui/icons-material/DeleteOutline'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import {
@@ -64,6 +65,10 @@ export function PaymentPeriodDialog({
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [marking, setMarking] = useState(false)
+  // A file picked but not yet uploaded — staged locally so the admin can see what they're
+  // about to attach and back out before it actually goes to Storage.
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -105,18 +110,41 @@ export function PaymentPeriodDialog({
     if (open) void load()
   }, [open, load])
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  // Revokes the *previous* preview URL whenever it changes (a new file staged, the selection
+  // cleared, or the dialog unmounting) — one place, so a staged file can never leak its blob URL.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  /** Stages a picked file for preview — nothing is uploaded until "Unggah" is pressed. */
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file || !payment) return
+    if (!file) return
+    setSelectedFile(file)
+    // Only an image can be shown inline; a staged PDF just shows its file name until uploaded,
+    // same "no inline preview" treatment the already-uploaded receipt gets below.
+    setPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : null)
+  }
+
+  function handleDiscardSelection() {
+    setSelectedFile(null)
+    setPreviewUrl(null)
+  }
+
+  async function handleConfirmUpload() {
+    if (!selectedFile || !payment) return
     setUploading(true)
     setError(null)
-    const result = await uploadPaymentReceipt(payment.id, file)
+    const result = await uploadPaymentReceipt(payment.id, selectedFile)
     setUploading(false)
     if (!result.ok) {
       setError(result.error)
       return
     }
+    handleDiscardSelection()
     await load()
     onChanged()
   }
@@ -177,34 +205,66 @@ export function PaymentPeriodDialog({
             </Typography>
             <Typography variant="h6">{formatIdr(payment.amount)}</Typography>
 
-            {isPaid ? (
-              receiptUrl ? (
-                isPdfPath(payment.receiptPath ?? '') ? (
-                  <Link href={receiptUrl} target="_blank" rel="noopener noreferrer">
-                    Buka Bukti Pembayaran (PDF)
-                  </Link>
-                ) : (
+            {/* The already-attached receipt, if any — shown whenever there is one and nothing
+                new is staged, regardless of paid/unpaid status. */}
+            {!selectedFile && receiptUrl ? (
+              isPdfPath(payment.receiptPath ?? '') ? (
+                <Link href={receiptUrl} target="_blank" rel="noopener noreferrer">
+                  Buka Bukti Pembayaran (PDF)
+                </Link>
+              ) : (
+                <Box
+                  component="img"
+                  src={receiptUrl}
+                  alt="Bukti pembayaran"
+                  sx={{ maxWidth: '100%', maxHeight: 320, borderRadius: 1, border: 1, borderColor: 'divider' }}
+                />
+              )
+            ) : null}
+            {!selectedFile && !receiptUrl && isPaid ? (
+              <Alert severity="info">Tidak ada bukti pembayaran diunggah.</Alert>
+            ) : null}
+
+            {selectedFile ? (
+              // Staged, not yet uploaded — a preview plus the choice to actually send it or
+              // back out, instead of uploading the moment a file is picked.
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {previewUrl ? (
                   <Box
                     component="img"
-                    src={receiptUrl}
-                    alt="Bukti pembayaran"
+                    src={previewUrl}
+                    alt="Pratinjau bukti pembayaran"
                     sx={{ maxWidth: '100%', maxHeight: 320, borderRadius: 1, border: 1, borderColor: 'divider' }}
                   />
-                )
-              ) : (
-                <Alert severity="info">Tidak ada bukti pembayaran diunggah.</Alert>
-              )
-            ) : (
+                ) : (
+                  <Alert severity="info">{selectedFile.name}</Alert>
+                )}
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button variant="contained" size="small" onClick={() => void handleConfirmUpload()} disabled={uploading}>
+                    {uploading ? 'Mengunggah…' : 'Unggah'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleDiscardSelection}
+                    disabled={uploading}
+                  >
+                    Hapus
+                  </Button>
+                </Box>
+              </Box>
+            ) : !isPaid ? (
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button variant="outlined" component="label" size="small" startIcon={<UploadFileIcon />} disabled={uploading}>
-                  {uploading ? 'Mengunggah…' : 'Unggah Bukti Pembayaran'}
-                  <input type="file" accept="image/*,application/pdf" hidden onChange={(e) => void handleUpload(e)} />
+                <Button variant="outlined" component="label" size="small" startIcon={<UploadFileIcon />}>
+                  {receiptUrl ? 'Ganti Bukti Pembayaran' : 'Unggah Bukti Pembayaran'}
+                  <input type="file" accept="image/*,application/pdf" hidden onChange={handleFileSelect} />
                 </Button>
                 <Button variant="contained" size="small" onClick={() => void handleMarkPaid()} disabled={marking}>
                   {marking ? 'Memproses…' : 'Tandai Lunas'}
                 </Button>
               </Box>
-            )}
+            ) : null}
           </Box>
         )}
       </DialogContent>
