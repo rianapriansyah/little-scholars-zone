@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Box, Chip, Paper, Typography } from '@mui/material'
+import DeleteIcon from '@mui/icons-material/DeleteOutline'
+import { Alert, Box, Chip, IconButton, Paper, Tooltip, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
 import { isNearingEnd } from '../../../lib/attendanceQuota'
 import { fetchOpenPeriods } from '../../../lib/learningPeriods'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
+import { deletePaymentReceipt } from '../../../lib/receiptStorage'
+import { supabase } from '../../../lib/supabase'
 import type { LearningPeriodListEntry } from '../../../types/attendance'
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/payment'
 
@@ -34,6 +38,8 @@ export function PeriodsPage() {
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 })
   const [keyword, setKeyword] = useState('')
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<PeriodRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -110,6 +116,27 @@ export function PeriodsPage() {
             '—'
           ),
       },
+      {
+        field: 'actions',
+        headerName: '',
+        width: 56,
+        sortable: false,
+        filterable: false,
+        renderCell: (params) => (
+          <Tooltip title="Hapus Periode">
+            <IconButton
+              size="small"
+              aria-label="Hapus periode"
+              onClick={(e) => {
+                e.stopPropagation()
+                setDeleteTarget(params.row)
+              }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ),
+      },
     ],
     [],
   )
@@ -119,7 +146,36 @@ export function PeriodsPage() {
       setSelectedPeriod(params.row)
       return
     }
+    if (params.field === 'actions') return
     void navigate(`/admin/periods/${params.row.id}`)
+  }
+
+  /**
+   * Deletes the payment_periods row and the learning_periods row together (delete_learning_period
+   * does both server-side, in that order, in one transaction), then best-effort deletes the
+   * attached receipt from storage if there was one — see deletePaymentReceipt. Blocked by the
+   * database (error code '23503') when the period has recorded attendance, same convention as
+   * ClassroomDetailEditForm's delete: refused, not silently cascaded.
+   */
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setError(null)
+    const { data: receiptPath, error: rpcError } = await supabase.rpc('delete_learning_period', {
+      p_learning_period_id: deleteTarget.id,
+    })
+    setDeleting(false)
+    if (rpcError) {
+      setError(
+        rpcError.code === '23503'
+          ? 'Tidak dapat dihapus: periode ini memiliki riwayat kehadiran tercatat.'
+          : rpcError.message,
+      )
+      return
+    }
+    if (receiptPath) void deletePaymentReceipt(receiptPath)
+    setDeleteTarget(null)
+    await load()
   }
 
   return (
@@ -183,6 +239,15 @@ export function PeriodsPage() {
           onChanged={() => void load()}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Hapus Periode Belajar"
+        description={`Hapus periode #${deleteTarget?.periodNo} milik ${deleteTarget?.childName}? Data pembayaran dan bukti pembayaran yang terlampir (jika ada) akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void handleDelete()}
+      />
     </Box>
   )
 }

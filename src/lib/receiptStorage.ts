@@ -25,3 +25,16 @@ export async function uploadReceiptDirect(path: string, file: File): Promise<Res
   if (error) return { ok: false, error: error.message }
   return { ok: true, data: undefined }
 }
+
+/**
+ * Called after delete_learning_period has already removed the payment_periods row that
+ * referenced this file — Postgres can't reach into Storage itself, so the client does this
+ * second step. Best-effort by design at the call site: the DB rows are already gone by the time
+ * this runs, so a failure here just leaves an orphaned file in a private bucket, never a
+ * dangling reference.
+ */
+export async function deletePaymentReceipt(path: string): Promise<Result<void>> {
+  const { error } = await supabase.storage.from(RECEIPTS_BUCKET).remove([path])
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: undefined }
+}
