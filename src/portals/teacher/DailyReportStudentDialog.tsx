@@ -23,11 +23,13 @@ import {
 import { AttendanceStatusSelector } from '../../components/AttendanceStatusSelector'
 import { DailyReportMateriPreview } from '../../components/DailyReportMateriPreview'
 import { MasteryLevelSelector } from '../../components/MasteryLevelSelector'
-import { DAILY_REPORT_MATERI_ENABLED } from '../../lib/featureFlags'
-import { saveDailyReportMateri, submitDailyReport } from '../../lib/dailyReport'
+import { MoodSelector } from '../../components/MoodSelector'
+import { DAILY_REPORT_MATERI_ENABLED, DAILY_REPORT_MOOD_ENABLED } from '../../lib/featureFlags'
+import { saveDailyReportMateri, saveDailyReportMood, submitDailyReport } from '../../lib/dailyReport'
 import { buildEntries, isSelectionUnchanged, toRpcEntries, toSelection } from '../../lib/dailyReportEntries'
 import { recordAttendance } from '../../lib/learningPeriods'
 import type { MasteryLevel } from '../../lib/masteryLevels'
+import type { Mood } from '../../lib/moods'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import { CURRICULUM_SUBJECTS, CURRICULUM_SUBJECT_LABELS, isCurriculumSubject } from '../../types/curriculumItem'
@@ -124,6 +126,19 @@ export function DailyReportStudentDialog({
   const [reportId, setReportId] = useState<string | null>(report.reportId)
   const [submittedAt, setSubmittedAt] = useState<string | null>(report.submittedAt)
 
+  const [moodArrival, setMoodArrival] = useState<Mood | null>(report.moodArrival)
+  const [moodStudying, setMoodStudying] = useState<Mood | null>(report.moodStudying)
+  const [moodDeparture, setMoodDeparture] = useState<Mood | null>(report.moodDeparture)
+  const [moodNote, setMoodNote] = useState(report.moodNote ?? '')
+  /** What is actually stored, mirroring savedEntries — compared against the four fields above
+   * to compute moodDirty. */
+  const [savedMood, setSavedMood] = useState({
+    arrival: report.moodArrival,
+    studying: report.moodStudying,
+    departure: report.moodDeparture,
+    note: report.moodNote ?? '',
+  })
+
   const initialStatus = attendance && isAttendanceStatus(attendance.status) ? attendance.status : null
   /** What is actually stored. Materi gates on this, never on the pending choice. */
   const [savedStatus, setSavedStatus] = useState<AttendanceStatus | null>(initialStatus)
@@ -141,7 +156,12 @@ export function DailyReportStudentDialog({
   const attendanceDirty = draftStatus !== savedStatus || draftNote !== savedNote
 
   const entries = useMemo(() => buildEntries(selection, catalog), [selection, catalog])
-  const dirty = !isSelectionUnchanged(selection, savedEntries)
+  const moodDirty =
+    moodArrival !== savedMood.arrival ||
+    moodStudying !== savedMood.studying ||
+    moodDeparture !== savedMood.departure ||
+    moodNote !== savedMood.note
+  const dirty = !isSelectionUnchanged(selection, savedEntries) || (DAILY_REPORT_MOOD_ENABLED && moodDirty)
 
   const bySubject = useMemo(() => {
     const grouped = new Map<CurriculumSubject, CurriculumItemRow[]>(
@@ -205,6 +225,24 @@ export function DailyReportStudentDialog({
     }
     setReportId(result.data)
     setSavedEntries(entries)
+
+    if (DAILY_REPORT_MOOD_ENABLED) {
+      const moodResult = await saveDailyReportMood({
+        childId: report.childId,
+        classroomTeacherId: report.classroomTeacherId,
+        reportDate: report.reportDate,
+        moodArrival,
+        moodStudying,
+        moodDeparture,
+        moodNote: moodNote.trim() === '' ? null : moodNote,
+      })
+      if (!moodResult.ok) {
+        setError(moodResult.error)
+        return null
+      }
+      setSavedMood({ arrival: moodArrival, studying: moodStudying, departure: moodDeparture, note: moodNote })
+    }
+
     return result.data
   }
 
@@ -443,9 +481,92 @@ export function DailyReportStudentDialog({
         </Section>
         )}
 
+        {DAILY_REPORT_MOOD_ENABLED && (
+        <Section
+          title="Suasana Hati"
+          chip={
+            [moodArrival, moodStudying, moodDeparture].filter(Boolean).length > 0 ? (
+              <Chip
+                size="small"
+                label={`${[moodArrival, moodStudying, moodDeparture].filter(Boolean).length}/3 diisi`}
+                color="primary"
+              />
+            ) : null
+          }
+        >
+          {!isPresent && !locked ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              {savedStatus === null
+                ? 'Masukkan kehadiran dulu. Suasana hati hanya diisi untuk siswa yang hadir.'
+                : `Siswa ${ATTENDANCE_STATUS_LABELS[savedStatus].toLowerCase()} hari ini — suasana hati tidak diisi.`}
+            </Alert>
+          ) : null}
+
+          <Panel>
+            <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
+              <Field
+                label="Ketika Datang"
+                value={
+                  <MoodSelector
+                    value={moodArrival}
+                    onChange={setMoodArrival}
+                    disabled={materiDisabled}
+                    ariaLabel="Suasana hati ketika datang"
+                  />
+                }
+              />
+              <Field
+                label="Ketika Belajar"
+                value={
+                  <MoodSelector
+                    value={moodStudying}
+                    onChange={setMoodStudying}
+                    disabled={materiDisabled}
+                    ariaLabel="Suasana hati ketika belajar"
+                  />
+                }
+              />
+              <Field
+                label="Ketika Pulang"
+                value={
+                  <MoodSelector
+                    value={moodDeparture}
+                    onChange={setMoodDeparture}
+                    disabled={materiDisabled}
+                    ariaLabel="Suasana hati ketika pulang"
+                  />
+                }
+              />
+              <Field
+                label="Catatan"
+                divider={false}
+                value={
+                  <TextField
+                    size="small"
+                    placeholder="Opsional — elaborasi suasana hati datang/belajar/pulang"
+                    value={moodNote}
+                    onChange={(e) => setMoodNote(e.target.value)}
+                    disabled={materiDisabled}
+                    fullWidth
+                    multiline
+                    minRows={2}
+                  />
+                }
+              />
+            </Box>
+          </Panel>
+        </Section>
+        )}
+
         <Section title="Pratinjau untuk Orang Tua">
           <Panel>
-            <DailyReportMateriPreview entries={entries} />
+            <DailyReportMateriPreview
+              entries={entries}
+              moodArrival={DAILY_REPORT_MOOD_ENABLED ? moodArrival : undefined}
+              moodStudying={DAILY_REPORT_MOOD_ENABLED ? moodStudying : undefined}
+              moodDeparture={DAILY_REPORT_MOOD_ENABLED ? moodDeparture : undefined}
+              moodNote={DAILY_REPORT_MOOD_ENABLED ? moodNote : undefined}
+            />
           </Panel>
         </Section>
       </DialogContent>

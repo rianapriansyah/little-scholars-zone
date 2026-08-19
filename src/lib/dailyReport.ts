@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { isMood, type Mood } from './moods'
 import type { Result } from './result'
 import { isCurriculumSubject } from '../types/curriculumItem'
 import type { CurriculumItemRow } from '../types/curriculumItem'
@@ -75,8 +76,9 @@ export async function fetchClassReportSummaries(
 }
 
 /**
- * The Materi Hari Ini section for one student on one date. Returns an empty, unsaved
- * DailyReportMateri when no report exists yet, so callers never branch on null.
+ * The Materi Hari Ini and Suasana Hati sections for one student on one date. Returns an
+ * empty, unsaved DailyReportMateri when no report exists yet, so callers never branch on
+ * null.
  */
 export async function fetchDailyReportMateri(
   childId: string,
@@ -88,7 +90,7 @@ export async function fetchDailyReportMateri(
   const { data, error } = await supabase
     .from('daily_reports')
     .select(
-      'id, child_id, classroom_teacher_id, report_date, submitted_at, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
+      'id, child_id, classroom_teacher_id, report_date, submitted_at, mood_arrival, mood_studying, mood_departure, mood_note, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
     )
     .eq('child_id', childId)
     .eq('report_date', reportDate)
@@ -98,7 +100,18 @@ export async function fetchDailyReportMateri(
   if (!data) {
     return {
       ok: true,
-      data: { reportId: null, childId, classroomTeacherId, reportDate, submittedAt: null, entries: [] },
+      data: {
+        reportId: null,
+        childId,
+        classroomTeacherId,
+        reportDate,
+        submittedAt: null,
+        entries: [],
+        moodArrival: null,
+        moodStudying: null,
+        moodDeparture: null,
+        moodNote: null,
+      },
     }
   }
 
@@ -126,6 +139,10 @@ export async function fetchDailyReportMateri(
       reportDate: data.report_date,
       submittedAt: data.submitted_at,
       entries: sortEntries(entries),
+      moodArrival: parseMood(data.mood_arrival),
+      moodStudying: parseMood(data.mood_studying),
+      moodDeparture: parseMood(data.mood_departure),
+      moodNote: data.mood_note,
     },
   }
 }
@@ -154,6 +171,37 @@ export async function saveDailyReportMateri(params: {
 /** Stamps submitted_at, which is what makes the report visible to the parent. */
 export async function submitDailyReport(reportId: string): Promise<Result<string>> {
   const { data, error } = await supabase.rpc('submit_daily_report', { p_report_id: reportId })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data }
+}
+
+/** null → not a recognised mood value; parseMasteryLevel's pattern, but for the mood scale. */
+function parseMood(value: string | null): Mood | null {
+  return value !== null && isMood(value) ? value : null
+}
+
+/**
+ * Upserts the report and sets its mood fields. Idempotent — safe to call repeatedly while the
+ * teacher corrects a draft. Returns the report id.
+ */
+export async function saveDailyReportMood(params: {
+  childId: string
+  classroomTeacherId: string
+  reportDate: string
+  moodArrival: Mood | null
+  moodStudying: Mood | null
+  moodDeparture: Mood | null
+  moodNote: string | null
+}): Promise<Result<string>> {
+  const { data, error } = await supabase.rpc('save_daily_report_mood', {
+    p_child_id: params.childId,
+    p_classroom_teacher_id: params.classroomTeacherId,
+    p_report_date: params.reportDate,
+    p_mood_arrival: params.moodArrival ?? undefined,
+    p_mood_studying: params.moodStudying ?? undefined,
+    p_mood_departure: params.moodDeparture ?? undefined,
+    p_mood_note: params.moodNote?.trim() || undefined,
+  })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
 }

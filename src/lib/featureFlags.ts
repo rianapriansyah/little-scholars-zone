@@ -19,6 +19,13 @@ export const DAILY_REPORT_ENABLED = true
 export const DAILY_REPORT_MATERI_ENABLED = false
 
 /**
+ * New section (2026-08-19): Suasana Hati (mood at arrival/studying/departure) in
+ * DailyReportStudentDialog. Off until the UI has been checked with a teacher; the DB side
+ * (daily_reports.mood_* columns, save_daily_report_mood()) is already live either way.
+ */
+export const DAILY_REPORT_MOOD_ENABLED = false
+
+/**
  * Parent self-registration wizard (/register) and its "Daftar di sini" link on the login page.
  * Live as of 2026-08-10 — real transfer instructions are in PaymentStep.tsx (Bank Mandiri,
  * a/n Dewi Cahyanti Wahyu Ningsih) and the migration + submit-registration function are
