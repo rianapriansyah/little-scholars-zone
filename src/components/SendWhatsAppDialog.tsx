@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  TextField,
+  Typography,
+} from '@mui/material'
 import { buildWhatsAppMeUrlWithMessage } from '../lib/whatsappLink'
 
 type Props = {
@@ -26,7 +38,12 @@ export function SendWhatsAppDialog({ open, name, phone, onClose }: Props) {
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Kirim WhatsApp — {name}</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        Kirim WhatsApp — {name}
+        <IconButton onClick={onClose} size="small" aria-label="Tutup">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         {phone ? (
           <>

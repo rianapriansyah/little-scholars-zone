@@ -1,3 +1,4 @@
+import CloseIcon from '@mui/icons-material/Close'
 import {
   Button,
   type ButtonProps,
@@ -6,6 +7,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  IconButton,
 } from '@mui/material'
 
 type Props = {
@@ -29,7 +31,12 @@ export function ConfirmDialog({
 }: Props) {
   return (
     <Dialog open={open} onClose={onCancel} fullWidth maxWidth="xs">
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        {title}
+        <IconButton onClick={onCancel} size="small" aria-label="Tutup">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         <DialogContentText>{description}</DialogContentText>
       </DialogContent>

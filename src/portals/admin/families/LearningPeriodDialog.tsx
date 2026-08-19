@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
   Box,
@@ -7,6 +8,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   MenuItem,
   TextField,
 } from '@mui/material'
@@ -129,7 +131,12 @@ export function LearningPeriodDialog({ open, child, family, onClose, onSaved }: 
     // take the invoice prompt down with it if nested inside instead of alongside.
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>Tambah Periode Belajar</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          Tambah Periode Belajar
+          <IconButton onClick={handleClose} disabled={saving} size="small" aria-label="Tutup">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent dividers>
           {error ? (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

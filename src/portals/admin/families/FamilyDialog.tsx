@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton } from '@mui/material'
 import { FamilyDetailEditForm, type FamilyDetailEditFormHandle } from './FamilyDetailEditForm'
 
 type Props = {
@@ -21,7 +22,12 @@ export function FamilyDialog({ open, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>Tambah Keluarga</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        Tambah Keluarga
+        <IconButton onClick={handleClose} disabled={isBusy} size="small" aria-label="Tutup">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         {open ? (
           <FamilyDetailEditForm

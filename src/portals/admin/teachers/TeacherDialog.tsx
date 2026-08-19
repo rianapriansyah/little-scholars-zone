@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
   Avatar,
@@ -10,6 +11,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   InputAdornment,
   Switch,
   TextField,
@@ -177,7 +179,12 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
   return (
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>{isEdit ? 'Edit Guru' : 'Tambah Guru'}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          {isEdit ? 'Edit Guru' : 'Tambah Guru'}
+          <IconButton onClick={handleClose} disabled={saving || generating} size="small" aria-label="Tutup">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent dividers>
           {error ? (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

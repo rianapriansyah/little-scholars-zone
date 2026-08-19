@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import DeleteIcon from '@mui/icons-material/DeleteOutline'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
@@ -11,6 +12,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   Link,
   Typography,
 } from '@mui/material'
@@ -184,7 +186,12 @@ export function PaymentPeriodDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Pembayaran — {childName}</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        Pembayaran — {childName}
+        <IconButton onClick={onClose} size="small" aria-label="Tutup">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         {loading ? (
           <Box display="flex" justifyContent="center" py={3}>
