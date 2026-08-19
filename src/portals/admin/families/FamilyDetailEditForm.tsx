@@ -226,18 +226,12 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           <Field label="Nama Keluarga" value={name} />
           <Field label="Email Login" value={generatedEmail} />
           <Field label="Telepon Kontak" value={phone} />
-
-          <Typography variant="subtitle2" sx={{ mt: 1 }}>Ayah</Typography>
           <Field label="Nama Ayah" value={fatherName} />
           <Field label="Pekerjaan Ayah" value={fatherOccupation} />
           <Field label="Nomor Telepon Ayah" value={fatherPhone} />
-
-          <Typography variant="subtitle2" sx={{ mt: 1 }}>Ibu</Typography>
           <Field label="Nama Ibu" value={motherName} />
           <Field label="Pekerjaan Ibu" value={motherOccupation} />
           <Field label="Nomor Telepon Ibu" value={motherPhone} />
-
-          <Typography variant="subtitle2" sx={{ mt: 1 }}>Alamat</Typography>
           <Field label="Alamat" value={address} />
 
           {hideActions ? null : (
