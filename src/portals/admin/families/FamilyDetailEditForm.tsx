@@ -1,14 +1,18 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import { Alert, Box, Button, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { createFamilyAccount } from '../../../lib/createFamilyAccount'
-import { familyEmailDomain, familyEmailLocalPart, generateUniqueFamilyEmail } from '../../../lib/familyEmail'
+import { familyEmailLocalPart, generateUniqueFamilyEmail } from '../../../lib/familyEmail'
 import { toTitleCase } from '../../../lib/textCase'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { FamilyRow } from '../../../types/family'
 
 export type FamilyDetailEditFormHandle = {
-  save: () => Promise<void>
+  /** Create mode: advances form -> review on the first call (validating + resolving the login
+   *  email), then actually saves on the next. Edit mode: always saves — there is no review step. */
+  submit: () => Promise<void>
+  /** Review step only: back to the form without discarding what was entered. */
+  back: () => void
 }
 
 type Props = {
@@ -17,15 +21,28 @@ type Props = {
   /** Batal (create dialog only). */
   onCancel?: () => void
   /**
-   * When true, the built-in actions row (Batal/Simpan) is suppressed. The parent is
-   * expected to render its own buttons and trigger save via the imperative handle.
+   * When true, the built-in actions row (Batal/Selanjutnya/Simpan) is suppressed. The parent
+   * is expected to render its own buttons and drive the form via the imperative handle.
    */
   hideActions?: boolean
-  onBusyChange?: (busy: { saving: boolean; generating: boolean }) => void
+  onBusyChange?: (busy: { saving: boolean; generating: boolean; checking: boolean }) => void
+  /** Create mode only — mirrors the internal step, so a parent using hideActions can label its
+   *  own button and offer a "Kembali" action. Always 'form' in edit mode. */
+  onStepChange?: (step: 'form' | 'review') => void
+}
+
+/** Read-only label/value line for the review step — same shape as ReviewStep.tsx's. */
+function Row({ label, value }: { label: string; value: string }) {
+  if (!value) return null
+  return (
+    <Typography variant="body2" color="text.secondary">
+      {label}: <Typography component="span" color="text.primary">{value}</Typography>
+    </Typography>
+  )
 }
 
 export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props>(function FamilyDetailEditForm(
-  { family, onSaved, onCancel, hideActions = false, onBusyChange },
+  { family, onSaved, onCancel, hideActions = false, onBusyChange, onStepChange },
   ref,
 ) {
   const isEdit = family !== null
@@ -45,6 +62,12 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
   const [generating, setGenerating] = useState(false)
   const [credentials, setCredentials] = useState<{ email: string; password: string; reused?: boolean } | null>(null)
 
+  /** Create mode only: 'form' while filling in details, 'review' once the login email has
+   *  been resolved and the admin is confirming everything before the account is created. */
+  const [step, setStep] = useState<'form' | 'review'>('form')
+  const [checkingEmail, setCheckingEmail] = useState(false)
+  const [generatedEmail, setGeneratedEmail] = useState('')
+
   const phoneDigits = phone.replace(/\D/g, '')
 
   useEffect(() => {
@@ -62,8 +85,12 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
   }, [family])
 
   useEffect(() => {
-    onBusyChange?.({ saving, generating })
-  }, [saving, generating, onBusyChange])
+    onBusyChange?.({ saving, generating, checking: checkingEmail })
+  }, [saving, generating, checkingEmail, onBusyChange])
+
+  useEffect(() => {
+    onStepChange?.(step)
+  }, [step, onStepChange])
 
   const extras = {
     father_name: fatherName.trim() || null,
@@ -108,7 +135,9 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       }
       onSaved()
     } else {
-      const generatedEmail = await generateUniqueFamilyEmail(name)
+      // generatedEmail was already resolved in handleNext(), before the review step ever
+      // showed — recomputing here could silently save a different address than the one the
+      // admin just reviewed.
       const result = await createFamilyAccount({ name, email: generatedEmail, phone })
       if (!result.ok) {
         setSaving(false)
@@ -127,8 +156,33 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
     }
   }
 
+  /** Create mode: validates the form, resolves the actual (uniqueness-checked) login email,
+   *  and moves to the review step — nothing is written yet. */
+  async function handleNext() {
+    setError(null)
+    if (!phoneDigits) {
+      setError('Masukkan nomor telepon kontak — digunakan untuk mengirim info login melalui WhatsApp.')
+      return
+    }
+    if (!familyEmailLocalPart(name)) {
+      setError('Masukkan nama keluarga untuk membuat email login.')
+      return
+    }
+    setCheckingEmail(true)
+    const resolvedEmail = await generateUniqueFamilyEmail(name)
+    setCheckingEmail(false)
+    setGeneratedEmail(resolvedEmail)
+    setStep('review')
+  }
+
+  function handleBack() {
+    setError(null)
+    setStep('form')
+  }
+
   useImperativeHandle(ref, () => ({
-    save: () => handleSave(),
+    submit: () => (!isEdit && step === 'form' ? handleNext() : handleSave()),
+    back: handleBack,
   }))
 
   async function handleGenerateCredentials() {
@@ -156,6 +210,56 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
   }
 
   const canGenerateCredentials = isEdit && !!(email.trim() || family.contact_email) && !!phoneDigits
+
+  if (!isEdit && step === 'review') {
+    return (
+      <>
+        {error ? (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        ) : null}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Ringkasan Keluarga
+            </Typography>
+            <Row label="Nama Keluarga" value={name} />
+            <Row label="Email Login" value={generatedEmail} />
+            <Row label="Telepon Kontak" value={phone} />
+            <Row label="Ayah" value={[fatherName, fatherOccupation, fatherPhone].filter(Boolean).join(' · ')} />
+            <Row label="Ibu" value={[motherName, motherOccupation, motherPhone].filter(Boolean).join(' · ')} />
+            <Row label="Alamat" value={address} />
+          </Paper>
+
+          {hideActions ? null : (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              <Button onClick={handleBack} disabled={saving}>
+                Kembali
+              </Button>
+              {onCancel ? (
+                <Button onClick={onCancel} disabled={saving}>
+                  Batal
+                </Button>
+              ) : null}
+              <Button variant="contained" onClick={() => void handleSave()} disabled={saving}>
+                {saving ? 'Membuat…' : 'Simpan & Buat Login'}
+              </Button>
+            </Box>
+          )}
+        </Box>
+        <CredentialsRevealDialog
+          open={credentials !== null}
+          name={name.trim()}
+          email={credentials?.email ?? ''}
+          password={credentials?.password ?? ''}
+          phone={phone}
+          reused={credentials?.reused}
+          onClose={handleCredentialsDone}
+        />
+      </>
+    )
+  }
 
   return (
     <>
@@ -185,16 +289,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
             fullWidth
             helperText="Digunakan sebagai email login orang tua."
           />
-        ) : (
-          <TextField
-            size="small"
-            label="Email Login (Otomatis)"
-            value={name.trim() ? `${familyEmailLocalPart(name)}@${familyEmailDomain()}` : ''}
-            fullWidth
-            disabled
-            helperText="Dibuat otomatis dari Nama Keluarga (mis. Rian Apriansyah → rianapr@lsz.id)."
-          />
-        )}
+        ) : null}
         <TextField
           size="small"
           label="Telepon Kontak"
@@ -287,16 +382,23 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
             ) : null}
             <Button
               variant="contained"
-              onClick={() => void handleSave()}
+              onClick={() => void (isEdit ? handleSave() : handleNext())}
               disabled={
                 saving ||
                 generating ||
+                checkingEmail ||
                 !name.trim() ||
                 !phoneDigits ||
                 (isEdit ? !email.trim() : !familyEmailLocalPart(name))
               }
             >
-              {isEdit ? (saving ? 'Menyimpan…' : 'Simpan') : saving ? 'Membuat…' : 'Simpan & Buat Login'}
+              {isEdit
+                ? saving
+                  ? 'Menyimpan…'
+                  : 'Simpan'
+                : checkingEmail
+                  ? 'Memeriksa…'
+                  : 'Selanjutnya'}
             </Button>
           </Box>
         )}

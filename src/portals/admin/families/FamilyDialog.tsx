@@ -11,8 +11,9 @@ type Props = {
 /** Create new family only — edit opens the Family detail page. */
 export function FamilyDialog({ open, onClose, onSaved }: Props) {
   const formRef = useRef<FamilyDetailEditFormHandle>(null)
-  const [busy, setBusy] = useState({ saving: false, generating: false })
-  const isBusy = busy.saving || busy.generating
+  const [busy, setBusy] = useState({ saving: false, generating: false, checking: false })
+  const [step, setStep] = useState<'form' | 'review'>('form')
+  const isBusy = busy.saving || busy.generating || busy.checking
 
   function handleClose() {
     if (isBusy) return
@@ -29,6 +30,7 @@ export function FamilyDialog({ open, onClose, onSaved }: Props) {
             family={null}
             hideActions
             onBusyChange={setBusy}
+            onStepChange={setStep}
             onSaved={() => {
               onSaved()
               onClose()
@@ -40,8 +42,19 @@ export function FamilyDialog({ open, onClose, onSaved }: Props) {
         <Button onClick={handleClose} disabled={isBusy}>
           Batal
         </Button>
-        <Button variant="contained" onClick={() => void formRef.current?.save()} disabled={isBusy}>
-          {busy.saving ? 'Membuat…' : 'Simpan & Buat Login'}
+        {step === 'review' ? (
+          <Button onClick={() => formRef.current?.back()} disabled={isBusy}>
+            Kembali
+          </Button>
+        ) : null}
+        <Button variant="contained" onClick={() => void formRef.current?.submit()} disabled={isBusy}>
+          {step === 'review'
+            ? busy.saving
+              ? 'Membuat…'
+              : 'Simpan & Buat Login'
+            : busy.checking
+              ? 'Memeriksa…'
+              : 'Selanjutnya'}
         </Button>
       </DialogActions>
     </Dialog>
