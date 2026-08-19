@@ -23,7 +23,7 @@ export const DAILY_REPORT_MATERI_ENABLED = false
  * DailyReportStudentDialog. Off until the UI has been checked with a teacher; the DB side
  * (daily_reports.mood_* columns, save_daily_report_mood()) is already live either way.
  */
-export const DAILY_REPORT_MOOD_ENABLED = false
+export const DAILY_REPORT_MOOD_ENABLED = true
 
 /**
  * Parent self-registration wizard (/register) and its "Daftar di sini" link on the login page.

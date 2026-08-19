@@ -36,7 +36,7 @@ export function AttendanceStatusSelector({ value, onChange, disabled = false, ar
           value={status}
           aria-label={`${ATTENDANCE_STATUS_LABELS[status]} — ${ATTENDANCE_STATUS_HINTS[status]}`}
           color={status === 'sick' ? 'info' : status === 'absent' ? 'warning' : 'success'}
-          sx={{ py: 1, fontWeight: 600 }}
+          sx={{ py: 0.5, fontWeight: 600 }}
           size="small"
         >
           {ATTENDANCE_STATUS_LABELS[status]}

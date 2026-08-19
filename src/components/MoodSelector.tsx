@@ -26,7 +26,7 @@ export function MoodSelector({ value, onChange, disabled = false, ariaLabel }: P
         }}
       >
         {MOODS.map((mood) => (
-          <ToggleButton key={mood.value} value={mood.value} aria-label={mood.label} sx={{ py: 1, fontSize: '1.25rem' }}>
+          <ToggleButton key={mood.value} value={mood.value} aria-label={mood.label} sx={{ py: 0.5, fontSize: '1rem' }}>
             {mood.emoji}
           </ToggleButton>
         ))}
