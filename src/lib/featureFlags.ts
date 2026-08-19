@@ -16,7 +16,7 @@ export const DAILY_REPORT_ENABLED = true
  * send the parent preview, but filling in Materi Hari Ini itself is on hold, so that section is
  * hidden inside DailyReportStudentDialog. Set back to true to restore it.
  */
-export const DAILY_REPORT_MATERI_ENABLED = false
+export const DAILY_REPORT_MATERI_ENABLED = true
 
 /**
  * New section (2026-08-19): Suasana Hati (mood at arrival/studying/departure) in

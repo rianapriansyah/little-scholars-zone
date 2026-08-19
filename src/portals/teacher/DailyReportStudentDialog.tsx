@@ -25,7 +25,12 @@ import { DailyReportMateriPreview } from '../../components/DailyReportMateriPrev
 import { MasteryLevelSelector } from '../../components/MasteryLevelSelector'
 import { MoodSelector } from '../../components/MoodSelector'
 import { DAILY_REPORT_MATERI_ENABLED, DAILY_REPORT_MOOD_ENABLED } from '../../lib/featureFlags'
-import { saveDailyReportMateri, saveDailyReportMood, submitDailyReport } from '../../lib/dailyReport'
+import {
+  saveDailyReportMateri,
+  saveDailyReportMood,
+  submitDailyReport,
+  translateMoodNote,
+} from '../../lib/dailyReport'
 import { buildEntries, isSelectionUnchanged, toRpcEntries, toSelection } from '../../lib/dailyReportEntries'
 import { recordAttendance } from '../../lib/learningPeriods'
 import type { MasteryLevel } from '../../lib/masteryLevels'
@@ -130,13 +135,18 @@ export function DailyReportStudentDialog({
   const [moodStudying, setMoodStudying] = useState<Mood | null>(report.moodStudying)
   const [moodDeparture, setMoodDeparture] = useState<Mood | null>(report.moodDeparture)
   const [moodNote, setMoodNote] = useState(report.moodNote ?? '')
-  /** What is actually stored, mirroring savedEntries — compared against the four fields above
-   * to compute moodDirty. */
+  /** The parent-facing rewrite. Populated by "Terjemahkan untuk Orang Tua", then freely
+   * editable — the teacher reviews it before it is ever saved. */
+  const [moodNoteParent, setMoodNoteParent] = useState(report.moodNoteParent ?? '')
+  const [translating, setTranslating] = useState(false)
+  /** What is actually stored, mirroring savedEntries — compared against the fields above to
+   * compute moodDirty. */
   const [savedMood, setSavedMood] = useState({
     arrival: report.moodArrival,
     studying: report.moodStudying,
     departure: report.moodDeparture,
     note: report.moodNote ?? '',
+    noteParent: report.moodNoteParent ?? '',
   })
 
   const initialStatus = attendance && isAttendanceStatus(attendance.status) ? attendance.status : null
@@ -160,7 +170,8 @@ export function DailyReportStudentDialog({
     moodArrival !== savedMood.arrival ||
     moodStudying !== savedMood.studying ||
     moodDeparture !== savedMood.departure ||
-    moodNote !== savedMood.note
+    moodNote !== savedMood.note ||
+    moodNoteParent !== savedMood.noteParent
   const dirty = !isSelectionUnchanged(selection, savedEntries) || (DAILY_REPORT_MOOD_ENABLED && moodDirty)
 
   const bySubject = useMemo(() => {
@@ -235,15 +246,42 @@ export function DailyReportStudentDialog({
         moodStudying,
         moodDeparture,
         moodNote: moodNote.trim() === '' ? null : moodNote,
+        moodNoteParent: moodNoteParent.trim() === '' ? null : moodNoteParent,
       })
       if (!moodResult.ok) {
         setError(moodResult.error)
         return null
       }
-      setSavedMood({ arrival: moodArrival, studying: moodStudying, departure: moodDeparture, note: moodNote })
+      setSavedMood({
+        arrival: moodArrival,
+        studying: moodStudying,
+        departure: moodDeparture,
+        note: moodNote,
+        noteParent: moodNoteParent,
+      })
     }
 
     return result.data
+  }
+
+  /** senang/biasa/sedih picked for whichever moment has one — mood_note isn't tied to a single
+   * moment, so this is a best-effort context for the rewrite, not a hard requirement. */
+  function pickMoodForTranslation(): Mood | null {
+    return moodArrival ?? moodStudying ?? moodDeparture ?? null
+  }
+
+  async function handleTranslateMoodNote() {
+    const mood = pickMoodForTranslation()
+    if (!mood || !moodNote.trim()) return
+    setTranslating(true)
+    setError(null)
+    const result = await translateMoodNote({ mood, note: moodNote })
+    setTranslating(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    setMoodNoteParent(result.data)
   }
 
   async function handleSaveDraft() {
@@ -539,13 +577,37 @@ export function DailyReportStudentDialog({
               />
               <Field
                 label="Catatan"
-                divider={false}
                 value={
                   <TextField
                     size="small"
                     placeholder="Opsional — elaborasi suasana hati datang/belajar/pulang"
                     value={moodNote}
                     onChange={(e) => setMoodNote(e.target.value)}
+                    disabled={materiDisabled}
+                    fullWidth
+                    multiline
+                    minRows={2}
+                  />
+                }
+              />
+              <Button
+                size="small"
+                variant="outlined"
+                sx={{ mb: 1.5 }}
+                onClick={() => void handleTranslateMoodNote()}
+                disabled={materiDisabled || translating || !moodNote.trim() || !pickMoodForTranslation()}
+              >
+                {translating ? 'Menerjemahkan…' : 'Terjemahkan untuk Orang Tua'}
+              </Button>
+              <Field
+                label="Pratinjau untuk Orang Tua (bisa diedit)"
+                divider={false}
+                value={
+                  <TextField
+                    size="small"
+                    placeholder="Muncul di sini setelah diterjemahkan — atau tulis sendiri"
+                    value={moodNoteParent}
+                    onChange={(e) => setMoodNoteParent(e.target.value)}
                     disabled={materiDisabled}
                     fullWidth
                     multiline
@@ -565,7 +627,7 @@ export function DailyReportStudentDialog({
               moodArrival={DAILY_REPORT_MOOD_ENABLED ? moodArrival : undefined}
               moodStudying={DAILY_REPORT_MOOD_ENABLED ? moodStudying : undefined}
               moodDeparture={DAILY_REPORT_MOOD_ENABLED ? moodDeparture : undefined}
-              moodNote={DAILY_REPORT_MOOD_ENABLED ? moodNote : undefined}
+              moodNoteParent={DAILY_REPORT_MOOD_ENABLED ? moodNoteParent : undefined}
             />
           </Panel>
         </Section>

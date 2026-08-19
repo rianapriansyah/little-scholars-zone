@@ -11,7 +11,8 @@
     "test": "vitest run",
     "deploy:function:create-teacher-account": "supabase functions deploy create-teacher-account",
     "deploy:function:create-family-account": "supabase functions deploy create-family-account",
-    "deploy:function:submit-registration": "supabase functions deploy submit-registration"
+    "deploy:function:submit-registration": "supabase functions deploy submit-registration",
+    "deploy:function:translate-mood-note": "supabase functions deploy translate-mood-note"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -21,7 +21,9 @@ type Props = {
   moodArrival?: Mood | null
   moodStudying?: Mood | null
   moodDeparture?: Mood | null
-  moodNote?: string | null
+  /** The parent-facing rewrite — never the teacher's raw note. Named distinctly from
+   * mood_note so a caller can't wire the wrong field in by accident. */
+  moodNoteParent?: string | null
   /** Shown when nothing was covered. Worded for the teacher by default; the parent screen
    * will want its own wording. */
   emptyText?: string
@@ -53,12 +55,12 @@ export function DailyReportMateriPreview({
   moodArrival,
   moodStudying,
   moodDeparture,
-  moodNote,
+  moodNoteParent,
   emptyText,
   dense = false,
 }: Props) {
   const groups = groupEntriesBySubject(entries)
-  const hasMood = Boolean(moodArrival || moodStudying || moodDeparture || moodNote?.trim())
+  const hasMood = Boolean(moodArrival || moodStudying || moodDeparture || moodNoteParent?.trim())
 
   if (groups.length === 0 && !hasMood) {
     return (
@@ -79,9 +81,9 @@ export function DailyReportMateriPreview({
             {moodArrival ? <MoodLine momentLabel="Ketika datang" mood={moodArrival} /> : null}
             {moodStudying ? <MoodLine momentLabel="Ketika belajar" mood={moodStudying} /> : null}
             {moodDeparture ? <MoodLine momentLabel="Ketika pulang" mood={moodDeparture} /> : null}
-            {moodNote?.trim() ? (
+            {moodNoteParent?.trim() ? (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                {moodNote}
+                {moodNoteParent}
               </Typography>
             ) : null}
           </Box>

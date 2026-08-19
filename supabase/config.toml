@@ -2,11 +2,17 @@
 # Deploy: npm run deploy:function:create-teacher-account
 # Deploy: npm run deploy:function:create-family-account
 # Deploy: npm run deploy:function:submit-registration
+# Deploy: npm run deploy:function:translate-mood-note
 
 [functions.create-teacher-account]
 verify_jwt = true
 
 [functions.create-family-account]
+verify_jwt = true
+
+# Called by a signed-in teacher/admin from DailyReportStudentDialog. Needs OPENAI_API_KEY set
+# via `supabase secrets set` — never committed, never logged.
+[functions.translate-mood-note]
 verify_jwt = true
 
 # The only public endpoint in the project: the parent registration wizard runs before any

@@ -90,7 +90,7 @@ export async function fetchDailyReportMateri(
   const { data, error } = await supabase
     .from('daily_reports')
     .select(
-      'id, child_id, classroom_teacher_id, report_date, submitted_at, mood_arrival, mood_studying, mood_departure, mood_note, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
+      'id, child_id, classroom_teacher_id, report_date, submitted_at, mood_arrival, mood_studying, mood_departure, mood_note, mood_note_parent, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
     )
     .eq('child_id', childId)
     .eq('report_date', reportDate)
@@ -111,6 +111,7 @@ export async function fetchDailyReportMateri(
         moodStudying: null,
         moodDeparture: null,
         moodNote: null,
+        moodNoteParent: null,
       },
     }
   }
@@ -143,6 +144,7 @@ export async function fetchDailyReportMateri(
       moodStudying: parseMood(data.mood_studying),
       moodDeparture: parseMood(data.mood_departure),
       moodNote: data.mood_note,
+      moodNoteParent: data.mood_note_parent,
     },
   }
 }
@@ -192,6 +194,7 @@ export async function saveDailyReportMood(params: {
   moodStudying: Mood | null
   moodDeparture: Mood | null
   moodNote: string | null
+  moodNoteParent: string | null
 }): Promise<Result<string>> {
   const { data, error } = await supabase.rpc('save_daily_report_mood', {
     p_child_id: params.childId,
@@ -201,7 +204,33 @@ export async function saveDailyReportMood(params: {
     p_mood_studying: params.moodStudying ?? undefined,
     p_mood_departure: params.moodDeparture ?? undefined,
     p_mood_note: params.moodNote?.trim() || undefined,
+    p_mood_note_parent: params.moodNoteParent?.trim() || undefined,
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
+}
+
+/**
+ * Rewrites a teacher's raw mood note into a parent-appropriate version via the
+ * translate-mood-note Edge Function (OpenAI). Never writes to the DB itself — the caller
+ * shows the result to the teacher for review/editing before it is saved with
+ * saveDailyReportMood.
+ */
+export async function translateMoodNote(params: { mood: Mood; note: string }): Promise<Result<string>> {
+  const { data, error } = await supabase.functions.invoke<{ text?: string; error?: string }>(
+    'translate-mood-note',
+    { body: { mood: params.mood, note: params.note } },
+  )
+
+  if (error) {
+    // supabase.functions.invoke wraps non-2xx as a generic error; try to extract the actual
+    // message from the response body before falling back.
+    const body = (await (error.context as Response | undefined)?.json?.().catch(() => null)) as
+      | { error?: string }
+      | null
+    return { ok: false, error: body?.error ?? error.message }
+  }
+  if (data?.error) return { ok: false, error: data.error }
+  if (!data?.text) return { ok: false, error: 'Respons kosong dari layanan terjemahan.' }
+  return { ok: true, data: data.text }
 }

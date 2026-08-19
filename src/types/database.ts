@@ -356,6 +356,7 @@ export type Database = {
           mood_arrival: string | null
           mood_departure: string | null
           mood_note: string | null
+          mood_note_parent: string | null
           mood_studying: string | null
           report_date: string
           session_id: string | null
@@ -370,6 +371,7 @@ export type Database = {
           mood_arrival?: string | null
           mood_departure?: string | null
           mood_note?: string | null
+          mood_note_parent?: string | null
           mood_studying?: string | null
           report_date?: string
           session_id?: string | null
@@ -384,6 +386,7 @@ export type Database = {
           mood_arrival?: string | null
           mood_departure?: string | null
           mood_note?: string | null
+          mood_note_parent?: string | null
           mood_studying?: string | null
           report_date?: string
           session_id?: string | null
@@ -982,6 +985,7 @@ export type Database = {
           p_mood_arrival?: string
           p_mood_departure?: string
           p_mood_note?: string
+          p_mood_note_parent?: string
           p_mood_studying?: string
           p_report_date: string
         }

@@ -38,7 +38,11 @@ export type DailyReportMateri = {
   moodArrival: Mood | null
   moodStudying: Mood | null
   moodDeparture: Mood | null
+  /** The teacher's raw note — never shown to a parent. */
   moodNote: string | null
+  /** Parent-facing rewrite of moodNote, from translate-mood-note + teacher review. Null until
+   * generated. This is the only mood-note field DailyReportMateriPreview may read. */
+  moodNoteParent: string | null
 }
 
 /** Per-student status shown in the class roster on the entry screen. */
