@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
@@ -10,16 +11,17 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  FormControlLabel,
   IconButton,
   InputAdornment,
-  Switch,
+  Link,
   TextField,
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { createTeacherAccount } from '../../../lib/createTeacherAccount'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { DangerZone } from '../../../components/DangerZone'
 import type { TeacherRow } from '../../../types/teacher'
 import { composeEducation, splitEducation } from '../../../lib/teacherEducation'
 import { digitsOnly, groupDigits } from '../../../lib/formatIdr'
@@ -40,13 +42,19 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
   const isEdit = teacher !== null
 
   const [fullName, setFullName] = useState('')
+  const [callName, setCallName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [active, setActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [credentials, setCredentials] = useState<{ email: string; password: string; reused?: boolean } | null>(null)
+
+  /** Classes still pointing at this teacher — a hard delete is blocked (23503) until each one
+   * is reassigned or removed from the classroom's own Penugasan tab. */
+  const [assignedClassrooms, setAssignedClassrooms] = useState<{ classroomId: string; label: string }[]>([])
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const [educationLevel, setEducationLevel] = useState('')
   const [educationSchool, setEducationSchool] = useState('')
@@ -62,10 +70,11 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) return
     setFullName(teacher?.full_name ?? '')
+    setCallName(teacher?.call_name ?? '')
     setEmail(teacher?.email ?? '')
     setPhone(teacher?.contact_phone ?? '')
-    setActive(teacher?.active ?? true)
     setError(null)
+    setConfirmDeleteOpen(false)
 
     const [level, school, year] = splitEducation(teacher?.education ?? null)
     setEducationLevel(level)
@@ -78,6 +87,28 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     // Raw digits only, same reasoning as classroom price: numeric(12,2) can arrive with a
     // fractional part that the grouped display and digitsOnly() would both mangle.
     setRate(teacher?.rate != null ? String(Math.round(teacher.rate)) : '')
+  }, [open, teacher])
+
+  useEffect(() => {
+    if (!open || !teacher) {
+      setAssignedClassrooms([])
+      return
+    }
+    let cancelled = false
+    void supabase
+      .from('classroom_teachers')
+      .select('classroom_id, classrooms(label)')
+      .eq('teacher_id', teacher.id)
+      .then(({ data }) => {
+        if (cancelled) return
+        const rows = (data ?? []) as unknown as { classroom_id: string; classrooms: { label: string } | null }[]
+        setAssignedClassrooms(
+          rows.map((row) => ({ classroomId: row.classroom_id, label: row.classrooms?.label ?? '—' })),
+        )
+      })
+    return () => {
+      cancelled = true
+    }
   }, [open, teacher])
 
   const handleClose = () => {
@@ -121,6 +152,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     }
 
     const extras = {
+      call_name: callName.trim() || null,
       education: composeEducation(educationLevel, educationSchool, educationYear),
       photo_url: photoUrl,
       start_working_at: startWorkingAt || todayIsoDate(),
@@ -131,7 +163,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     if (isEdit) {
       const { error: uErr } = await supabase
         .from('teachers')
-        .update({ full_name: fullName.trim(), contact_phone: phone.trim() || null, active, ...extras })
+        .update({ full_name: fullName.trim(), contact_phone: phone.trim() || null, ...extras })
         .eq('id', teacher.id)
       setSaving(false)
       if (uErr) {
@@ -174,6 +206,25 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     setCredentials(null)
     onSaved()
     if (!isEdit) onClose()
+  }
+
+  async function handleDelete() {
+    if (!teacher) return
+    setDeleting(true)
+    setError(null)
+    const { error: dErr } = await supabase.from('teachers').delete().eq('id', teacher.id)
+    setDeleting(false)
+    setConfirmDeleteOpen(false)
+    if (dErr) {
+      setError(
+        dErr.code === '23503'
+          ? 'Tidak dapat dihapus: guru ini masih ditetapkan ke satu atau lebih kelas. Lepaskan penugasannya dulu.'
+          : dErr.message,
+      )
+      return
+    }
+    onSaved()
+    onClose()
   }
 
   return (
@@ -223,6 +274,14 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
               onChange={(e) => setFullName(e.target.value)}
               required
               fullWidth
+            />
+            <TextField
+              size="small"
+              label="Panggilan Kerja"
+              value={callName}
+              onChange={(e) => setCallName(e.target.value)}
+              fullWidth
+              helperText="Nama yang ditampilkan di daftar guru dan laporan. Kosongkan untuk memakai nama lengkap."
             />
             <TextField
               size="small"
@@ -300,10 +359,6 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
                   helperText="Opsional. Dipakai untuk estimasi di laporan PDF Kehadiran Guru — bukan penggajian resmi."
                 />
 
-                <FormControlLabel
-                  control={<Switch checked={active} onChange={(e) => setActive(e.target.checked)} />}
-                  label="Aktif"
-                />
                 <Button
                   variant="outlined"
                   disabled={generating || saving || !phoneDigits}
@@ -311,6 +366,32 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
                 >
                   {generating ? 'Memproses…' : teacher.auth_user_id ? 'Reset Kata Sandi' : 'Buat Info Login'}
                 </Button>
+
+                <Divider />
+                {assignedClassrooms.length > 0 ? (
+                  <Alert severity="warning">
+                    Guru ini masih ditetapkan ke {assignedClassrooms.length} kelas. Lepaskan penugasannya dari tab
+                    Penugasan sebelum menghapus:
+                    <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
+                      {assignedClassrooms.map((c) => (
+                        <li key={c.classroomId}>
+                          <Link component={RouterLink} to={`/admin/classrooms/${c.classroomId}`} underline="hover">
+                            {c.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </Box>
+                  </Alert>
+                ) : null}
+                <DangerZone
+                  title="Zona Terbatas"
+                  description="Guru ini akan dihapus permanen, termasuk info login. Jika masih ditetapkan ke kelas manapun, hapus akan ditolak — lepaskan penugasannya dulu."
+                  actionLabel="Hapus Guru"
+                  busyLabel="Menghapus…"
+                  busy={deleting}
+                  disabled={saving || generating || assignedClassrooms.length > 0}
+                  onAction={() => setConfirmDeleteOpen(true)}
+                />
               </>
             ) : null}
           </Box>
@@ -336,6 +417,14 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
         phone={phone}
         reused={credentials?.reused}
         onClose={handleCredentialsDone}
+      />
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Hapus Guru"
+        description={`Hapus "${teacher?.full_name}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+        onCancel={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => void handleDelete()}
       />
     </>
   )
