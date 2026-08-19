@@ -12,7 +12,7 @@ type Props = {
 export function FamilyDialog({ open, onClose, onSaved }: Props) {
   const formRef = useRef<FamilyDetailEditFormHandle>(null)
   const [busy, setBusy] = useState({ saving: false, generating: false, checking: false })
-  const [step, setStep] = useState<'form' | 'review'>('form')
+  const [step, setStep] = useState<'form' | 'children' | 'review'>('form')
   const isBusy = busy.saving || busy.generating || busy.checking
 
   function handleClose() {
@@ -42,7 +42,7 @@ export function FamilyDialog({ open, onClose, onSaved }: Props) {
         <Button onClick={handleClose} disabled={isBusy}>
           Batal
         </Button>
-        {step === 'review' ? (
+        {step === 'children' || step === 'review' ? (
           <Button onClick={() => formRef.current?.back()} disabled={isBusy}>
             Kembali
           </Button>

@@ -1,19 +1,43 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import { Alert, Box, Button, TextField, Typography } from '@mui/material'
+import DeleteIcon from '@mui/icons-material/Delete'
+import { Alert, Box, Button, IconButton, Paper, TextField, Typography } from '@mui/material'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import dayjs from 'dayjs'
 import { supabase } from '../../../lib/supabase'
 import { createFamilyAccount } from '../../../lib/createFamilyAccount'
 import { familyEmailLocalPart, generateUniqueFamilyEmail } from '../../../lib/familyEmail'
+import { formatAge } from '../../../lib/calculateAge'
+import { MAX_CHILDREN } from '../../../lib/registrationDraft'
 import { toTitleCase } from '../../../lib/textCase'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import type { FamilyRow } from '../../../types/family'
 
 export type FamilyDetailEditFormHandle = {
-  /** Create mode: advances form -> review on the first call (validating + resolving the login
-   *  email), then actually saves on the next. Edit mode: always saves — there is no review step. */
+  /** Create mode: advances one step (form -> children -> review) on each call, resolving the
+   *  login email on the first, then actually saves on the last. Edit mode: always saves —
+   *  there is no wizard. */
   submit: () => Promise<void>
-  /** Review step only: back to the form without discarding what was entered. */
+  /** Children/review steps only: back one step without discarding what was entered. */
   back: () => void
 }
+
+/** Create mode only. One child being entered before the family is saved — never sent to the
+ *  server directly; handleSave() maps these onto `children` rows once the family exists. */
+type DraftChild = {
+  /** React list key, never sent to the server. */
+  key: string
+  fullName: string
+  birthPlace: string
+  /** ISO yyyy-mm-dd, or null when not filled in. */
+  birthdate: string | null
+  notes: string
+}
+
+function emptyChild(key: string): DraftChild {
+  return { key, fullName: '', birthPlace: '', birthdate: null, notes: '' }
+}
+
+type Step = 'form' | 'children' | 'review'
 
 type Props = {
   family: FamilyRow | null
@@ -28,7 +52,7 @@ type Props = {
   onBusyChange?: (busy: { saving: boolean; generating: boolean; checking: boolean }) => void
   /** Create mode only — mirrors the internal step, so a parent using hideActions can label its
    *  own button and offer a "Kembali" action. Always 'form' in edit mode. */
-  onStepChange?: (step: 'form' | 'review') => void
+  onStepChange?: (step: Step) => void
 }
 
 /** Read-only stand-in for a TextField on the review step: same label-above-value shape as the
@@ -65,11 +89,12 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
   const [generating, setGenerating] = useState(false)
   const [credentials, setCredentials] = useState<{ email: string; password: string; reused?: boolean } | null>(null)
 
-  /** Create mode only: 'form' while filling in details, 'review' once the login email has
+  /** Create mode only: 'form' (parents) -> 'children' -> 'review', once the login email has
    *  been resolved and the admin is confirming everything before the account is created. */
-  const [step, setStep] = useState<'form' | 'review'>('form')
+  const [step, setStep] = useState<Step>('form')
   const [checkingEmail, setCheckingEmail] = useState(false)
   const [generatedEmail, setGeneratedEmail] = useState('')
+  const [children, setChildren] = useState<DraftChild[]>([emptyChild(crypto.randomUUID())])
 
   const phoneDigits = phone.replace(/\D/g, '')
 
@@ -148,10 +173,47 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         return
       }
 
-      // Patch the extra fields onto the newly created family row (looked up by email).
+      // Need the new row's id for children.family_id — createFamilyAccount only returns the
+      // auth user, not the family row.
+      const { data: familyRow, error: familyErr } = await supabase
+        .from('families')
+        .select('id')
+        .eq('contact_email', generatedEmail)
+        .single()
+
+      if (familyErr || !familyRow) {
+        setSaving(false)
+        // The login already exists at this point — surface it as a login result, not a
+        // fatal error, so the admin isn't misled into retrying and creating a duplicate.
+        setCredentials({ email: generatedEmail, password: result.password })
+        return
+      }
+
+      // Patch the extra fields onto the newly created family row.
       const hasExtras = Object.values(extras).some((v) => v !== null)
       if (hasExtras) {
-        await supabase.from('families').update(extras).eq('contact_email', generatedEmail)
+        await supabase.from('families').update(extras).eq('id', familyRow.id)
+      }
+
+      // Blank cards (never filled in) are silently dropped — Data Anak is optional here;
+      // children can always be added later from the Anak tab.
+      const childrenToInsert = children
+        .filter((child) => child.fullName.trim())
+        .map((child) => ({
+          family_id: familyRow.id,
+          full_name: child.fullName.trim(),
+          birth_place: child.birthPlace.trim() || null,
+          birthdate: child.birthdate,
+          notes: child.notes.trim() || null,
+        }))
+      if (childrenToInsert.length > 0) {
+        const { error: childrenErr } = await supabase.from('children').insert(childrenToInsert)
+        if (childrenErr) {
+          setSaving(false)
+          setError(`Keluarga dan login tersimpan, tetapi gagal menyimpan data anak: ${childrenErr.message}`)
+          setCredentials({ email: generatedEmail, password: result.password })
+          return
+        }
       }
 
       setSaving(false)
@@ -159,8 +221,8 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
     }
   }
 
-  /** Create mode: validates the form, resolves the actual (uniqueness-checked) login email,
-   *  and moves to the review step — nothing is written yet. */
+  /** Parents step: validates the form, resolves the actual (uniqueness-checked) login email,
+   *  and moves to Data Anak — nothing is written yet. */
   async function handleNext() {
     setError(null)
     if (!phoneDigits) {
@@ -175,16 +237,36 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
     const resolvedEmail = await generateUniqueFamilyEmail(name)
     setCheckingEmail(false)
     setGeneratedEmail(resolvedEmail)
-    setStep('review')
+    setStep('children')
+  }
+
+  function updateChild(key: string, patch: Partial<DraftChild>) {
+    setChildren((prev) => prev.map((child) => (child.key === key ? { ...child, ...patch } : child)))
+  }
+
+  function addChild() {
+    setChildren((prev) => [...prev, emptyChild(crypto.randomUUID())])
+  }
+
+  function removeChild(key: string) {
+    setChildren((prev) => prev.filter((child) => child.key !== key))
   }
 
   function handleBack() {
     setError(null)
-    setStep('form')
+    setStep((current) => (current === 'review' ? 'children' : 'form'))
   }
 
   useImperativeHandle(ref, () => ({
-    submit: () => (!isEdit && step === 'form' ? handleNext() : handleSave()),
+    submit: () => {
+      if (isEdit) return handleSave()
+      if (step === 'form') return handleNext()
+      if (step === 'children') {
+        setStep('review')
+        return Promise.resolve()
+      }
+      return handleSave()
+    },
     back: handleBack,
   }))
 
@@ -214,6 +296,99 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
 
   const canGenerateCredentials = isEdit && !!(email.trim() || family.contact_email) && !!phoneDigits
 
+  if (!isEdit && step === 'children') {
+    return (
+      <>
+        {error ? (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        ) : null}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {children.map((child, index) => (
+            <Paper key={child.key} variant="outlined" sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                <Typography variant="subtitle2">Anak {index + 1}</Typography>
+                {children.length > 1 ? (
+                  <IconButton size="small" aria-label={`Hapus Anak ${index + 1}`} onClick={() => removeChild(child.key)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                ) : null}
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  size="small"
+                  label="Nama Lengkap"
+                  value={child.fullName}
+                  onChange={(e) => updateChild(child.key, { fullName: e.target.value })}
+                  onBlur={() => updateChild(child.key, { fullName: toTitleCase(child.fullName) })}
+                  fullWidth
+                />
+                <TextField
+                  size="small"
+                  label="Tempat Lahir"
+                  value={child.birthPlace}
+                  onChange={(e) => updateChild(child.key, { birthPlace: e.target.value })}
+                  onBlur={() => updateChild(child.key, { birthPlace: toTitleCase(child.birthPlace) })}
+                  fullWidth
+                />
+                <DatePicker
+                  label="Tanggal Lahir"
+                  value={child.birthdate ? dayjs(child.birthdate) : null}
+                  onChange={(value) =>
+                    updateChild(child.key, { birthdate: value?.isValid() ? value.format('YYYY-MM-DD') : null })
+                  }
+                  format="DD-MM-YYYY"
+                  disableFuture
+                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                />
+                {child.birthdate && formatAge(dayjs(child.birthdate)) ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Usia: {formatAge(dayjs(child.birthdate))}
+                  </Typography>
+                ) : null}
+                <TextField
+                  size="small"
+                  label="Catatan (opsional)"
+                  value={child.notes}
+                  onChange={(e) => updateChild(child.key, { notes: e.target.value })}
+                  multiline
+                  minRows={2}
+                  fullWidth
+                />
+              </Box>
+            </Paper>
+          ))}
+
+          <Button
+            variant="outlined"
+            onClick={addChild}
+            disabled={children.length >= MAX_CHILDREN}
+            sx={{ alignSelf: 'flex-start' }}
+          >
+            Tambah Data Anak
+          </Button>
+
+          {hideActions ? null : (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              <Button onClick={handleBack} disabled={saving}>
+                Kembali
+              </Button>
+              {onCancel ? (
+                <Button onClick={onCancel} disabled={saving}>
+                  Batal
+                </Button>
+              ) : null}
+              <Button variant="contained" onClick={() => setStep('review')}>
+                Selanjutnya
+              </Button>
+            </Box>
+          )}
+        </Box>
+      </>
+    )
+  }
+
   if (!isEdit && step === 'review') {
     return (
       <>
@@ -233,6 +408,19 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           <Field label="Pekerjaan Ibu" value={motherOccupation} />
           <Field label="Nomor Telepon Ibu" value={motherPhone} />
           <Field label="Alamat" value={address} />
+
+          {children
+            .filter((child) => child.fullName.trim())
+            .flatMap((child, index) => [
+              <Field key={`${child.key}-name`} label={`Nama Anak ${index + 1}`} value={child.fullName} />,
+              <Field key={`${child.key}-place`} label={`Tempat Lahir Anak ${index + 1}`} value={child.birthPlace} />,
+              <Field
+                key={`${child.key}-date`}
+                label={`Tanggal Lahir Anak ${index + 1}`}
+                value={child.birthdate ? dayjs(child.birthdate).format('DD-MM-YYYY') : ''}
+              />,
+              <Field key={`${child.key}-notes`} label={`Catatan Anak ${index + 1}`} value={child.notes} />,
+            ])}
 
           {hideActions ? null : (
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 1 }}>
