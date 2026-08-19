@@ -5,9 +5,9 @@
  * change, never a migration.
  */
 export const MOODS = [
-  { value: 'senang', label: 'Senang', emoji: '😊' },
-  { value: 'biasa', label: 'Biasa', emoji: '😐' },
   { value: 'sedih', label: 'Sedih', emoji: '😢' },
+  { value: 'biasa', label: 'Biasa', emoji: '😐' },
+  { value: 'senang', label: 'Senang', emoji: '😊' },
 ] as const
 
 export type Mood = (typeof MOODS)[number]['value']

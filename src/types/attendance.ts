@@ -5,7 +5,7 @@ export type ChildAttendanceRow = Database['public']['Tables']['child_attendances
 export type LearningPeriodStatusRow = Database['public']['Views']['learning_period_status']['Row']
 
 /** Mirrors the child_attendances.status CHECK constraint. */
-export const ATTENDANCE_STATUSES = ['present', 'absent', 'sick'] as const
+export const ATTENDANCE_STATUSES = ['sick', 'absent', 'present'] as const
 
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number]
 
