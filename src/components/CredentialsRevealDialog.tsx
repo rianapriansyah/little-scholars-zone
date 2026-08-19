@@ -12,6 +12,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
@@ -47,7 +48,12 @@ export function CredentialsRevealDialog({ open, name, email, password, phone, re
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{reused ? 'Kata Sandi Direset' : 'Akun Dibuat'}</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        {reused ? 'Kata Sandi Direset' : 'Akun Dibuat'}
+        <IconButton onClick={onClose} size="small" aria-label="Tutup">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {email}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
   Box,
@@ -9,6 +10,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   MenuItem,
   Switch,
   TextField,
@@ -105,7 +107,12 @@ export function CurriculumItemDialog({ open, item, nextSortOrder, onClose, onSav
   return (
     <>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>{isEdit ? 'Edit Materi' : 'Tambah Materi'}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          {isEdit ? 'Edit Materi' : 'Tambah Materi'}
+          <IconButton onClick={handleClose} disabled={saving} size="small" aria-label="Tutup">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent dividers>
           {error ? (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

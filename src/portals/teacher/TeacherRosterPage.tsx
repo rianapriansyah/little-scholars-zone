@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
   Box,
@@ -14,6 +15,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   List,
   ListItem,
   ListItemText,
@@ -483,7 +485,12 @@ export function TeacherRosterPage() {
       <Dialog open={continueDialog !== null} onClose={() => setContinueDialog(null)}>
         {continueDialog ? (
           <>
-            <DialogTitle>Selesaikan {continueDialog.fromLabel}?</DialogTitle>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              Selesaikan {continueDialog.fromLabel}?
+              <IconButton onClick={() => setContinueDialog(null)} size="small" aria-label="Tutup">
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
             <DialogContent>
               <Typography variant="body2" color="text.secondary">
                 {continueDialog.toLabel} dimulai langsung setelah kelas ini berakhir. Pilih salah satu di bawah ini.

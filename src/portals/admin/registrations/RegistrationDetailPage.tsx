@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
+import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
   Box,
@@ -12,6 +13,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
   Link,
   Paper,
   TextField,
@@ -333,7 +335,17 @@ export function RegistrationDetailPage() {
         {/* A dedicated dialog rather than the shared ConfirmDialog: that component is a plain
             yes/no primitive with no input slot, and rejection wants a reason field. */}
         <Dialog open={rejectOpen} onClose={() => (rejecting ? null : setRejectOpen(false))} fullWidth maxWidth="xs">
-          <DialogTitle>Tolak Pendaftaran</DialogTitle>
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+            Tolak Pendaftaran
+            <IconButton
+              onClick={() => (rejecting ? null : setRejectOpen(false))}
+              disabled={rejecting}
+              size="small"
+              aria-label="Tutup"
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
           <DialogContent dividers>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Pendaftaran ini akan ditandai ditolak dan tidak dapat diproses lagi.

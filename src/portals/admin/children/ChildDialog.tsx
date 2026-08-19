@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
   Avatar,
@@ -10,6 +11,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   MenuItem,
   Switch,
   TextField,
@@ -227,7 +229,12 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>{isEdit ? 'Edit Siswa' : 'Tambah Siswa'}</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        {isEdit ? 'Edit Siswa' : 'Tambah Siswa'}
+        <IconButton onClick={handleClose} disabled={saving || enrolling} size="small" aria-label="Tutup">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

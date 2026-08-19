@@ -1,6 +1,17 @@
 import { useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import WhatsAppIcon from '@mui/icons-material/WhatsApp'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Typography,
+} from '@mui/material'
 import { formatIdr } from '../lib/formatIdr'
 import { buildInvoiceMessage, generateInvoicePdf, type InvoiceData } from '../lib/invoicePdf'
 import { buildWhatsAppMeUrlWithMessage } from '../lib/whatsappLink'
@@ -35,7 +46,12 @@ export function SendInvoiceDialog({ open, invoice, phone, onClose }: Props) {
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
-      <DialogTitle>Kirim Invoice — {invoice.childName}</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        Kirim Invoice — {invoice.childName}
+        <IconButton onClick={handleClose} size="small" aria-label="Tutup">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
       <DialogContent dividers>
         <Typography variant="body2" color="text.secondary">
           {invoice.classroomLabel} · Periode #{invoice.periodNo}
