@@ -308,7 +308,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           {children.map((child, index) => (
             <Paper key={child.key} variant="outlined" sx={{ p: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography variant="subtitle2">Anak {index + 1}</Typography>
+                <Typography variant="subtitle2">{children.length > 1 ? `Anak ${index + 1}` : 'Anak'}</Typography>
                 {children.length > 1 ? (
                   <IconButton size="small" aria-label={`Hapus Anak ${index + 1}`} onClick={() => removeChild(child.key)}>
                     <DeleteIcon fontSize="small" />
@@ -409,18 +409,22 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           <Field label="Nomor Telepon Ibu" value={motherPhone} />
           <Field label="Alamat" value={address} />
 
-          {children
-            .filter((child) => child.fullName.trim())
-            .flatMap((child, index) => [
-              <Field key={`${child.key}-name`} label={`Nama Anak ${index + 1}`} value={child.fullName} />,
-              <Field key={`${child.key}-place`} label={`Tempat Lahir Anak ${index + 1}`} value={child.birthPlace} />,
-              <Field
-                key={`${child.key}-date`}
-                label={`Tanggal Lahir Anak ${index + 1}`}
-                value={child.birthdate ? dayjs(child.birthdate).format('DD-MM-YYYY') : ''}
-              />,
-              <Field key={`${child.key}-notes`} label={`Catatan Anak ${index + 1}`} value={child.notes} />,
-            ])}
+          {(() => {
+            const namedChildren = children.filter((child) => child.fullName.trim())
+            return namedChildren.flatMap((child, index) => {
+              const suffix = namedChildren.length > 1 ? ` ${index + 1}` : ''
+              return [
+                <Field key={`${child.key}-name`} label={`Nama Anak${suffix}`} value={child.fullName} />,
+                <Field key={`${child.key}-place`} label={`Tempat Lahir Anak${suffix}`} value={child.birthPlace} />,
+                <Field
+                  key={`${child.key}-date`}
+                  label={`Tanggal Lahir Anak${suffix}`}
+                  value={child.birthdate ? dayjs(child.birthdate).format('DD-MM-YYYY') : ''}
+                />,
+                <Field key={`${child.key}-notes`} label={`Catatan Anak${suffix}`} value={child.notes} />,
+              ]
+            })
+          })()}
 
           {hideActions ? null : (
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 1 }}>
