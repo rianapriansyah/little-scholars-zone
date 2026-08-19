@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, TextField, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { createFamilyAccount } from '../../../lib/createFamilyAccount'
 import { familyEmailLocalPart, generateUniqueFamilyEmail } from '../../../lib/familyEmail'
@@ -31,13 +31,16 @@ type Props = {
   onStepChange?: (step: 'form' | 'review') => void
 }
 
-/** Read-only label/value line for the review step — same shape as ReviewStep.tsx's. */
-function Row({ label, value }: { label: string; value: string }) {
-  if (!value) return null
+/** Read-only stand-in for a TextField on the review step: same label-above-value shape as the
+ *  form it mirrors, just without the input chrome. */
+function Field({ label, value }: { label: string; value: string }) {
   return (
-    <Typography variant="body2" color="text.secondary">
-      {label}: <Typography component="span" color="text.primary">{value}</Typography>
-    </Typography>
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+        {label}
+      </Typography>
+      <Typography variant="body1">{value || '—'}</Typography>
+    </Box>
   )
 }
 
@@ -220,17 +223,22 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           </Alert>
         ) : null}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Ringkasan Keluarga
-            </Typography>
-            <Row label="Nama Keluarga" value={name} />
-            <Row label="Email Login" value={generatedEmail} />
-            <Row label="Telepon Kontak" value={phone} />
-            <Row label="Ayah" value={[fatherName, fatherOccupation, fatherPhone].filter(Boolean).join(' · ')} />
-            <Row label="Ibu" value={[motherName, motherOccupation, motherPhone].filter(Boolean).join(' · ')} />
-            <Row label="Alamat" value={address} />
-          </Paper>
+          <Field label="Nama Keluarga" value={name} />
+          <Field label="Email Login" value={generatedEmail} />
+          <Field label="Telepon Kontak" value={phone} />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Ayah</Typography>
+          <Field label="Nama Ayah" value={fatherName} />
+          <Field label="Pekerjaan Ayah" value={fatherOccupation} />
+          <Field label="Nomor Telepon Ayah" value={fatherPhone} />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Ibu</Typography>
+          <Field label="Nama Ibu" value={motherName} />
+          <Field label="Pekerjaan Ibu" value={motherOccupation} />
+          <Field label="Nomor Telepon Ibu" value={motherPhone} />
+
+          <Typography variant="subtitle2" sx={{ mt: 1 }}>Alamat</Typography>
+          <Field label="Alamat" value={address} />
 
           {hideActions ? null : (
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 1 }}>
