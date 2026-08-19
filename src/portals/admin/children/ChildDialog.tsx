@@ -103,13 +103,18 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
 
     void supabase
       .from('classroom_teachers')
-      .select('id, classrooms(label), teachers(full_name)')
+      .select('id, classrooms(label, is_billable), teachers(full_name)')
       .then(({ data }) => {
-        const options: Group[] = (data ?? []).map((row) => {
-          const classroom = row.classrooms as unknown as { label: string } | null
-          const teacher = row.teachers as unknown as { full_name: string } | null
-          return { id: row.id, label: `${classroom?.label ?? '—'} (${teacher?.full_name ?? '—'})` }
-        })
+        // Enrolling a child only ever makes sense into a real fee-paying program — never into
+        // an internal work program (cleaning duty, content creation) that reuses the classroom
+        // table (see 20260815010000_classrooms_billable_and_flexi_hours.sql).
+        const options: Group[] = (data ?? [])
+          .filter((row) => (row.classrooms as unknown as { is_billable: boolean } | null)?.is_billable)
+          .map((row) => {
+            const classroom = row.classrooms as unknown as { label: string } | null
+            const teacher = row.teachers as unknown as { full_name: string } | null
+            return { id: row.id, label: `${classroom?.label ?? '—'} (${teacher?.full_name ?? '—'})` }
+          })
         setGroups(options)
       })
     void loadEnrollment(child.id)
