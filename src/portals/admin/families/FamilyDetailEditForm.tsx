@@ -589,7 +589,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
                 variant="outlined"
                 size="small"
                 onClick={() => setPhone(fatherPhone)}
-                sx={{ alignSelf: 'flex-start' }}
+                fullWidth
               >
                 Jadikan Kontak Utama
               </Button>
@@ -630,7 +630,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
                 variant="outlined"
                 size="small"
                 onClick={() => setPhone(motherPhone)}
-                sx={{ alignSelf: 'flex-start' }}
+                fullWidth
               >
                 Jadikan Kontak Utama
               </Button>
