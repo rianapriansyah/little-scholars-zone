@@ -577,23 +577,23 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
               onBlur={() => setFatherOccupation((v) => toTitleCase(v))}
               fullWidth
             />
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-              <TextField
-                size="small"
-                label="Nomor Telepon Ayah"
-                value={fatherPhone}
-                onChange={(e) => setFatherPhone(e.target.value)}
-                fullWidth
-              />
+            <TextField
+              size="small"
+              label="Nomor Telepon Ayah"
+              value={fatherPhone}
+              onChange={(e) => setFatherPhone(e.target.value)}
+              fullWidth
+            />
+            {fatherIsPrimaryContact ? null : (
               <Button
                 variant="outlined"
                 size="small"
                 onClick={() => setPhone(fatherPhone)}
-                sx={{ flexShrink: 0, mt: 0.25 }}
+                sx={{ alignSelf: 'flex-start' }}
               >
-                Kontak Utama
+                Jadikan Kontak Utama
               </Button>
-            </Box>
+            )}
           </Panel>
         </Section>
 
@@ -618,23 +618,23 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
               onBlur={() => setMotherOccupation((v) => toTitleCase(v))}
               fullWidth
             />
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-              <TextField
-                size="small"
-                label="Nomor Telepon Ibu"
-                value={motherPhone}
-                onChange={(e) => setMotherPhone(e.target.value)}
-                fullWidth
-              />
+            <TextField
+              size="small"
+              label="Nomor Telepon Ibu"
+              value={motherPhone}
+              onChange={(e) => setMotherPhone(e.target.value)}
+              fullWidth
+            />
+            {motherIsPrimaryContact ? null : (
               <Button
                 variant="outlined"
                 size="small"
                 onClick={() => setPhone(motherPhone)}
-                sx={{ flexShrink: 0, mt: 0.25 }}
+                sx={{ alignSelf: 'flex-start' }}
               >
-                Kontak Utama
+                Jadikan Kontak Utama
               </Button>
-            </Box>
+            )}
           </Panel>
         </Section>
 
