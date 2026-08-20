@@ -30,7 +30,7 @@ INSERT INTO public.teachers (id, full_name, email, auth_user_id) VALUES
   ('00000000-0000-4000-9000-000000000012', 'LP Teacher A', 'lp-teacher-a@example.test', '00000000-0000-4000-9000-000000000002'),
   ('00000000-0000-4000-9000-000000000013', 'LP Teacher B', 'lp-teacher-b@example.test', '00000000-0000-4000-9000-000000000003');
 
-INSERT INTO public.families (id, name, contact_email, auth_user_id) VALUES
+INSERT INTO public.families (id, name, login_email, auth_user_id) VALUES
   ('00000000-0000-4000-9000-000000000014', 'LP Family One', 'lp-parent-1@example.test', '00000000-0000-4000-9000-000000000004'),
   ('00000000-0000-4000-9000-000000000015', 'LP Family Two', 'lp-parent-2@example.test', '00000000-0000-4000-9000-000000000005');
 

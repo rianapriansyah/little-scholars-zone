@@ -423,7 +423,6 @@ export type Database = {
         Row: {
           address: string | null
           auth_user_id: string | null
-          contact_email: string
           contact_phone: string | null
           created_at: string | null
           created_by: string | null
@@ -431,6 +430,7 @@ export type Database = {
           father_occupation: string | null
           father_phone: string | null
           id: string
+          login_email: string
           mother_name: string | null
           mother_occupation: string | null
           mother_phone: string | null
@@ -439,7 +439,6 @@ export type Database = {
         Insert: {
           address?: string | null
           auth_user_id?: string | null
-          contact_email: string
           contact_phone?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -447,6 +446,7 @@ export type Database = {
           father_occupation?: string | null
           father_phone?: string | null
           id?: string
+          login_email: string
           mother_name?: string | null
           mother_occupation?: string | null
           mother_phone?: string | null
@@ -455,7 +455,6 @@ export type Database = {
         Update: {
           address?: string | null
           auth_user_id?: string | null
-          contact_email?: string
           contact_phone?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -463,6 +462,7 @@ export type Database = {
           father_occupation?: string | null
           father_phone?: string | null
           id?: string
+          login_email?: string
           mother_name?: string | null
           mother_occupation?: string | null
           mother_phone?: string | null

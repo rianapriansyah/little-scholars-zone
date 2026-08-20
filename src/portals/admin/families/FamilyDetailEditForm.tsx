@@ -100,7 +100,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
 
   useEffect(() => {
     setName(family?.name ?? '')
-    setEmail(family?.contact_email ?? '')
+    setEmail(family?.login_email ?? '')
     setPhone(family?.contact_phone ?? '')
     setFatherName(family?.father_name ?? '')
     setFatherOccupation(family?.father_occupation ?? '')
@@ -151,7 +151,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         .from('families')
         .update({
           name: name.trim(),
-          contact_email: email.trim(),
+          login_email: email.trim(),
           contact_phone: phone.trim() || null,
           ...extras,
         })
@@ -178,7 +178,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       const { data: familyRow, error: familyErr } = await supabase
         .from('families')
         .select('id')
-        .eq('contact_email', generatedEmail)
+        .eq('login_email', generatedEmail)
         .single()
 
       if (familyErr || !familyRow) {
@@ -272,7 +272,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
 
   async function handleGenerateCredentials() {
     if (!family) return
-    const targetEmail = email.trim() || family.contact_email || ''
+    const targetEmail = email.trim() || family.login_email || ''
     if (!targetEmail) return
     setGenerating(true)
     setError(null)
@@ -294,7 +294,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
     onSaved()
   }
 
-  const canGenerateCredentials = isEdit && !!(email.trim() || family.contact_email) && !!phoneDigits
+  const canGenerateCredentials = isEdit && !!(email.trim() || family.login_email) && !!phoneDigits
 
   if (!isEdit && step === 'children') {
     return (
@@ -475,7 +475,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         {isEdit ? (
           <TextField
             size="small"
-            label="Email Kontak"
+            label="Email Login"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -488,10 +488,10 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           size="small"
           label="Telepon Kontak"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          slotProps={{ input: { readOnly: true } }}
           required
           fullWidth
-          helperText="Detail login dikirim ke nomor ini melalui WhatsApp."
+          helperText="Diisi otomatis lewat tombol Kontak Utama di bawah — detail login dikirim ke nomor ini melalui WhatsApp."
         />
 
         <Typography variant="subtitle2" sx={{ mt: 1 }}>Ayah</Typography>
@@ -511,13 +511,23 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           onBlur={() => setFatherOccupation((v) => toTitleCase(v))}
           fullWidth
         />
-        <TextField
-          size="small"
-          label="Nomor Telepon Ayah"
-          value={fatherPhone}
-          onChange={(e) => setFatherPhone(e.target.value)}
-          fullWidth
-        />
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+          <TextField
+            size="small"
+            label="Nomor Telepon Ayah"
+            value={fatherPhone}
+            onChange={(e) => setFatherPhone(e.target.value)}
+            fullWidth
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => setPhone(fatherPhone)}
+            sx={{ flexShrink: 0, mt: 0.25 }}
+          >
+            Kontak Utama
+          </Button>
+        </Box>
 
         <Typography variant="subtitle2" sx={{ mt: 1 }}>Ibu</Typography>
         <TextField
@@ -536,13 +546,23 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           onBlur={() => setMotherOccupation((v) => toTitleCase(v))}
           fullWidth
         />
-        <TextField
-          size="small"
-          label="Nomor Telepon Ibu"
-          value={motherPhone}
-          onChange={(e) => setMotherPhone(e.target.value)}
-          fullWidth
-        />
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+          <TextField
+            size="small"
+            label="Nomor Telepon Ibu"
+            value={motherPhone}
+            onChange={(e) => setMotherPhone(e.target.value)}
+            fullWidth
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => setPhone(motherPhone)}
+            sx={{ flexShrink: 0, mt: 0.25 }}
+          >
+            Kontak Utama
+          </Button>
+        </Box>
 
         <Typography variant="subtitle2" sx={{ mt: 1 }}>Alamat</Typography>
         <TextField
