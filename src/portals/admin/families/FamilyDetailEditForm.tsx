@@ -84,12 +84,10 @@ function Field({ label, value }: { label: string; value: string }) {
 /** A numbered, collapsible division of the form — same chrome as the daily report record, so
  *  data-entry and review screens read as one family of UI. */
 function Section({
-  index,
   title,
   chip,
   children,
 }: {
-  index: number
   title: string
   chip?: ReactNode
   children: ReactNode
@@ -109,9 +107,7 @@ function Section({
       }}
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
-        <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>
-          {index}. {title}
-        </Typography>
+        <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>{title}</Typography>
         {chip ? <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>{chip}</Box> : null}
       </AccordionSummary>
       <AccordionDetails sx={{ px: 0, pt: 0, pb: 2.5 }}>{children}</AccordionDetails>
@@ -524,7 +520,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         </Alert>
       ) : null}
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-        <Section index={1} title="Kontak">
+        <Section title="Kontak">
           <Panel>
             {isEdit ? (
               <TextField
@@ -561,7 +557,6 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         </Section>
 
         <Section
-          index={2}
           title="Ayah"
           chip={fatherIsPrimaryContact ? <Chip size="small" label="Kontak Utama" color="success" variant="outlined" /> : null}
         >
@@ -603,7 +598,6 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         </Section>
 
         <Section
-          index={3}
           title="Ibu"
           chip={motherIsPrimaryContact ? <Chip size="small" label="Kontak Utama" color="success" variant="outlined" /> : null}
         >
@@ -644,7 +638,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           </Panel>
         </Section>
 
-        <Section index={4} title="Alamat">
+        <Section title="Alamat">
           <Panel>
             <TextField
               size="small"
