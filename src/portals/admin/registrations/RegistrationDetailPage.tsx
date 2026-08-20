@@ -142,7 +142,6 @@ export function RegistrationDetailPage() {
     setApprovedFamilyId(approveResult.data.familyId)
 
     const accountResult = await createFamilyAccount({
-      name: detail.familyName,
       email: loginEmail,
       phone: detail.contactPhone,
     })

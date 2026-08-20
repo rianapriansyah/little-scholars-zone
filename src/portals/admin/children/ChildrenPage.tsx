@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { supabase } from '../../../lib/supabase'
 import { formatAge } from '../../../lib/calculateAge'
+import { familyDisplayName } from '../../../lib/familyDisplayName'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
@@ -58,7 +59,7 @@ export function ChildrenPage() {
 
     const views: ChildView[] = (childrenRes.data ?? []).map((c) => ({
       ...c,
-      familyName: familyById.get(c.family_id)?.name ?? '—',
+      familyName: familyById.has(c.family_id) ? familyDisplayName(familyById.get(c.family_id)!) : '—',
       classroomLabel: classroomByChild.get(c.id) ?? null,
     }))
     setRows(views)

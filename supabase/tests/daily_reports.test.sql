@@ -31,9 +31,9 @@ INSERT INTO public.teachers (id, full_name, email, auth_user_id) VALUES
   ('00000000-0000-4000-8000-000000000012', 'Test Teacher A', 'test-teacher-a@example.test', '00000000-0000-4000-8000-000000000002'),
   ('00000000-0000-4000-8000-000000000013', 'Test Teacher B', 'test-teacher-b@example.test', '00000000-0000-4000-8000-000000000003');
 
-INSERT INTO public.families (id, name, contact_email, auth_user_id) VALUES
-  ('00000000-0000-4000-8000-000000000014', 'Test Family One', 'test-parent-1@example.test', '00000000-0000-4000-8000-000000000004'),
-  ('00000000-0000-4000-8000-000000000015', 'Test Family Two', 'test-parent-2@example.test', '00000000-0000-4000-8000-000000000005');
+INSERT INTO public.families (id, login_email, auth_user_id) VALUES
+  ('00000000-0000-4000-8000-000000000014', 'test-parent-1@example.test', '00000000-0000-4000-8000-000000000004'),
+  ('00000000-0000-4000-8000-000000000015', 'test-parent-2@example.test', '00000000-0000-4000-8000-000000000005');
 
 INSERT INTO public.children (id, family_id, full_name) VALUES
   ('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000014', 'Test Child One'),

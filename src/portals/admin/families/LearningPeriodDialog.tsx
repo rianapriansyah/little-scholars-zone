@@ -23,6 +23,7 @@ import {
   fetchPeriod,
 } from '../../../lib/learningPeriods'
 import { fetchPaymentPeriodForLearningPeriod } from '../../../lib/paymentPeriods'
+import { familyDisplayName } from '../../../lib/familyDisplayName'
 import type { ChildRow } from '../../../types/child'
 import type { ClassroomRow } from '../../../types/classroom'
 import type { FamilyRow } from '../../../types/family'
@@ -111,7 +112,7 @@ export function LearningPeriodDialog({ open, child, family, onClose, onSaved }: 
     ])
     if (periodResult.ok && paymentResult.ok) {
       setInvoiceData({
-        familyName: family.name,
+        familyName: familyDisplayName(family),
         childName: child.full_name,
         classroomLabel: periodResult.data.classroomLabel,
         periodNo: periodResult.data.periodNo,

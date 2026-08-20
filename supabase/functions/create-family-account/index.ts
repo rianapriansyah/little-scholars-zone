@@ -22,7 +22,7 @@ function generatePassword(email: string): string {
   return `${base}${digits}`
 }
 
-/** Links families row (by contact_email) to the Supabase Auth user so parents can log in without a client-side claim RPC. */
+/** Links families row (by login_email) to the Supabase Auth user so parents can log in without a client-side claim RPC. */
 async function linkFamilyAuthUser(
   adminClient: ReturnType<typeof createClient>,
   email: string,
@@ -31,7 +31,7 @@ async function linkFamilyAuthUser(
   const { error } = await adminClient
     .from('families')
     .update({ auth_user_id: authUserId })
-    .eq('contact_email', email)
+    .eq('login_email', email)
   if (error) {
     console.error('linkFamilyAuthUser:', error.message)
   }
@@ -97,9 +97,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Server misconfigured' }, 500)
     }
 
-    const body = (await req.json()) as { email?: string; name?: string; phone?: string | null }
+    const body = (await req.json()) as { email?: string; phone?: string | null }
     const email = body.email?.trim().toLowerCase()
-    const name = body.name?.trim() || email
     const phone = body.phone?.trim() || null
     if (!email) {
       return jsonResponse({ error: 'email is required' }, 400)
@@ -117,8 +116,8 @@ Deno.serve(async (req) => {
     const { error: upsertErr } = await adminClient
       .from('families')
       .upsert(
-        { name: name!, contact_email: email, contact_phone: phone },
-        { onConflict: 'contact_email', ignoreDuplicates: true },
+        { login_email: email, contact_phone: phone },
+        { onConflict: 'login_email', ignoreDuplicates: true },
       )
     if (upsertErr) {
       console.error('Failed to upsert families:', upsertErr.message)

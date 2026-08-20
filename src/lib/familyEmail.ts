@@ -28,8 +28,8 @@ export function familyEmailLocalPart(parentName: string): string {
 export async function generateUniqueFamilyEmail(parentName: string): Promise<string> {
   const domain = familyEmailDomain()
   const base = familyEmailLocalPart(parentName)
-  const { data } = await supabase.from('families').select('contact_email').ilike('contact_email', `${base}%@${domain}`)
-  const taken = new Set((data ?? []).map((r) => r.contact_email?.toLowerCase()).filter(Boolean))
+  const { data } = await supabase.from('families').select('login_email').ilike('login_email', `${base}%@${domain}`)
+  const taken = new Set((data ?? []).map((r) => r.login_email?.toLowerCase()).filter(Boolean))
 
   let candidate = `${base}@${domain}`
   let n = 2

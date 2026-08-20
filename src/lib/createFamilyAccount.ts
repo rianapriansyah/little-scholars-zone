@@ -5,7 +5,6 @@ export type CreateFamilyAccountResult =
   | { ok: false; message: string }
 
 export type CreateFamilyAccountPayload = {
-  name: string
   email: string
   phone?: string | null
 }
@@ -26,7 +25,6 @@ export async function createFamilyAccount(
     error?: string
   }>('create-family-account', {
     body: {
-      name: payload.name.trim(),
       email: payload.email.trim().toLowerCase(),
       phone: payload.phone?.trim() || null,
     },

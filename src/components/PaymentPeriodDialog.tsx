@@ -19,6 +19,7 @@ import {
 import { formatIdr } from '../lib/formatIdr'
 import { buildInvoiceMessage, buildPaymentConfirmationMessage, generateInvoicePdf, type InvoiceData } from '../lib/invoicePdf'
 import { fetchPaymentPeriodForLearningPeriod, markPaymentPeriodPaid, uploadPaymentReceipt } from '../lib/paymentPeriods'
+import { familyDisplayName } from '../lib/familyDisplayName'
 import { fetchReceiptSignedUrl } from '../lib/receiptStorage'
 import { supabase } from '../lib/supabase'
 import { buildWhatsAppMeUrlWithMessage } from '../lib/whatsappLink'
@@ -94,11 +95,16 @@ export function PaymentPeriodDialog({
     // does carry child_id, so that's the one hop needed to reach it.
     const { data: childRow } = await supabase
       .from('children')
-      .select('families(name, contact_phone)')
+      .select('families(father_name, mother_name, contact_phone)')
       .eq('id', paymentResult.data.childId)
       .maybeSingle()
-    const family = (childRow?.families as unknown as { name: string; contact_phone: string | null } | null) ?? null
-    setFamilyName(family?.name ?? '')
+    const family =
+      (childRow?.families as unknown as {
+        father_name: string | null
+        mother_name: string | null
+        contact_phone: string | null
+      } | null) ?? null
+    setFamilyName(family ? familyDisplayName(family) : '')
     setPhone(family?.contact_phone ?? null)
 
     if (paymentResult.data.receiptPath) {

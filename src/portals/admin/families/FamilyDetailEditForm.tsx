@@ -1,6 +1,19 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState, type ReactNode } from 'react'
 import DeleteIcon from '@mui/icons-material/Delete'
-import { Alert, Box, Button, IconButton, Paper, TextField, Typography } from '@mui/material'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Box,
+  Button,
+  Chip,
+  IconButton,
+  Paper,
+  TextField,
+  Typography,
+} from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import dayjs from 'dayjs'
 import { supabase } from '../../../lib/supabase'
@@ -68,13 +81,55 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** A numbered, collapsible division of the form — same chrome as the daily report record, so
+ *  data-entry and review screens read as one family of UI. */
+function Section({
+  title,
+  chip,
+  children,
+}: {
+  title: string
+  chip?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <Accordion
+      defaultExpanded
+      disableGutters
+      elevation={0}
+      square
+      sx={{
+        bgcolor: 'transparent',
+        borderBottom: 1,
+        borderColor: 'divider',
+        '&:before': { display: 'none' },
+        '&:last-of-type': { borderBottom: 0 },
+      }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
+        <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>{title}</Typography>
+        {chip ? <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>{chip}</Box> : null}
+      </AccordionSummary>
+      <AccordionDetails sx={{ px: 0, pt: 0, pb: 2.5 }}>{children}</AccordionDetails>
+    </Accordion>
+  )
+}
+
+/** The tinted card a section's contents sit on. */
+function Panel({ children }: { children: ReactNode }) {
+  return (
+    <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {children}
+    </Box>
+  )
+}
+
 export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props>(function FamilyDetailEditForm(
   { family, onSaved, onCancel, hideActions = false, onBusyChange, onStepChange },
   ref,
 ) {
   const isEdit = family !== null
 
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [fatherName, setFatherName] = useState('')
@@ -97,10 +152,12 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
   const [children, setChildren] = useState<DraftChild[]>([emptyChild(crypto.randomUUID())])
 
   const phoneDigits = phone.replace(/\D/g, '')
+  // Families aren't identified by a "family name" — the login email is derived from whichever
+  // parent's name is on file, father first.
+  const primaryParentName = fatherName.trim() || motherName.trim()
 
   useEffect(() => {
-    setName(family?.name ?? '')
-    setEmail(family?.contact_email ?? '')
+    setEmail(family?.login_email ?? '')
     setPhone(family?.contact_phone ?? '')
     setFatherName(family?.father_name ?? '')
     setFatherOccupation(family?.father_occupation ?? '')
@@ -140,8 +197,8 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       setError('Masukkan nomor telepon kontak — digunakan untuk mengirim info login melalui WhatsApp.')
       return
     }
-    if (!isEdit && !familyEmailLocalPart(name)) {
-      setError('Masukkan nama keluarga untuk membuat email login.')
+    if (!isEdit && !familyEmailLocalPart(primaryParentName)) {
+      setError('Masukkan nama ayah atau ibu untuk membuat email login.')
       return
     }
 
@@ -150,8 +207,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       const { error: uErr } = await supabase
         .from('families')
         .update({
-          name: name.trim(),
-          contact_email: email.trim(),
+          login_email: email.trim(),
           contact_phone: phone.trim() || null,
           ...extras,
         })
@@ -166,7 +222,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       // generatedEmail was already resolved in handleNext(), before the review step ever
       // showed — recomputing here could silently save a different address than the one the
       // admin just reviewed.
-      const result = await createFamilyAccount({ name, email: generatedEmail, phone })
+      const result = await createFamilyAccount({ email: generatedEmail, phone })
       if (!result.ok) {
         setSaving(false)
         setError(result.message)
@@ -178,7 +234,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       const { data: familyRow, error: familyErr } = await supabase
         .from('families')
         .select('id')
-        .eq('contact_email', generatedEmail)
+        .eq('login_email', generatedEmail)
         .single()
 
       if (familyErr || !familyRow) {
@@ -229,12 +285,12 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       setError('Masukkan nomor telepon kontak — digunakan untuk mengirim info login melalui WhatsApp.')
       return
     }
-    if (!familyEmailLocalPart(name)) {
-      setError('Masukkan nama keluarga untuk membuat email login.')
+    if (!familyEmailLocalPart(primaryParentName)) {
+      setError('Masukkan nama ayah atau ibu untuk membuat email login.')
       return
     }
     setCheckingEmail(true)
-    const resolvedEmail = await generateUniqueFamilyEmail(name)
+    const resolvedEmail = await generateUniqueFamilyEmail(primaryParentName)
     setCheckingEmail(false)
     setGeneratedEmail(resolvedEmail)
     setStep('children')
@@ -272,12 +328,11 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
 
   async function handleGenerateCredentials() {
     if (!family) return
-    const targetEmail = email.trim() || family.contact_email || ''
+    const targetEmail = email.trim() || family.login_email || ''
     if (!targetEmail) return
     setGenerating(true)
     setError(null)
     const result = await createFamilyAccount({
-      name: name.trim() || family.name,
       email: targetEmail,
       phone: phone.trim() || family.contact_phone,
     })
@@ -294,7 +349,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
     onSaved()
   }
 
-  const canGenerateCredentials = isEdit && !!(email.trim() || family.contact_email) && !!phoneDigits
+  const canGenerateCredentials = isEdit && !!(email.trim() || family.login_email) && !!phoneDigits
 
   if (!isEdit && step === 'children') {
     return (
@@ -398,7 +453,6 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           </Alert>
         ) : null}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Field label="Nama Keluarga" value={name} />
           <Field label="Email Login" value={generatedEmail} />
           <Field label="Telepon Kontak" value={phone} />
           <Field label="Nama Ayah" value={fatherName} />
@@ -444,7 +498,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         </Box>
         <CredentialsRevealDialog
           open={credentials !== null}
-          name={name.trim()}
+          name={primaryParentName}
           email={credentials?.email ?? ''}
           password={credentials?.password ?? ''}
           phone={phone}
@@ -455,6 +509,9 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
     )
   }
 
+  const fatherIsPrimaryContact = !!phoneDigits && phone.trim() === fatherPhone.trim() && !!fatherPhone.trim()
+  const motherIsPrimaryContact = !!phoneDigits && phone.trim() === motherPhone.trim() && !!motherPhone.trim()
+
   return (
     <>
       {error ? (
@@ -462,113 +519,142 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
           {error}
         </Alert>
       ) : null}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TextField
-          size="small"
-          label="Nama Keluarga"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => setName((v) => toTitleCase(v))}
-          required
-          fullWidth
-        />
-        {isEdit ? (
-          <TextField
-            size="small"
-            label="Email Kontak"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            fullWidth
-            helperText="Digunakan sebagai email login orang tua."
-          />
-        ) : null}
-        <TextField
-          size="small"
-          label="Telepon Kontak"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          required
-          fullWidth
-          helperText="Detail login dikirim ke nomor ini melalui WhatsApp."
-        />
+      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+        <Section title="Kontak">
+          <Panel>
+            {isEdit ? (
+              <TextField
+                size="small"
+                label="Email Login"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                fullWidth
+                helperText="Digunakan sebagai email login orang tua."
+              />
+            ) : null}
+            <TextField
+              size="small"
+              label="Telepon Kontak"
+              value={phone}
+              slotProps={{ input: { readOnly: true } }}
+              required
+              fullWidth
+              helperText="Diisi otomatis lewat tombol Kontak Utama di bawah — detail login dikirim ke nomor ini melalui WhatsApp."
+            />
+          </Panel>
+          {isEdit ? (
+            <Button
+              variant="outlined"
+              disabled={generating || saving || !canGenerateCredentials}
+              onClick={() => void handleGenerateCredentials()}
+              sx={{ alignSelf: 'flex-start', mt: 1.5 }}
+            >
+              {generating ? 'Memproses…' : family.auth_user_id ? 'Reset Kata Sandi' : 'Buat Info Login'}
+            </Button>
+          ) : null}
+        </Section>
 
-        <Typography variant="subtitle2" sx={{ mt: 1 }}>Ayah</Typography>
-        <TextField
-          size="small"
-          label="Nama Ayah"
-          value={fatherName}
-          onChange={(e) => setFatherName(e.target.value)}
-          onBlur={() => setFatherName((v) => toTitleCase(v))}
-          fullWidth
-        />
-        <TextField
-          size="small"
-          label="Pekerjaan Ayah"
-          value={fatherOccupation}
-          onChange={(e) => setFatherOccupation(e.target.value)}
-          onBlur={() => setFatherOccupation((v) => toTitleCase(v))}
-          fullWidth
-        />
-        <TextField
-          size="small"
-          label="Nomor Telepon Ayah"
-          value={fatherPhone}
-          onChange={(e) => setFatherPhone(e.target.value)}
-          fullWidth
-        />
+        <Section
+          title="Ayah"
+          chip={fatherIsPrimaryContact ? <Chip size="small" label="Kontak Utama" color="success" variant="outlined" /> : null}
+        >
+          <Panel>
+            <TextField
+              size="small"
+              label="Nama Ayah"
+              value={fatherName}
+              onChange={(e) => setFatherName(e.target.value)}
+              onBlur={() => setFatherName((v) => toTitleCase(v))}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Pekerjaan Ayah"
+              value={fatherOccupation}
+              onChange={(e) => setFatherOccupation(e.target.value)}
+              onBlur={() => setFatherOccupation((v) => toTitleCase(v))}
+              fullWidth
+            />
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <TextField
+                size="small"
+                label="Nomor Telepon Ayah"
+                value={fatherPhone}
+                onChange={(e) => setFatherPhone(e.target.value)}
+                fullWidth
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setPhone(fatherPhone)}
+                sx={{ flexShrink: 0, mt: 0.25 }}
+              >
+                Kontak Utama
+              </Button>
+            </Box>
+          </Panel>
+        </Section>
 
-        <Typography variant="subtitle2" sx={{ mt: 1 }}>Ibu</Typography>
-        <TextField
-          size="small"
-          label="Nama Ibu"
-          value={motherName}
-          onChange={(e) => setMotherName(e.target.value)}
-          onBlur={() => setMotherName((v) => toTitleCase(v))}
-          fullWidth
-        />
-        <TextField
-          size="small"
-          label="Pekerjaan Ibu"
-          value={motherOccupation}
-          onChange={(e) => setMotherOccupation(e.target.value)}
-          onBlur={() => setMotherOccupation((v) => toTitleCase(v))}
-          fullWidth
-        />
-        <TextField
-          size="small"
-          label="Nomor Telepon Ibu"
-          value={motherPhone}
-          onChange={(e) => setMotherPhone(e.target.value)}
-          fullWidth
-        />
+        <Section
+          title="Ibu"
+          chip={motherIsPrimaryContact ? <Chip size="small" label="Kontak Utama" color="success" variant="outlined" /> : null}
+        >
+          <Panel>
+            <TextField
+              size="small"
+              label="Nama Ibu"
+              value={motherName}
+              onChange={(e) => setMotherName(e.target.value)}
+              onBlur={() => setMotherName((v) => toTitleCase(v))}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Pekerjaan Ibu"
+              value={motherOccupation}
+              onChange={(e) => setMotherOccupation(e.target.value)}
+              onBlur={() => setMotherOccupation((v) => toTitleCase(v))}
+              fullWidth
+            />
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <TextField
+                size="small"
+                label="Nomor Telepon Ibu"
+                value={motherPhone}
+                onChange={(e) => setMotherPhone(e.target.value)}
+                fullWidth
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setPhone(motherPhone)}
+                sx={{ flexShrink: 0, mt: 0.25 }}
+              >
+                Kontak Utama
+              </Button>
+            </Box>
+          </Panel>
+        </Section>
 
-        <Typography variant="subtitle2" sx={{ mt: 1 }}>Alamat</Typography>
-        <TextField
-          size="small"
-          label="Alamat"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          onBlur={() => setAddress((v) => toTitleCase(v))}
-          fullWidth
-          multiline
-          rows={2}
-        />
-
-        {isEdit ? (
-          <Button
-            variant="outlined"
-            disabled={generating || saving || !canGenerateCredentials}
-            onClick={() => void handleGenerateCredentials()}
-            sx={{ alignSelf: 'flex-start' }}
-          >
-            {generating ? 'Memproses…' : family.auth_user_id ? 'Reset Kata Sandi' : 'Buat Info Login'}
-          </Button>
-        ) : null}
+        <Section title="Alamat">
+          <Panel>
+            <TextField
+              size="small"
+              label="Alamat"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              onBlur={() => setAddress((v) => toTitleCase(v))}
+              fullWidth
+              multiline
+              rows={2}
+            />
+          </Panel>
+        </Section>
 
         {hideActions ? null : (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap', mt: 2 }}>
             {onCancel ? (
               <Button onClick={onCancel} disabled={saving}>
                 Batal
@@ -581,9 +667,8 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
                 saving ||
                 generating ||
                 checkingEmail ||
-                !name.trim() ||
                 !phoneDigits ||
-                (isEdit ? !email.trim() : !familyEmailLocalPart(name))
+                (isEdit ? !email.trim() : !familyEmailLocalPart(primaryParentName))
               }
             >
               {isEdit
@@ -599,7 +684,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       </Box>
       <CredentialsRevealDialog
         open={credentials !== null}
-        name={name.trim() || family?.name || ''}
+        name={primaryParentName}
         email={credentials?.email ?? ''}
         password={credentials?.password ?? ''}
         phone={phone}
