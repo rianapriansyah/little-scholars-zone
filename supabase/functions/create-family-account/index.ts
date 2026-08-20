@@ -97,9 +97,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Server misconfigured' }, 500)
     }
 
-    const body = (await req.json()) as { email?: string; name?: string; phone?: string | null }
+    const body = (await req.json()) as { email?: string; phone?: string | null }
     const email = body.email?.trim().toLowerCase()
-    const name = body.name?.trim() || email
     const phone = body.phone?.trim() || null
     if (!email) {
       return jsonResponse({ error: 'email is required' }, 400)
@@ -117,7 +116,7 @@ Deno.serve(async (req) => {
     const { error: upsertErr } = await adminClient
       .from('families')
       .upsert(
-        { name: name!, login_email: email, contact_phone: phone },
+        { login_email: email, contact_phone: phone },
         { onConflict: 'login_email', ignoreDuplicates: true },
       )
     if (upsertErr) {

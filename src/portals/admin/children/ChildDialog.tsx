@@ -23,6 +23,7 @@ import { supabase } from '../../../lib/supabase'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { uploadProfilePhoto } from '../../../lib/uploadProfilePhoto'
+import { familyDisplayName } from '../../../lib/familyDisplayName'
 import { formatAge } from '../../../lib/calculateAge'
 
 type Group = { id: string; label: string }
@@ -96,7 +97,7 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
 
     if (!child) {
       if (!lockedFamilyId) {
-        void supabase.from('families').select('*').order('name').then(({ data }) => setFamilies(data ?? []))
+        void supabase.from('families').select('*').order('father_name').then(({ data }) => setFamilies(data ?? []))
       }
       return
     }
@@ -269,7 +270,7 @@ export function ChildDialog({ open, child, familyId: lockedFamilyId, onClose, on
             >
               {families.map((f) => (
                 <MenuItem key={f.id} value={f.id}>
-                  {f.name}
+                  {familyDisplayName(f)}
                 </MenuItem>
               ))}
             </TextField>

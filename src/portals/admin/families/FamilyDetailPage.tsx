@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link as RouterLink, useLocation, useParams } from 'react-router-dom'
 import { Alert, Box, Breadcrumbs, Button, CircularProgress, Link, Paper, Tab, Tabs, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
+import { familyDisplayName } from '../../../lib/familyDisplayName'
 import type { FamilyRow } from '../../../types/family'
 import { FamilyDetailEditForm } from './FamilyDetailEditForm'
 import { FamilyChildrenTab } from './FamilyChildrenTab'
@@ -89,7 +90,7 @@ export function FamilyDetailPage() {
         Detail Keluarga
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {family.name}
+        {familyDisplayName(family)}
       </Typography>
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>

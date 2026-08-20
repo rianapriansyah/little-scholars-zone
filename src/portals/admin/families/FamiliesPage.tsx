@@ -7,12 +7,13 @@ import { supabase } from '../../../lib/supabase'
 import type { FamilyRow } from '../../../types/family'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { FamilyDialog } from './FamilyDialog'
+import { familyDisplayName } from '../../../lib/familyDisplayName'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 function familySearchBlob(row: FamilyRow): string {
-  return `${row.name} ${row.login_email ?? ''} ${row.contact_phone ?? ''}`.toLowerCase()
+  return `${familyDisplayName(row)} ${row.login_email ?? ''} ${row.contact_phone ?? ''}`.toLowerCase()
 }
 
 export function FamiliesPage() {
@@ -27,7 +28,7 @@ export function FamiliesPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const { data, error: qError } = await supabase.from('families').select('*').order('name')
+    const { data, error: qError } = await supabase.from('families').select('*').order('father_name')
     setLoading(false)
     if (qError) {
       setError(qError.message)
@@ -57,7 +58,13 @@ export function FamiliesPage() {
 
   const columns: GridColDef<FamilyRow>[] = useMemo(
     () => [
-      { field: 'name', headerName: 'Keluarga', flex: 1, minWidth: 160 },
+      {
+        field: 'father_name',
+        headerName: 'Keluarga',
+        flex: 1,
+        minWidth: 160,
+        valueGetter: (_v, row) => familyDisplayName(row),
+      },
       { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
       {
         field: 'auth_user_id',

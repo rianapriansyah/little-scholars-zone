@@ -434,7 +434,6 @@ export type Database = {
           mother_name: string | null
           mother_occupation: string | null
           mother_phone: string | null
-          name: string
         }
         Insert: {
           address?: string | null
@@ -450,7 +449,6 @@ export type Database = {
           mother_name?: string | null
           mother_occupation?: string | null
           mother_phone?: string | null
-          name: string
         }
         Update: {
           address?: string | null
@@ -466,7 +464,6 @@ export type Database = {
           mother_name?: string | null
           mother_occupation?: string | null
           mother_phone?: string | null
-          name?: string
         }
         Relationships: []
       }

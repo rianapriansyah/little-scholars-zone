@@ -25,7 +25,6 @@ A management platform for a toddler tutoring center (30–100 children) supporti
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
-| name | text | family display name |
 | contact_phone | text | |
 | login_email | text | required, unique — parent's login email (correspondence is via WhatsApp, not email) |
 | auth_user_id | uuid | FK → Supabase auth.users |
