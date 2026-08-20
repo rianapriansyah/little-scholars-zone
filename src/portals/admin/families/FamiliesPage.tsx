@@ -58,7 +58,6 @@ export function FamiliesPage() {
   const columns: GridColDef<FamilyRow>[] = useMemo(
     () => [
       { field: 'name', headerName: 'Keluarga', flex: 1, minWidth: 160 },
-      { field: 'login_email', headerName: 'Email Login', flex: 1, minWidth: 180, valueGetter: (_v, row) => row.login_email ?? '—' },
       { field: 'contact_phone', headerName: 'Telepon', width: 140, valueGetter: (_v, row) => row.contact_phone ?? '—' },
       {
         field: 'auth_user_id',
