@@ -153,6 +153,48 @@ export function summarizeAttendanceByClass(
   return { classTotals, grandTotalMinutes }
 }
 
+export type MonthlyAttendanceSummary = {
+  label: string
+  grandTotalMinutes: number
+  /** IDR. null means the teacher has no rate configured — show a "belum diatur" hint instead of Rp 0. */
+  estimatedPay: number | null
+}
+
+/**
+ * The same Total Durasi / Estimasi numbers the PDF's grand summary prints, computed on their own
+ * so a caller (the Unduh Laporan Kehadiran confirmation) can preview them without generating and
+ * downloading the file. Goes through fetchMonthlyAttendance + summarizeAttendanceByClass exactly
+ * like downloadTeacherAttendanceReport does, so the preview can never disagree with the PDF.
+ */
+export async function fetchMonthlyAttendanceSummary(params: {
+  classes: TeacherAttendanceReportClass[]
+  /** IDR per hour. null means not configured — estimatedPay comes back null too. */
+  rate: number | null
+  referenceDate?: string
+}): Promise<Result<MonthlyAttendanceSummary>> {
+  const { classes, rate } = params
+  const { start, end, label } = currentMonthRange(params.referenceDate)
+
+  const fetchResult = await fetchMonthlyAttendance(
+    classes.map((c) => c.classroomTeacherId),
+    start,
+    end,
+  )
+  if (!fetchResult.ok) return fetchResult
+
+  const dates = weekdaysInRange(start, end)
+  const { grandTotalMinutes } = summarizeAttendanceByClass(classes, dates, fetchResult.data)
+
+  return {
+    ok: true,
+    data: {
+      label,
+      grandTotalMinutes,
+      estimatedPay: rate != null ? (grandTotalMinutes / 60) * rate : null,
+    },
+  }
+}
+
 const MARGIN_LEFT = 14
 const PAGE_BOTTOM_MARGIN = 16
 

@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import DownloadIcon from '@mui/icons-material/Download'
-import { Alert, Box, Chip, Paper, TextField, Typography } from '@mui/material'
+import { Alert, Box, Chip, CircularProgress, Paper, TextField, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
 import { fetchAttendanceRoster, groupAttendanceByTeacher, type TeacherAttendanceGroup } from '../../../lib/classroomTeacherAttendance'
+import { formatIdr } from '../../../lib/formatIdr'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
-import { downloadTeacherAttendanceReport } from '../../../lib/teacherAttendanceReport'
+import {
+  downloadTeacherAttendanceReport,
+  fetchMonthlyAttendanceSummary,
+  formatHoursMinutes,
+  type MonthlyAttendanceSummary,
+} from '../../../lib/teacherAttendanceReport'
 import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
 import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
 
@@ -23,9 +29,10 @@ function rowSearchBlob(row: TeacherRow): string {
 /**
  * The admin correction surface, one row per teacher: how many of their classes are logged for
  * the selected date, at a glance. Two different things happen depending on which column is
- * tapped — Guru confirms then downloads the monthly PDF, Ringkasan opens TeacherAttendanceDialog
- * to fill in or correct today's punches. Payroll itself stays a manual process an admin runs off
- * this data; nothing here computes pay.
+ * tapped — Guru confirms (previewing Total Durasi and the estimated payout before committing)
+ * then downloads the monthly PDF, Ringkasan opens TeacherAttendanceDialog to fill in or correct
+ * today's punches. Payroll itself stays a manual process an admin runs off this data; the
+ * estimate is a preview, not a computed payout.
  */
 export function TeachersAttendancePage() {
   const [sessionDate, setSessionDate] = useState(() => todayIsoDateInWita())
@@ -40,6 +47,8 @@ export function TeachersAttendancePage() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [confirmDownloadTeacher, setConfirmDownloadTeacher] = useState<TeacherRow | null>(null)
+  const [downloadSummary, setDownloadSummary] = useState<MonthlyAttendanceSummary | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
@@ -58,6 +67,32 @@ export function TeachersAttendancePage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Previews the same Total Durasi / Estimasi numbers the downloaded PDF's grand summary shows,
+  // so the admin can see them before committing to the download.
+  useEffect(() => {
+    if (!confirmDownloadTeacher) {
+      setDownloadSummary(null)
+      return
+    }
+    let cancelled = false
+    setSummaryLoading(true)
+    setDownloadSummary(null)
+    void fetchMonthlyAttendanceSummary({
+      classes: confirmDownloadTeacher.classes.map((c) => ({
+        classroomTeacherId: c.classroomTeacherId,
+        classroomLabel: c.classroomLabel,
+      })),
+      rate: confirmDownloadTeacher.teacherRate,
+    }).then((result) => {
+      if (cancelled) return
+      setSummaryLoading(false)
+      if (result.ok) setDownloadSummary(result.data)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [confirmDownloadTeacher])
 
   const teacherRows = useMemo(() => groupAttendanceByTeacher(entries), [entries])
   const selectedTeacher = teacherRows.find((row) => row.teacherId === selectedTeacherId) ?? null
@@ -212,6 +247,37 @@ export function TeachersAttendancePage() {
         open={confirmDownloadTeacher !== null}
         title="Unduh Laporan Kehadiran"
         description={`Unduh laporan kehadiran bulan ini untuk ${confirmDownloadTeacher?.teacherName ?? ''}?`}
+        extra={
+          summaryLoading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5 }}>
+              <CircularProgress size={16} />
+              <Typography variant="body2" color="text.secondary">
+                Menghitung ringkasan…
+              </Typography>
+            </Box>
+          ) : downloadSummary ? (
+            <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}>
+              <Typography variant="body2" color="text.secondary">
+                Total Durasi ({downloadSummary.label}):{' '}
+                <Typography component="span" variant="body2" sx={{ fontWeight: 700 }}>
+                  {formatHoursMinutes(downloadSummary.grandTotalMinutes)}
+                </Typography>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {downloadSummary.estimatedPay != null ? (
+                  <>
+                    Estimasi yang akan diterima:{' '}
+                    <Typography component="span" variant="body2" sx={{ fontWeight: 700 }}>
+                      {formatIdr(downloadSummary.estimatedPay)}
+                    </Typography>
+                  </>
+                ) : (
+                  'Rate per jam belum diatur — atur di menu Guru untuk melihat estimasi gaji.'
+                )}
+              </Typography>
+            </Box>
+          ) : null
+        }
         confirmLabel="Unduh"
         confirmColor="primary"
         onCancel={() => setConfirmDownloadTeacher(null)}

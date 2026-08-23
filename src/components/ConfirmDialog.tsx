@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
 import {
   Button,
@@ -14,6 +15,8 @@ type Props = {
   open: boolean
   title: string
   description: string
+  /** Extra content below the description — e.g. a computed summary. Not wrapped in DialogContentText's <p>, so it can safely hold block-level markup. */
+  extra?: ReactNode
   confirmLabel?: string
   confirmColor?: ButtonProps['color']
   onCancel: () => void
@@ -24,6 +27,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
+  extra,
   confirmLabel = 'Konfirmasi',
   confirmColor = 'error',
   onCancel,
@@ -39,6 +43,7 @@ export function ConfirmDialog({
       </DialogTitle>
       <DialogContent dividers>
         <DialogContentText>{description}</DialogContentText>
+        {extra}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onCancel}>Batal</Button>
