@@ -4,6 +4,11 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   IconButton,
   List,
@@ -49,6 +54,8 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const [addSelections, setAddSelections] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Set when a plain delete hit the FK guard — offers the confirmed cascade delete instead. */
+  const [confirmForceRemoveGroupId, setConfirmForceRemoveGroupId] = useState<string | null>(null)
 
   const loadGroups = async (classroomId: string) => {
     const { data: groupRows } = await supabase
@@ -162,11 +169,31 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     const { error: dErr } = await supabase.from('classroom_teachers').delete().eq('id', groupId)
     setBusy(false)
     if (dErr) {
-      setError(
-        dErr.code === '23503'
-          ? 'Tidak dapat dihapus: guru ini pernah memiliki siswa di kelas ini. Ganti guru sebagai gantinya.'
-          : dErr.message,
-      )
+      if (dErr.code === '23503') {
+        // Blocked by history (attendance/reports/past students), not a hard failure — offer the
+        // confirmed cascade delete instead of just refusing.
+        setConfirmForceRemoveGroupId(groupId)
+        return
+      }
+      setError(dErr.message)
+      return
+    }
+    await loadGroups(classroom.id)
+    onAssigned()
+  }
+
+  async function handleForceRemoveTeacher() {
+    const groupId = confirmForceRemoveGroupId
+    if (!groupId) return
+    setBusy(true)
+    setError(null)
+    const { error: rpcErr } = await supabase.rpc('delete_classroom_teacher_assignment', {
+      p_classroom_teacher_id: groupId,
+    })
+    setBusy(false)
+    setConfirmForceRemoveGroupId(null)
+    if (rpcErr) {
+      setError(rpcErr.message)
       return
     }
     await loadGroups(classroom.id)
@@ -372,6 +399,25 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
           </Button>
         </Box>
       </Box>
+
+      <Dialog open={confirmForceRemoveGroupId !== null} onClose={() => setConfirmForceRemoveGroupId(null)}>
+        <DialogTitle>Hapus Penugasan Guru</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Guru ini pernah memiliki riwayat kehadiran atau laporan harian di kelas ini. Melanjutkan akan menghapus
+            seluruh riwayat kehadiran dan laporan yang tercatat untuk penugasan ini secara permanen dan tidak dapat
+            dibatalkan.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmForceRemoveGroupId(null)} disabled={busy}>
+            Batal
+          </Button>
+          <Button onClick={() => void handleForceRemoveTeacher()} color="error" disabled={busy}>
+            Hapus Permanen
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

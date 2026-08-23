@@ -16,31 +16,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       child_attendances: {
@@ -378,6 +353,11 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          mood_arrival: string | null
+          mood_departure: string | null
+          mood_note: string | null
+          mood_note_parent: string | null
+          mood_studying: string | null
           report_date: string
           session_id: string | null
           submitted_at: string | null
@@ -388,6 +368,11 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          mood_arrival?: string | null
+          mood_departure?: string | null
+          mood_note?: string | null
+          mood_note_parent?: string | null
+          mood_studying?: string | null
           report_date?: string
           session_id?: string | null
           submitted_at?: string | null
@@ -398,6 +383,11 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          mood_arrival?: string | null
+          mood_departure?: string | null
+          mood_note?: string | null
+          mood_note_parent?: string | null
+          mood_studying?: string | null
           report_date?: string
           session_id?: string | null
           submitted_at?: string | null
@@ -915,6 +905,10 @@ export type Database = {
         Args: { p_classroom_teacher_id: string }
         Returns: string
       }
+      delete_classroom_teacher_assignment: {
+        Args: { p_classroom_teacher_id: string }
+        Returns: undefined
+      }
       delete_learning_period: {
         Args: { p_learning_period_id: string }
         Returns: string
@@ -981,6 +975,19 @@ export type Database = {
           p_child_id: string
           p_classroom_teacher_id: string
           p_entries: Json
+          p_report_date: string
+        }
+        Returns: string
+      }
+      save_daily_report_mood: {
+        Args: {
+          p_child_id: string
+          p_classroom_teacher_id: string
+          p_mood_arrival?: string
+          p_mood_departure?: string
+          p_mood_note?: string
+          p_mood_note_parent?: string
+          p_mood_studying?: string
           p_report_date: string
         }
         Returns: string
@@ -1139,9 +1146,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
