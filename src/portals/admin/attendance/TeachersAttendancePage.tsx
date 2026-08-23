@@ -34,7 +34,10 @@ export function TeachersAttendancePage() {
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 })
   const [keyword, setKeyword] = useState('')
-  const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null)
+  // Holds just the id, not the row object — TeacherAttendanceDialog is derived from the live
+  // teacherRows below, so a save inside it (which reloads entries) is reflected immediately in
+  // the arrival/departure chips instead of showing the snapshot from when the dialog was opened.
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [confirmDownloadTeacher, setConfirmDownloadTeacher] = useState<TeacherRow | null>(null)
   const [downloading, setDownloading] = useState(false)
@@ -57,6 +60,7 @@ export function TeachersAttendancePage() {
   }, [load])
 
   const teacherRows = useMemo(() => groupAttendanceByTeacher(entries), [entries])
+  const selectedTeacher = teacherRows.find((row) => row.teacherId === selectedTeacherId) ?? null
 
   const filteredRows = useMemo(
     () => teacherRows.filter((row) => matchesSearchTokens(rowSearchBlob(row), keyword)),
@@ -127,7 +131,7 @@ export function TeachersAttendancePage() {
       return
     }
     if (params.field === 'summary') {
-      setSelectedTeacher(params.row)
+      setSelectedTeacherId(params.row.teacherId)
       setDialogOpen(true)
     }
   }
