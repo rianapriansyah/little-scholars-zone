@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link as RouterLink, useLocation, useParams } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Alert, Box, Breadcrumbs, Button, CircularProgress, Link, Paper, Tab, Tabs, Typography } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { familyDisplayName } from '../../../lib/familyDisplayName'
@@ -15,14 +15,15 @@ const TAB_PERIODS = 2
 
 export function FamilyDetailPage() {
   const { familyId } = useParams<{ familyId: string }>()
+  const navigate = useNavigate()
   const location = useLocation()
   const focusChildId = (location.state as { focusChildId?: string } | null)?.focusChildId
   const [family, setFamily] = useState<FamilyRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Data Anak stays the default landing tab (e.g. arriving from the Siswa grid with a child to
-  // focus), even though Data Keluarga is now listed first.
-  const [tab, setTab] = useState(TAB_CHILDREN)
+  // Data Keluarga (the first tab) is the default landing tab — except when arriving from the
+  // Siswa grid with a specific child to focus, which lands on Data Anak instead.
+  const [tab, setTab] = useState(focusChildId ? TAB_CHILDREN : TAB_FAMILY)
   const [addChildOpen, setAddChildOpen] = useState(false)
   const [childrenRefreshKey, setChildrenRefreshKey] = useState(0)
 
@@ -112,7 +113,13 @@ export function FamilyDetailPage() {
           <Tab label="Periode Belajar" />
         </Tabs>
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-          {tab === TAB_FAMILY ? <FamilyDetailEditForm family={family} onSaved={() => void load()} /> : null}
+          {tab === TAB_FAMILY ? (
+            <FamilyDetailEditForm
+              family={family}
+              onSaved={() => void load()}
+              onDeleted={() => navigate('/admin/families')}
+            />
+          ) : null}
           {tab === TAB_CHILDREN ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>

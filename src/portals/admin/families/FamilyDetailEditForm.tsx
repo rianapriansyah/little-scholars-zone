@@ -23,6 +23,9 @@ import { formatAge } from '../../../lib/calculateAge'
 import { MAX_CHILDREN } from '../../../lib/registrationDraft'
 import { toTitleCase } from '../../../lib/textCase'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { DangerZone } from '../../../components/DangerZone'
+import { familyDisplayName } from '../../../lib/familyDisplayName'
 import type { FamilyRow } from '../../../types/family'
 
 export type FamilyDetailEditFormHandle = {
@@ -66,6 +69,10 @@ type Props = {
   /** Create mode only — mirrors the internal step, so a parent using hideActions can label its
    *  own button and offer a "Kembali" action. Always 'form' in edit mode. */
   onStepChange?: (step: Step) => void
+  /** Edit mode only: called after the family (and, via ON DELETE CASCADE, every one of its
+   *  children and their learning periods, attendance, daily reports and invoices) has been
+   *  deleted. The caller is expected to navigate away — this row no longer exists. */
+  onDeleted?: () => void
 }
 
 /** Read-only stand-in for a TextField on the review step: same label-above-value shape as the
@@ -125,10 +132,14 @@ function Panel({ children }: { children: ReactNode }) {
 }
 
 export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props>(function FamilyDetailEditForm(
-  { family, onSaved, onCancel, hideActions = false, onBusyChange, onStepChange },
+  { family, onSaved, onCancel, hideActions = false, onBusyChange, onStepChange, onDeleted },
   ref,
 ) {
   const isEdit = family !== null
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleteChildCount, setDeleteChildCount] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -347,6 +358,34 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
   function handleCredentialsDone() {
     setCredentials(null)
     onSaved()
+  }
+
+  /** Looks up how many children hang off this family first, purely so the confirmation dialog
+   *  can tell the admin what they're about to lose — the delete itself doesn't need the count. */
+  async function handleOpenDelete() {
+    if (!family) return
+    const { count } = await supabase
+      .from('children')
+      .select('id', { count: 'exact', head: true })
+      .eq('family_id', family.id)
+    setDeleteChildCount(count ?? 0)
+    setConfirmDeleteOpen(true)
+  }
+
+  async function handleDelete() {
+    if (!family) return
+    setDeleting(true)
+    setError(null)
+    // ON DELETE CASCADE takes every child, and their learning periods, attendance, daily
+    // reports and invoices, down with the family in the same statement.
+    const { error: dErr } = await supabase.from('families').delete().eq('id', family.id)
+    setDeleting(false)
+    setConfirmDeleteOpen(false)
+    if (dErr) {
+      setError(dErr.message)
+      return
+    }
+    onDeleted?.()
   }
 
   const canGenerateCredentials = isEdit && !!(email.trim() || family.login_email) && !!phoneDigits
@@ -681,6 +720,20 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
             </Button>
           </Box>
         )}
+
+        {isEdit && !hideActions ? (
+          <Box sx={{ mt: 3 }}>
+            <DangerZone
+              title="Zona Terbatas"
+              description="Keluarga ini akan dihapus permanen, termasuk seluruh data anak, riwayat kelas, periode belajar, presensi, laporan harian, dan tagihan mereka."
+              actionLabel="Hapus Keluarga"
+              busyLabel="Menghapus…"
+              busy={deleting}
+              disabled={saving}
+              onAction={() => void handleOpenDelete()}
+            />
+          </Box>
+        ) : null}
       </Box>
       <CredentialsRevealDialog
         open={credentials !== null}
@@ -691,6 +744,20 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         reused={credentials?.reused}
         onClose={handleCredentialsDone}
       />
+      {isEdit ? (
+        <ConfirmDialog
+          open={confirmDeleteOpen}
+          title="Hapus Keluarga"
+          description={
+            deleteChildCount
+              ? `Hapus keluarga "${familyDisplayName(family)}"? ${deleteChildCount} data anak beserta seluruh riwayat kelas, periode belajar, presensi, laporan harian, dan tagihan mereka akan ikut terhapus permanen. Tindakan ini tidak dapat dibatalkan.`
+              : `Hapus keluarga "${familyDisplayName(family)}"? Tindakan ini tidak dapat dibatalkan.`
+          }
+          confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+          onCancel={() => setConfirmDeleteOpen(false)}
+          onConfirm={() => void handleDelete()}
+        />
+      ) : null}
     </>
   )
 })
