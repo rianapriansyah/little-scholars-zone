@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
+import DeleteIcon from '@mui/icons-material/Delete'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import {
   Accordion,
@@ -167,30 +168,74 @@ function ClassAttendanceForm({
           Tersimpan.
         </Alert>
       ) : null}
-      <TextField
-        size="small"
-        label="Jam Masuk"
-        type="time"
-        value={clockedInTime}
-        onChange={(e) => {
-          setClockedInTime(e.target.value)
-          setSaved(false)
-        }}
-        fullWidth
-        slotProps={{ inputLabel: { shrink: true } }}
-      />
-      <TextField
-        size="small"
-        label="Jam Selesai"
-        type="time"
-        value={clockedOutTime}
-        onChange={(e) => {
-          setClockedOutTime(e.target.value)
-          setSaved(false)
-        }}
-        fullWidth
-        slotProps={{ inputLabel: { shrink: true } }}
-      />
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <TextField
+          size="small"
+          label="Jam Masuk"
+          type="time"
+          value={clockedInTime}
+          onChange={(e) => {
+            setClockedInTime(e.target.value)
+            setSaved(false)
+          }}
+          fullWidth
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+        <IconButton
+          aria-label="Hapus jam masuk"
+          disabled={!clockedInTime}
+          onClick={() => {
+            setClockedInTime('')
+            setSaved(false)
+          }}
+          sx={{
+            width: 40,
+            height: 40,
+            flexShrink: 0,
+            borderRadius: 1.5,
+            color: 'error.contrastText',
+            bgcolor: 'error.main',
+            '&:hover': { bgcolor: 'error.dark' },
+            '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'action.disabled' },
+          }}
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <TextField
+          size="small"
+          label="Jam Selesai"
+          type="time"
+          value={clockedOutTime}
+          onChange={(e) => {
+            setClockedOutTime(e.target.value)
+            setSaved(false)
+          }}
+          fullWidth
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+        <IconButton
+          aria-label="Hapus jam selesai"
+          disabled={!clockedOutTime}
+          onClick={() => {
+            setClockedOutTime('')
+            setSaved(false)
+          }}
+          sx={{
+            width: 40,
+            height: 40,
+            flexShrink: 0,
+            borderRadius: 1.5,
+            color: 'error.contrastText',
+            bgcolor: 'error.main',
+            '&:hover': { bgcolor: 'error.dark' },
+            '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'action.disabled' },
+          }}
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Box>
       <TextField
         size="small"
         label="Catatan"
