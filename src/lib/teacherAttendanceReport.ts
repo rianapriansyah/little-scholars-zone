@@ -32,9 +32,8 @@ const MONTH_LABELS_ID = [
 
 /**
  * The calendar month containing `referenceDate` (default: today, in WITA — same convention as
- * the rest of the attendance feature). Deliberately the *current* month regardless of whatever
- * date is selected on the Kehadiran Guru screen; the report is always "this month so far/ahead",
- * not tied to the admin's date picker.
+ * the rest of the attendance feature). Callers on the Kehadiran Guru screen pass the admin's
+ * selected sessionDate so the report/estimate track whichever month is picked, not just today's.
  */
 export function currentMonthRange(referenceDate: string = todayIsoDateInWita()): {
   start: string
@@ -199,7 +198,8 @@ const MARGIN_LEFT = 14
 const PAGE_BOTTOM_MARGIN = 16
 
 /**
- * Fetches the teacher's attendance for the current calendar month and downloads it as a PDF:
+ * Fetches the teacher's attendance for the calendar month containing `referenceDate` (the
+ * Kehadiran Guru screen's sessionDate picker; defaults to today) and downloads it as a PDF:
  * header (business name, teacher, period), then one table per class the teacher teaches — a
  * teacher with 4 classes gets 4 tables, each with its own "Total Durasi Mengajar" row — and
  * finally one small summary table totalling every class's minutes for the month, plus (when a

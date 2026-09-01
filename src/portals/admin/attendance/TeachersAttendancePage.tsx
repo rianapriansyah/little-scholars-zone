@@ -84,6 +84,7 @@ export function TeachersAttendancePage() {
         classroomLabel: c.classroomLabel,
       })),
       rate: confirmDownloadTeacher.teacherRate,
+      referenceDate: sessionDate,
     }).then((result) => {
       if (cancelled) return
       setSummaryLoading(false)
@@ -92,7 +93,7 @@ export function TeachersAttendancePage() {
     return () => {
       cancelled = true
     }
-  }, [confirmDownloadTeacher])
+  }, [confirmDownloadTeacher, sessionDate])
 
   const teacherRows = useMemo(() => groupAttendanceByTeacher(entries), [entries])
   const selectedTeacher = teacherRows.find((row) => row.teacherId === selectedTeacherId) ?? null
@@ -102,7 +103,7 @@ export function TeachersAttendancePage() {
     [teacherRows, keyword],
   )
 
-  /** Always the current calendar month, regardless of the sessionDate picker above. */
+  /** The calendar month containing the sessionDate picker above, not necessarily today's month. */
   async function handleDownload(row: TeacherRow) {
     setDownloading(true)
     setDownloadError(null)
@@ -113,6 +114,7 @@ export function TeachersAttendancePage() {
         classroomTeacherId: c.classroomTeacherId,
         classroomLabel: c.classroomLabel,
       })),
+      referenceDate: sessionDate,
     })
     setDownloading(false)
     if (!result.ok) setDownloadError(result.error)
