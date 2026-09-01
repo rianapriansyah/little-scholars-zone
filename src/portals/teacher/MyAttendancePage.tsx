@@ -1,5 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/material'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import dayjs from 'dayjs'
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  FormControl,
+  MenuItem,
+  Paper,
+  Select,
+  Typography,
+} from '@mui/material'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import { supabase } from '../../lib/supabase'
@@ -35,11 +46,24 @@ function StatTile({ label, value, hint }: { label: string; value: string | numbe
   )
 }
 
+/** The most recent 12 months (this month first), as reference dates for the month dropdown. */
+function recentMonthOptions(): { value: string; label: string }[] {
+  const options: { value: string; label: string }[] = []
+  let cursor = dayjs().startOf('month')
+  for (let i = 0; i < 12; i++) {
+    const ref = cursor.format('YYYY-MM-DD')
+    options.push({ value: ref, label: currentMonthRange(ref).label })
+    cursor = cursor.subtract(1, 'month')
+  }
+  return options
+}
+
 /**
  * A teacher's self-service view of their own attendance: how many classes, how much time
- * taught, and an estimated payout for the current calendar month — the same numbers admin sees
- * per-teacher on Kehadiran Guru, just scoped to "me" instead of picked from a list. The download
- * button produces the identical PDF admin would generate for this teacher.
+ * taught, and an estimated payout for a chosen calendar month (defaults to the current one) —
+ * the same numbers admin sees per-teacher on Kehadiran Guru, just scoped to "me" instead of
+ * picked from a list. The download button produces the identical PDF admin would generate for
+ * this teacher, for whichever month is selected.
  */
 export function MyAttendancePage() {
   const { user } = useAuth()
@@ -50,8 +74,10 @@ export function MyAttendancePage() {
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [referenceDate, setReferenceDate] = useState(() => dayjs().startOf('month').format('YYYY-MM-DD'))
 
-  const { start, end, label: periodLabel } = currentMonthRange()
+  const monthOptions = useMemo(() => recentMonthOptions(), [])
+  const { start, end, label: periodLabel } = currentMonthRange(referenceDate)
 
   const load = useCallback(async () => {
     if (!teacher) return
@@ -106,6 +132,7 @@ export function MyAttendancePage() {
       teacherName: teacherDisplayName(teacher),
       rate: teacher.rate,
       classes,
+      referenceDate,
     })
     setDownloading(false)
     if (!result.ok) setDownloadError(result.error)
@@ -127,7 +154,7 @@ export function MyAttendancePage() {
         Kehadiran Saya
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Ringkasan kehadiran mengajar bulan ini, dari semua kelas yang kamu ajar.
+        Ringkasan kehadiran mengajar per bulan, dari semua kelas yang kamu ajar.
       </Typography>
 
       {error ? (
@@ -142,14 +169,24 @@ export function MyAttendancePage() {
       ) : null}
 
       <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
-        <Typography variant="h6" sx={{ fontSize: '1.1rem', mb: 2 }}>
+        <Typography variant="h6" sx={{ fontSize: '1.1rem', mb: 1.5 }}>
           {teacherDisplayName(teacher)}
         </Typography>
+
+        <FormControl size="small" sx={{ minWidth: 200, mb: 2 }}>
+          <Select value={referenceDate} onChange={(e) => setReferenceDate(e.target.value)}>
+            {monthOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
           <StatTile label="Periode" value={periodLabel} />
           <StatTile label="Jumlah Kelas" value={classes.length} hint="Kelas aktif" />
-          <StatTile label="Total Durasi" value={formatHoursMinutes(totalMinutes)} hint="Bulan ini" />
+          <StatTile label="Total Durasi" value={formatHoursMinutes(totalMinutes)} hint={periodLabel} />
           <StatTile
             label="Estimasi yang akan diterima"
             value={estimatedPay ?? '—'}
