@@ -1,3 +1,5 @@
+import { MONTH_NAMES_ID } from './formatDate'
+
 export type ClassStatusBorder = 'green' | 'red' | 'yellow' | 'default'
 
 export type ClassStatus = {
@@ -101,14 +103,14 @@ const WITA_WEEKDAY_LABELS: Record<string, string> = {
 }
 
 /**
- * Today in Asia/Makassar, written the way the teacher portal greets it: "Senin, 05-08-2026".
+ * Today in Asia/Makassar, written the way the teacher portal greets it: "Senin, 05-Agustus-2026".
  * WITA rather than the browser's clock, so the day name always matches the classes listed
  * under it.
  */
 export function formatWitaDayAndDate(referenceNow: Date = new Date()): string {
   const { weekday, year, month, day } = getWitaDateParts(referenceNow)
   const dayName = WITA_WEEKDAY_LABELS[weekday] ?? weekday
-  return `${dayName}, ${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`
+  return `${dayName}, ${String(day).padStart(2, '0')}-${MONTH_NAMES_ID[month - 1]}-${year}`
 }
 
 const WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])

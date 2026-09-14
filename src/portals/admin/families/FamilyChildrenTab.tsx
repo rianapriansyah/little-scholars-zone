@@ -1,23 +1,33 @@
 import { useCallback, useEffect, useState } from 'react'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Avatar, Box, Typography } from '@mui/material'
+import {
+  Alert,
+  Avatar,
+  Box,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material'
 import { supabase } from '../../../lib/supabase'
+import { ResponsiveTableContainer } from '../../../components/ResponsiveTableContainer'
 import type { ChildRow } from '../../../types/child'
-import { ChildDetailEditForm } from './ChildDetailEditForm'
+import type { FamilyRow } from '../../../types/family'
+import { ChildDetailDialog } from './ChildDetailDialog'
 
 type Props = {
   familyId: string
-  /** Pre-expands this child's accordion (e.g. arriving from the Siswa grid). */
-  initialExpandedId?: string
+  family: FamilyRow
   /** Bump to force a re-fetch (e.g. after adding a child from the page-level button). */
   refreshKey?: number
 }
 
-export function FamilyChildrenTab({ familyId, initialExpandedId, refreshKey }: Props) {
+export function FamilyChildrenTab({ familyId, family, refreshKey }: Props) {
   const [children, setChildren] = useState<ChildRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<string | false>(initialExpandedId ?? false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -39,6 +49,9 @@ export function FamilyChildrenTab({ familyId, initialExpandedId, refreshKey }: P
     void load()
   }, [load, refreshKey])
 
+  // Read back out of the list rather than held on its own, so a save refreshes the open dialog.
+  const selectedChild = children.find((c) => c.id === selectedId) ?? null
+
   return (
     <Box>
       {error ? (
@@ -50,29 +63,42 @@ export function FamilyChildrenTab({ familyId, initialExpandedId, refreshKey }: P
       {!loading && children.length === 0 ? (
         <Typography color="text.secondary">Belum ada anak.</Typography>
       ) : (
-        children.map((child) => (
-          <Accordion
-            key={child.id}
-            expanded={expandedId === child.id}
-            onChange={(_, isExpanded) => setExpandedId(isExpanded ? child.id : false)}
-            disableGutters
-            variant="outlined"
-            sx={{ mb: 1, '&:before': { display: 'none' } }}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Avatar src={child.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
-                  {child.full_name.charAt(0).toUpperCase()}
-                </Avatar>
-                <Typography>{child.full_name}</Typography>
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              {expandedId === child.id ? <ChildDetailEditForm child={child} onSaved={() => void load()} /> : null}
-            </AccordionDetails>
-          </Accordion>
-        ))
+        <ResponsiveTableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ width: 56 }} />
+                <TableCell>Nama Anak</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {children.map((child) => (
+                <TableRow
+                  key={child.id}
+                  hover
+                  onClick={() => setSelectedId(child.id)}
+                  sx={{ cursor: 'pointer' }}
+                >
+                  <TableCell>
+                    <Avatar src={child.photo_url ?? undefined} sx={{ width: 32, height: 32 }}>
+                      {child.full_name.charAt(0).toUpperCase()}
+                    </Avatar>
+                  </TableCell>
+                  <TableCell>{child.full_name}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </ResponsiveTableContainer>
       )}
+
+      <ChildDetailDialog
+        open={selectedChild !== null}
+        child={selectedChild}
+        family={family}
+        onClose={() => setSelectedId(null)}
+        onSaved={() => void load()}
+      />
     </Box>
   )
 }

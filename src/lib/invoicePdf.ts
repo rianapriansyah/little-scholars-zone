@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
+import { formatDate } from './formatDate'
 import { formatIdr } from './formatIdr'
 import { BANK_ACCOUNT_LINES } from './paymentInstructions'
 
@@ -38,8 +39,8 @@ export function generateInvoicePdf(data: InvoiceData): void {
       ['Anak', data.childName],
       ['Program', data.classroomLabel],
       ['Periode', `#${data.periodNo}`],
-      ['Mulai', data.startDate],
-      ['Jatuh Tempo', data.dueDate ?? '—'],
+      ['Mulai', formatDate(data.startDate)],
+      ['Jatuh Tempo', formatDate(data.dueDate)],
       [{ content: 'Total Tagihan', styles: { fontStyle: 'bold' } }, { content: formatIdr(data.amount), styles: { fontStyle: 'bold' } }],
     ],
     styles: { fontSize: 10 },
@@ -65,7 +66,7 @@ export function buildInvoiceMessage(data: InvoiceData): string {
     `Berikut tagihan periode belajar ${data.childName} — ${data.classroomLabel} periode #${data.periodNo}:`,
     ``,
     `Total: ${formatIdr(data.amount)}`,
-    data.dueDate ? `Jatuh Tempo: ${data.dueDate}` : null,
+    data.dueDate ? `Jatuh Tempo: ${formatDate(data.dueDate)}` : null,
     ``,
     `Silakan transfer ke rekening berikut:`,
     ...BANK_ACCOUNT_LINES,

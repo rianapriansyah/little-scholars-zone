@@ -1,16 +1,16 @@
-import { forwardRef, useEffect, useImperativeHandle, useState, type ReactNode } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import DeleteIcon from '@mui/icons-material/Delete'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
   Chip,
+  FormControlLabel,
   IconButton,
+  MenuItem,
   Paper,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material'
@@ -20,8 +20,16 @@ import { supabase } from '../../../lib/supabase'
 import { createFamilyAccount } from '../../../lib/createFamilyAccount'
 import { familyEmailLocalPart, generateUniqueFamilyEmail } from '../../../lib/familyEmail'
 import { formatAge } from '../../../lib/calculateAge'
+import { DISPLAY_DATE_FORMAT, formatDate } from '../../../lib/formatDate'
+import { todayIsoDateInWita } from '../../../lib/classStatus'
+import { findChildPeriodError } from '../../../lib/familyChildPeriods'
+import { formatIdr } from '../../../lib/formatIdr'
+import { createChildrenWithFirstPeriods, fetchActiveClassrooms } from '../../../lib/learningPeriods'
+import { uploadPaymentReceipt } from '../../../lib/paymentPeriods'
+import type { ClassroomRow } from '../../../types/classroom'
 import { MAX_CHILDREN } from '../../../lib/registrationDraft'
 import { toTitleCase } from '../../../lib/textCase'
+import { FormPanel as Panel, FormSection as Section } from '../../../components/FormSection'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DangerZone } from '../../../components/DangerZone'
@@ -47,10 +55,28 @@ type DraftChild = {
   /** ISO yyyy-mm-dd, or null when not filled in. */
   birthdate: string | null
   notes: string
+  /** First learning period — required for every named child (the family has already paid). */
+  classroomId: string
+  /** ISO yyyy-mm-dd, or '' when cleared. */
+  startDate: string
+  /** Sudah Lunas: the period's payment row is marked paid in the same transaction. */
+  paid: boolean
+  /** Optional proof of payment, uploaded once the payment row exists. Only used when `paid`. */
+  receiptFile: File | null
 }
 
 function emptyChild(key: string): DraftChild {
-  return { key, fullName: '', birthPlace: '', birthdate: null, notes: '' }
+  return {
+    key,
+    fullName: '',
+    birthPlace: '',
+    birthdate: null,
+    notes: '',
+    classroomId: '',
+    startDate: todayIsoDateInWita(),
+    paid: true,
+    receiptFile: null,
+  }
 }
 
 type Step = 'form' | 'children' | 'review'
@@ -88,49 +114,6 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** A numbered, collapsible division of the form — same chrome as the daily report record, so
- *  data-entry and review screens read as one family of UI. */
-function Section({
-  title,
-  chip,
-  children,
-}: {
-  title: string
-  chip?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <Accordion
-      defaultExpanded
-      disableGutters
-      elevation={0}
-      square
-      sx={{
-        bgcolor: 'transparent',
-        borderBottom: 1,
-        borderColor: 'divider',
-        '&:before': { display: 'none' },
-        '&:last-of-type': { borderBottom: 0 },
-      }}
-    >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
-        <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>{title}</Typography>
-        {chip ? <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>{chip}</Box> : null}
-      </AccordionSummary>
-      <AccordionDetails sx={{ px: 0, pt: 0, pb: 2.5 }}>{children}</AccordionDetails>
-    </Accordion>
-  )
-}
-
-/** The tinted card a section's contents sit on. */
-function Panel({ children }: { children: ReactNode }) {
-  return (
-    <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {children}
-    </Box>
-  )
-}
-
 export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props>(function FamilyDetailEditForm(
   { family, onSaved, onCancel, hideActions = false, onBusyChange, onStepChange, onDeleted },
   ref,
@@ -161,6 +144,16 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
   const [checkingEmail, setCheckingEmail] = useState(false)
   const [generatedEmail, setGeneratedEmail] = useState('')
   const [children, setChildren] = useState<DraftChild[]>([emptyChild(crypto.randomUUID())])
+  /** Create mode only: what a first learning period can be sold for — active, fee-paying classes. */
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([])
+
+  useEffect(() => {
+    if (family) return
+    void fetchActiveClassrooms().then((result) => {
+      if (result.ok) setClassrooms(result.data)
+      else setError(result.error)
+    })
+  }, [family])
 
   const phoneDigits = phone.replace(/\D/g, '')
   // Families aren't identified by a "family name" — the login email is derived from whichever
@@ -212,6 +205,15 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       setError('Masukkan nama ayah atau ibu untuk membuat email login.')
       return
     }
+    // Checked again here, before the login is created — failing after it would leave a family
+    // account with none of its children.
+    if (!isEdit) {
+      const periodError = findChildPeriodError(children)
+      if (periodError) {
+        setError(periodError)
+        return
+      }
+    }
 
     setSaving(true)
     if (isEdit) {
@@ -262,24 +264,45 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
         await supabase.from('families').update(extras).eq('id', familyRow.id)
       }
 
-      // Blank cards (never filled in) are silently dropped — Data Anak is optional here;
-      // children can always be added later from the Anak tab.
-      const childrenToInsert = children
-        .filter((child) => child.fullName.trim())
-        .map((child) => ({
-          family_id: familyRow.id,
-          full_name: child.fullName.trim(),
-          birth_place: child.birthPlace.trim() || null,
-          birthdate: child.birthdate,
-          notes: child.notes.trim() || null,
-        }))
-      if (childrenToInsert.length > 0) {
-        const { error: childrenErr } = await supabase.from('children').insert(childrenToInsert)
-        if (childrenErr) {
+      // Blank cards (never filled in) are silently dropped — Data Anak is optional here, but
+      // every named child arrives with their first, already-sold learning period. Children,
+      // periods and the paid flag go in as one transaction, so a failure never strands a child
+      // without a period.
+      const namedChildren = children.filter((child) => child.fullName.trim())
+      if (namedChildren.length > 0) {
+        const created = await createChildrenWithFirstPeriods(
+          familyRow.id,
+          namedChildren.map((child) => ({
+            fullName: child.fullName.trim(),
+            birthPlace: child.birthPlace.trim() || null,
+            birthdate: child.birthdate,
+            notes: child.notes.trim() || null,
+            classroomId: child.classroomId,
+            startDate: child.startDate,
+            paid: child.paid,
+          })),
+        )
+        if (!created.ok) {
           setSaving(false)
-          setError(`Keluarga dan login tersimpan, tetapi gagal menyimpan data anak: ${childrenErr.message}`)
+          setError(
+            `Keluarga dan login tersimpan, tetapi gagal menyimpan data anak dan periode belajar: ${created.error}`,
+          )
           setCredentials({ email: generatedEmail, password: result.password })
           return
+        }
+
+        // Receipts are history only — attaching one never changes the paid status — so a failed
+        // upload is reported but undoes nothing.
+        const failedReceipts: string[] = []
+        for (const [index, child] of namedChildren.entries()) {
+          if (!child.paid || !child.receiptFile) continue
+          const upload = await uploadPaymentReceipt(created.data[index].paymentPeriodId, child.receiptFile)
+          if (!upload.ok) failedReceipts.push(child.fullName.trim())
+        }
+        if (failedReceipts.length > 0) {
+          setError(
+            `Gagal mengunggah bukti pembayaran untuk: ${failedReceipts.join(', ')}. Unggah ulang dari Data Anak → Periode Belajar → Pembayaran.`,
+          )
         }
       }
 
@@ -319,6 +342,17 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
     setChildren((prev) => prev.filter((child) => child.key !== key))
   }
 
+  /** Children step → review, only once every named child has a class and start date. */
+  function goToReview() {
+    const periodError = findChildPeriodError(children)
+    if (periodError) {
+      setError(periodError)
+      return
+    }
+    setError(null)
+    setStep('review')
+  }
+
   function handleBack() {
     setError(null)
     setStep((current) => (current === 'review' ? 'children' : 'form'))
@@ -329,7 +363,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
       if (isEdit) return handleSave()
       if (step === 'form') return handleNext()
       if (step === 'children') {
-        setStep('review')
+        goToReview()
         return Promise.resolve()
       }
       return handleSave()
@@ -432,7 +466,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
                   onChange={(value) =>
                     updateChild(child.key, { birthdate: value?.isValid() ? value.format('YYYY-MM-DD') : null })
                   }
-                  format="DD-MM-YYYY"
+                  format={DISPLAY_DATE_FORMAT}
                   disableFuture
                   slotProps={{ textField: { size: 'small', fullWidth: true } }}
                 />
@@ -450,6 +484,84 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
                   minRows={2}
                   fullWidth
                 />
+
+                <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                  Periode Belajar
+                </Typography>
+                <TextField
+                  size="small"
+                  select
+                  label="Kelas"
+                  value={child.classroomId}
+                  onChange={(e) => updateChild(child.key, { classroomId: e.target.value })}
+                  required
+                  fullWidth
+                  helperText="Periode mengikuti kelas, bukan guru — ganti guru tidak mengatur ulang kuota."
+                >
+                  {classrooms.map((classroom) => (
+                    <MenuItem key={classroom.id} value={classroom.id}>
+                      {classroom.label} · {classroom.time_start.slice(0, 5)}
+                      {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <DatePicker
+                  label="Tanggal Mulai"
+                  value={child.startDate ? dayjs(child.startDate) : null}
+                  onChange={(value) =>
+                    updateChild(child.key, { startDate: value?.isValid() ? value.format('YYYY-MM-DD') : '' })
+                  }
+                  format={DISPLAY_DATE_FORMAT}
+                  slotProps={{ textField: { size: 'small', fullWidth: true, required: true } }}
+                />
+                {(() => {
+                  // Read-only: the trigger copies quota and price from the classroom at insert, so
+                  // an editable field here would promise something the database will overwrite.
+                  const classroom = classrooms.find((c) => c.id === child.classroomId)
+                  return classroom ? (
+                    <Alert severity="info">
+                      Kuota: <strong>{classroom.guaranteed_days} hari efektif</strong> · Harga{' '}
+                      {formatIdr(classroom.price)}. Sakit tidak memotong kuota.
+                    </Alert>
+                  ) : null
+                })()}
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={child.paid}
+                      onChange={(e) =>
+                        updateChild(child.key, {
+                          paid: e.target.checked,
+                          // A receipt only belongs to a paid period — drop it if unpaid.
+                          receiptFile: e.target.checked ? child.receiptFile : null,
+                        })
+                      }
+                    />
+                  }
+                  label="Sudah Lunas"
+                />
+                {child.paid ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
+                    <Button variant="outlined" component="label" size="small" startIcon={<UploadFileIcon />}>
+                      {child.receiptFile ? 'Ganti Bukti Pembayaran' : 'Unggah Bukti Pembayaran (opsional)'}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        hidden
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          e.target.value = ''
+                          if (file) updateChild(child.key, { receiptFile: file })
+                        }}
+                      />
+                    </Button>
+                    {child.receiptFile ? (
+                      <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                        {child.receiptFile.name}
+                      </Typography>
+                    ) : null}
+                  </Box>
+                ) : null}
               </Box>
             </Paper>
           ))}
@@ -473,7 +585,7 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
                   Batal
                 </Button>
               ) : null}
-              <Button variant="contained" onClick={() => setStep('review')}>
+              <Button variant="contained" onClick={goToReview}>
                 Selanjutnya
               </Button>
             </Box>
@@ -506,15 +618,37 @@ export const FamilyDetailEditForm = forwardRef<FamilyDetailEditFormHandle, Props
             const namedChildren = children.filter((child) => child.fullName.trim())
             return namedChildren.flatMap((child, index) => {
               const suffix = namedChildren.length > 1 ? ` ${index + 1}` : ''
+              const classroom = classrooms.find((c) => c.id === child.classroomId)
               return [
                 <Field key={`${child.key}-name`} label={`Nama Anak${suffix}`} value={child.fullName} />,
                 <Field key={`${child.key}-place`} label={`Tempat Lahir Anak${suffix}`} value={child.birthPlace} />,
                 <Field
                   key={`${child.key}-date`}
                   label={`Tanggal Lahir Anak${suffix}`}
-                  value={child.birthdate ? dayjs(child.birthdate).format('DD-MM-YYYY') : ''}
+                  value={formatDate(child.birthdate, '')}
                 />,
                 <Field key={`${child.key}-notes`} label={`Catatan Anak${suffix}`} value={child.notes} />,
+                <Field key={`${child.key}-classroom`} label={`Kelas Anak${suffix}`} value={classroom?.label ?? ''} />,
+                <Field
+                  key={`${child.key}-start`}
+                  label={`Mulai Periode Anak${suffix}`}
+                  value={formatDate(child.startDate, '')}
+                />,
+                <Field
+                  key={`${child.key}-price`}
+                  label={`Harga Periode Anak${suffix}`}
+                  value={classroom ? formatIdr(classroom.price) : ''}
+                />,
+                <Field
+                  key={`${child.key}-paid`}
+                  label={`Pembayaran Anak${suffix}`}
+                  value={child.paid ? 'Lunas' : 'Belum Lunas'}
+                />,
+                <Field
+                  key={`${child.key}-receipt`}
+                  label={`Bukti Pembayaran Anak${suffix}`}
+                  value={child.paid ? (child.receiptFile?.name ?? '') : ''}
+                />,
               ]
             })
           })()}

@@ -11,6 +11,7 @@ import { fetchOpenPeriods } from '../../../lib/learningPeriods'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
 import { deletePaymentReceipt } from '../../../lib/receiptStorage'
+import { formatDate } from '../../../lib/formatDate'
 import { supabase } from '../../../lib/supabase'
 import type { LearningPeriodListEntry } from '../../../types/attendance'
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/payment'
@@ -79,7 +80,12 @@ export function PeriodsPage() {
       { field: 'childName', headerName: 'Siswa', flex: 1, minWidth: 180 },
       { field: 'classroomLabel', headerName: 'Kelas', flex: 1, minWidth: 150 },
       { field: 'periodNo', headerName: 'Periode', width: 90 },
-      { field: 'startDate', headerName: 'Mulai', width: 120 },
+      {
+        field: 'startDate',
+        headerName: 'Mulai',
+        width: 160,
+        valueFormatter: (value: string) => formatDate(value),
+      },
       {
         field: 'daysConsumed',
         headerName: 'Terpakai',

@@ -19,6 +19,7 @@ import {
   Typography,
 } from '@mui/material'
 import { witaWallClockTime, witaWallClockToIso } from '../../../lib/classStatus'
+import { formatDate } from '../../../lib/formatDate'
 import { saveClassroomTeacherAttendance } from '../../../lib/classroomTeacherAttendance'
 import {
   ARRIVAL_STATUS_LABELS,
@@ -297,7 +298,7 @@ export function TeacherAttendanceDialog({ open, teacherName, sessionDate, classe
             {teacherName}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Kehadiran Guru · {sessionDate}
+            Kehadiran Guru · {formatDate(sessionDate)}
           </Typography>
         </Box>
         <IconButton onClick={onClose} aria-label="Tutup" size="small" sx={{ mt: -0.5 }}>

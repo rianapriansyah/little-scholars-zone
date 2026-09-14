@@ -11,6 +11,7 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
+import { formatDate } from '../lib/formatDate'
 import { fetchPeriod, fetchPeriodAttendances } from '../lib/learningPeriods'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
@@ -110,7 +111,7 @@ export function LearningPeriodDetail({ periodId, hideChildName = false }: Props)
       </Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
-        <StatTile label="Mulai" value={period.startDate} />
+        <StatTile label="Mulai" value={formatDate(period.startDate)} />
         <StatTile label="Terpakai" value={`${period.daysConsumed}/${period.guaranteedDays}`} hint="Hadir + alfa" />
         <StatTile label="Sisa" value={period.daysRemaining} hint="Hari dijamin" />
         <StatTile label="Sakit" value={period.daysSick} hint="Tidak memotong" />
@@ -119,8 +120,8 @@ export function LearningPeriodDetail({ periodId, hideChildName = false }: Props)
       {period.projectedEndDate || period.actualEndDate ? (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {period.actualEndDate
-            ? `Selesai pada ${period.actualEndDate}.`
-            : `Perkiraan selesai ${period.projectedEndDate} — perkiraan kasar, bukan patokan.`}
+            ? `Selesai pada ${formatDate(period.actualEndDate)}.`
+            : `Perkiraan selesai ${formatDate(period.projectedEndDate)} — perkiraan kasar, bukan patokan.`}
         </Typography>
       ) : null}
 
@@ -140,7 +141,7 @@ export function LearningPeriodDetail({ periodId, hideChildName = false }: Props)
               const status = isAttendanceStatus(row.status) ? row.status : null
               return (
                 <ListItem key={row.id} divider={index < attendances.length - 1} sx={{ gap: 1 }}>
-                  <ListItemText primary={row.attendance_date} secondary={row.note ?? undefined} />
+                  <ListItemText primary={formatDate(row.attendance_date)} secondary={row.note ?? undefined} />
                   {status ? (
                     <Chip
                       size="small"

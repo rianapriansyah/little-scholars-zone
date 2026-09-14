@@ -28,6 +28,7 @@ import { fetchAttendanceByChild, fetchPeriodsCoveringDate } from '../../lib/lear
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import type { CurriculumItemRow } from '../../types/curriculumItem'
 import type { DailyReportMateri } from '../../types/dailyReport'
+import { formatDate } from '../../lib/formatDate'
 import { DailyReportStudentDialog } from './DailyReportStudentDialog'
 
 type ClassOption = {
@@ -239,12 +240,12 @@ export function DailyReportPage() {
         <Typography color="text.secondary">
           {enrolledCount === 0
             ? 'Belum ada siswa yang terdaftar di kelas ini.'
-            : `Tidak ada siswa dengan periode belajar yang berjalan pada ${reportDate}. Periode mungkin belum dimulai atau sudah habis — cek di Detail Keluarga → Periode Belajar.`}
+            : `Tidak ada siswa dengan periode belajar yang berjalan pada ${formatDate(reportDate)}. Periode mungkin belum dimulai atau sudah habis — cek di Detail Keluarga → Data Anak.`}
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           <Typography variant="body2" color="text.secondary">
-            {selectedClass?.label} · {roster.length} dari {enrolledCount} siswa · {reportDate}
+            {selectedClass?.label} · {roster.length} dari {enrolledCount} siswa · {formatDate(reportDate)}
           </Typography>
 
           {roster.map((child) => {

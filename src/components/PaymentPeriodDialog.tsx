@@ -47,8 +47,8 @@ function isPdfPath(path: string): boolean {
  * Everything about one period's payment, behind a click on the Pembayaran chip: view the
  * receipt when paid, upload one and mark paid when not, and one bottom button that sends
  * either the invoice or the payment confirmation depending on which state that is. Shared by
- * the admin's Periode Belajar datagrid and the family detail page's Periode Belajar tab, so the
- * two can never show different payment UI for the same table.
+ * the admin's Periode Belajar datagrid and the child's periods table on the family detail page's
+ * Data Anak tab, so the two can never show different payment UI for the same table.
  */
 export function PaymentPeriodDialog({
   open,

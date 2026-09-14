@@ -27,6 +27,7 @@ import dayjs from 'dayjs'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
 import { createFamilyAccount } from '../../../lib/createFamilyAccount'
 import { generateUniqueFamilyEmail } from '../../../lib/familyEmail'
+import { formatDate, formatDateTime } from '../../../lib/formatDate'
 import { formatIdr } from '../../../lib/formatIdr'
 import {
   approveRegistration,
@@ -210,7 +211,7 @@ export function RegistrationDetailPage() {
   if (!detail) return null
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="id">
       <Box>
         <Breadcrumbs sx={{ mb: 1 }}>
           <Link component={RouterLink} to="/admin/registrations" underline="hover" color="inherit">
@@ -225,7 +226,7 @@ export function RegistrationDetailPage() {
           <Chip size="small" label={STATUS_LABEL[detail.status]} color={STATUS_COLOR[detail.status]} variant="outlined" />
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Kode {detail.referenceCode} · Dikirim {new Date(detail.submittedAt).toLocaleString('id-ID')}
+          Kode {detail.referenceCode} · Dikirim {formatDateTime(detail.submittedAt)}
         </Typography>
 
         {error ? (
@@ -256,7 +257,7 @@ export function RegistrationDetailPage() {
             return (
               <Paper key={child.id} variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>{child.fullName}</Typography>
-                <Field label="Tempat, Tanggal Lahir" value={[child.birthPlace, child.birthdate].filter(Boolean).join(', ') || null} />
+                <Field label="Tempat, Tanggal Lahir" value={[child.birthPlace, formatDate(child.birthdate, '')].filter(Boolean).join(', ') || null} />
                 {age ? <Field label="Usia" value={age} /> : null}
                 <Field label="Catatan" value={child.notes} />
                 <Divider sx={{ my: 1 }} />

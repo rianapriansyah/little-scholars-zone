@@ -4,6 +4,7 @@ import { autoTable } from 'jspdf-autotable'
 import { supabase } from './supabase'
 import { todayIsoDateInWita, witaWallClockTime } from './classStatus'
 import { parseClassroomTeacherAttendanceStatus } from './classroomTeacherAttendance'
+import { MONTH_NAMES_ID, formatDate } from './formatDate'
 import { formatIdr } from './formatIdr'
 import type { Result } from './result'
 import type {
@@ -14,21 +15,6 @@ import type {
 
 /** Matches the app's identity everywhere else — index.html's title and every PortalLayout header. */
 const BUSINESS_NAME = 'Little Schoolars Zone'
-
-const MONTH_LABELS_ID = [
-  'Januari',
-  'Februari',
-  'Maret',
-  'April',
-  'Mei',
-  'Juni',
-  'Juli',
-  'Agustus',
-  'September',
-  'Oktober',
-  'November',
-  'Desember',
-]
 
 /**
  * The calendar month containing `referenceDate` (default: today, in WITA — same convention as
@@ -44,7 +30,7 @@ export function currentMonthRange(referenceDate: string = todayIsoDateInWita()):
   return {
     start: ref.startOf('month').format('YYYY-MM-DD'),
     end: ref.endOf('month').format('YYYY-MM-DD'),
-    label: `${MONTH_LABELS_ID[ref.month()]} ${ref.year()}`,
+    label: `${MONTH_NAMES_ID[ref.month()]} ${ref.year()}`,
   }
 }
 
@@ -262,7 +248,7 @@ export async function downloadTeacherAttendanceReport(params: {
 
       body.push([
         String(rowNo++),
-        dayjs(date).format('DD-MM-YYYY'),
+        formatDate(date),
         formatClockTime(status?.clockedInAt ?? null),
         formatClockTime(status?.clockedOutAt ?? null),
         status?.minutesTaught != null ? `${status.minutesTaught} menit` : '—',

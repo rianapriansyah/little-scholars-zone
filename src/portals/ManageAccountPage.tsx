@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTeacherProfile } from '../hooks/useTeacherProfile'
 import { useFamilyProfile } from '../hooks/useFamilyProfile'
 import { getAppRole } from '../lib/authRole'
+import { formatDate } from '../lib/formatDate'
 import { supabase } from '../lib/supabase'
 import { splitEducation } from '../lib/teacherEducation'
 import type { ChildRow } from '../types/child'
@@ -149,7 +150,7 @@ function ParentAccountInfo({ authUserId }: { authUserId: string | undefined }) {
                   </Typography>
                   {c.birthdate ? (
                     <Typography variant="body2" color="text.secondary">
-                      Tanggal lahir: {c.birthdate}
+                      Tanggal lahir: {formatDate(c.birthdate)}
                     </Typography>
                   ) : null}
                 </Box>

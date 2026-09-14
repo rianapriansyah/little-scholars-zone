@@ -256,6 +256,45 @@ export async function fetchPeriodsForChild(childId: string): Promise<Result<Lear
   return { ok: true, data: entries }
 }
 
+export type NewChildWithFirstPeriod = {
+  fullName: string
+  birthPlace: string | null
+  /** ISO yyyy-mm-dd. */
+  birthdate: string | null
+  notes: string | null
+  classroomId: string
+  /** ISO yyyy-mm-dd. */
+  startDate: string
+  /** Already paid for — flips the auto-created payment row to paid in the same transaction. */
+  paid: boolean
+}
+
+/**
+ * Admin-only, Tambah Keluarga. Inserts the children, each with learning period #1, atomically —
+ * all or none. Results line up index-for-index with `children`, carrying the payment_period id a
+ * receipt can then be attached to.
+ */
+export async function createChildrenWithFirstPeriods(
+  familyId: string,
+  children: NewChildWithFirstPeriod[],
+): Promise<Result<{ childId: string; paymentPeriodId: string }[]>> {
+  const { data, error } = await supabase.rpc('create_children_with_first_periods', {
+    p_family_id: familyId,
+    p_children: children.map((child) => ({
+      full_name: child.fullName,
+      birth_place: child.birthPlace,
+      birthdate: child.birthdate,
+      notes: child.notes,
+      classroom_id: child.classroomId,
+      start_date: child.startDate,
+      paid: child.paid,
+    })),
+  })
+  if (error) return { ok: false, error: error.message }
+  const rows = (data ?? []) as unknown as { child_id: string; payment_period_id: string }[]
+  return { ok: true, data: rows.map((row) => ({ childId: row.child_id, paymentPeriodId: row.payment_period_id })) }
+}
+
 /**
  * Admin-only. period_no is derived as the child's highest so far in that classroom, plus one;
  * the unique constraint is the real guard if two admins race.

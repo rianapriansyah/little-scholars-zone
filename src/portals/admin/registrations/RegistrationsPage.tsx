@@ -5,6 +5,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { DataGridUpdateIconButton } from '../../../components/DataGridUpdateIconButton'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { formatDateTime } from '../../../lib/formatDate'
 import { formatIdr } from '../../../lib/formatIdr'
 import {
   fetchRegistrationSubmissions,
@@ -86,7 +87,7 @@ export function RegistrationsPage() {
         field: 'submittedAt',
         headerName: 'Dikirim',
         width: 160,
-        valueFormatter: (value: string) => new Date(value).toLocaleString('id-ID'),
+        valueFormatter: (value: string) => formatDateTime(value),
       },
       {
         field: 'status',

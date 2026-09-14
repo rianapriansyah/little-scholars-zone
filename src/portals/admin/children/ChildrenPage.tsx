@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Alert, Avatar, Box, Chip, Paper, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import dayjs from 'dayjs'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
@@ -10,6 +9,7 @@ import { familyDisplayName } from '../../../lib/familyDisplayName'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
+import { ChildDetailDialog } from '../families/ChildDetailDialog'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -20,12 +20,13 @@ function childSearchBlob(row: ChildView): string {
 }
 
 export function ChildrenPage() {
-  const navigate = useNavigate()
   const [rows, setRows] = useState<ChildView[]>([])
+  const [familyById, setFamilyById] = useState<Map<string, FamilyRow>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -46,7 +47,7 @@ export function ChildrenPage() {
       return
     }
 
-    const familyById = new Map<string, FamilyRow>((familiesRes.data ?? []).map((f) => [f.id, f]))
+    const families = new Map<string, FamilyRow>((familiesRes.data ?? []).map((f) => [f.id, f]))
     const classroomByChild = new Map<string, string>()
     for (const row of enrollmentsRes.data ?? []) {
       const group = row.classroom_teachers as unknown as
@@ -59,9 +60,10 @@ export function ChildrenPage() {
 
     const views: ChildView[] = (childrenRes.data ?? []).map((c) => ({
       ...c,
-      familyName: familyById.has(c.family_id) ? familyDisplayName(familyById.get(c.family_id)!) : '—',
+      familyName: families.has(c.family_id) ? familyDisplayName(families.get(c.family_id)!) : '—',
       classroomLabel: classroomByChild.get(c.id) ?? null,
     }))
+    setFamilyById(families)
     setRows(views)
   }, [])
 
@@ -73,6 +75,10 @@ export function ChildrenPage() {
     () => rows.filter((row) => matchesSearchTokens(childSearchBlob(row), keyword)),
     [rows, keyword],
   )
+
+  // Read back out of the grid rows rather than held on its own, so a save refreshes the open dialog.
+  const selectedChild = rows.find((row) => row.id === selectedId) ?? null
+  const selectedFamily = selectedChild ? (familyById.get(selectedChild.family_id) ?? null) : null
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,17 +125,6 @@ export function ChildrenPage() {
         minWidth: 180,
         valueGetter: (_v, row) => row.classroomLabel ?? 'Belum Terdaftar',
       },
-      {
-        field: 'active',
-        headerName: 'Status',
-        width: 110,
-        renderCell: (params) =>
-          params.row.active ? (
-            <Chip size="small" label="Aktif" color="success" variant="outlined" />
-          ) : (
-            <Chip size="small" label="Nonaktif" color="default" variant="outlined" />
-          ),
-      },
     ],
     [],
   )
@@ -167,14 +162,23 @@ export function ChildrenPage() {
               pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
               disableRowSelectionOnClick
               autoHeight
-              onRowClick={(params) =>
-                navigate(`/admin/families/${params.row.family_id}`, { state: { focusChildId: params.row.id } })
-              }
+              onRowClick={(params) => setSelectedId(params.row.id)}
               sx={{ border: 'none', '& .MuiDataGrid-row': { cursor: 'pointer' } }}
             />
           </Paper>
         </Box>
       )}
+
+      {/* Periods are priced from the family, so the dialog can only open once that row is known. */}
+      {selectedFamily ? (
+        <ChildDetailDialog
+          open={selectedChild !== null}
+          child={selectedChild}
+          family={selectedFamily}
+          onClose={() => setSelectedId(null)}
+          onSaved={() => void load()}
+        />
+      ) : null}
     </Box>
   )
 }

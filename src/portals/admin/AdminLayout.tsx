@@ -17,7 +17,7 @@ const NAV: PortalNavItem[] = [
 
 export function AdminLayout() {
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="id">
       <PortalLayout title="Little Schoolars Zone — Admin" navItems={NAV} />
     </LocalizationProvider>
   )

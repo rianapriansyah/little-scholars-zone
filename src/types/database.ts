@@ -905,6 +905,10 @@ export type Database = {
         Args: { p_classroom_teacher_id: string }
         Returns: string
       }
+      create_children_with_first_periods: {
+        Args: { p_children: Json; p_family_id: string }
+        Returns: Json
+      }
       delete_classroom_teacher_assignment: {
         Args: { p_classroom_teacher_id: string }
         Returns: undefined

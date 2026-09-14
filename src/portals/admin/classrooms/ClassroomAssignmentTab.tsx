@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CloseIcon from '@mui/icons-material/Close'
 import DeleteIcon from '@mui/icons-material/DeleteOutline'
 import {
   Alert,
@@ -56,6 +57,8 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const [error, setError] = useState<string | null>(null)
   /** Set when a plain delete hit the FK guard — offers the confirmed cascade delete instead. */
   const [confirmForceRemoveGroupId, setConfirmForceRemoveGroupId] = useState<string | null>(null)
+  /** Group whose "Atur Siswa" modal is open — Tambah/Hapus siswa only happen inside it. */
+  const [manageStudentsGroupId, setManageStudentsGroupId] = useState<string | null>(null)
 
   const loadGroups = async (classroomId: string) => {
     const { data: groupRows } = await supabase
@@ -129,7 +132,9 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     void loadGroups(classroom.id)
     void loadActiveEnrollments()
     void loadEligibleChildren(classroom.id)
-  }, [classroom])
+    // Keyed on the id, not the row: onAssigned() hands back a fresh object every time, and
+    // re-running this on each of those would wipe in-progress form state.
+  }, [classroom.id])
 
   const availableTeachersToAdd = teachers.filter((t) => t.active && !groups.some((g) => g.teacherId === t.id))
 
@@ -234,6 +239,15 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     onAssigned()
   }
 
+  const manageGroup = groups.find((g) => g.id === manageStudentsGroupId) ?? null
+  const manageRosterChildIds = new Set(manageGroup?.roster.map((r) => r.childId) ?? [])
+  // Only children who hold an open learning period for this classroom: without one,
+  // the teacher could never record their attendance.
+  const manageAvailableChildren = children.filter(
+    (c) => !manageRosterChildIds.has(c.id) && eligibleChildIds.has(c.id),
+  )
+  const manageAtCapacity = (manageGroup?.roster.length ?? 0) >= MAX_STUDENTS_PER_TEACHER
+
   return (
     <Box>
       {error ? (
@@ -248,18 +262,11 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
           </Typography>
         ) : (
           groups.map((group) => {
-            const rosterChildIds = new Set(group.roster.map((r) => r.childId))
-            // Only children who hold an open learning period for this classroom: without one,
-            // the teacher could never record their attendance.
-            const availableChildren = children.filter(
-              (c) => !rosterChildIds.has(c.id) && eligibleChildIds.has(c.id),
-            )
             const otherGroupTeacherIds = new Set(groups.filter((g) => g.id !== group.id).map((g) => g.teacherId))
             const teacherOptions = teachers.filter(
               (t) => t.id === group.teacherId || (t.active && !otherGroupTeacherIds.has(t.id)),
             )
             const currentTeacher = teachers.find((t) => t.id === group.teacherId)
-            const atCapacity = group.roster.length >= MAX_STUDENTS_PER_TEACHER
 
             return (
               <Paper key={group.id} variant="outlined" sx={{ p: 2 }}>
@@ -315,55 +322,18 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                         {group.roster.map((r) => (
                           <ListItem key={r.enrollmentId} disableGutters>
                             <ListItemText primary={r.childName} />
-                            <ListItemSecondaryAction>
-                              <IconButton
-                                size="small"
-                                aria-label="Hapus siswa"
-                                disabled={busy}
-                                onClick={() => void handleRemoveStudent(r.childId)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </ListItemSecondaryAction>
                           </ListItem>
                         ))}
                       </List>
                     )}
 
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <TextField
-                        size="small"
-                        select
-                        label="Tambah Siswa"
-                        value={addSelections[group.id] ?? ''}
-                        onChange={(e) => setAddSelections((prev) => ({ ...prev, [group.id]: e.target.value }))}
-                        fullWidth
-                        disabled={atCapacity || availableChildren.length === 0}
-                        helperText={
-                          !atCapacity && availableChildren.length === 0
-                            ? 'Tidak ada siswa dengan periode belajar aktif di kelas ini. Buat periode dulu di Detail Keluarga → Periode Belajar.'
-                            : undefined
-                        }
-                      >
-                        {availableChildren.map((c) => {
-                          const existing = activeEnrollments.get(c.id)
-                          return (
-                            <MenuItem key={c.id} value={c.id}>
-                              {c.full_name}
-                              {existing ? ` (saat ini: ${existing.label})` : ''}
-                            </MenuItem>
-                          )
-                        })}
-                      </TextField>
-                      <Button
-                        variant="outlined"
-                        disabled={!addSelections[group.id] || busy || atCapacity}
-                        onClick={() => void handleAddStudent(group.id)}
-                        sx={{ whiteSpace: 'nowrap' }}
-                      >
-                        Tambah
-                      </Button>
-                    </Box>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setManageStudentsGroupId(group.id)}
+                    >
+                      Atur Siswa
+                    </Button>
                   </>
                 ) : null}
               </Paper>
@@ -418,6 +388,85 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {manageGroup ? (
+        <Dialog open onClose={() => setManageStudentsGroupId(null)} fullWidth maxWidth="sm">
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+            Atur Siswa — {manageGroup.teacherName}
+            <IconButton onClick={() => setManageStudentsGroupId(null)} disabled={busy} size="small" aria-label="Tutup">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent dividers>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Siswa ({manageGroup.roster.length}/{MAX_STUDENTS_PER_TEACHER})
+            </Typography>
+            {manageGroup.roster.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Belum ada siswa yang terdaftar.
+              </Typography>
+            ) : (
+              <List dense disablePadding sx={{ mb: 1 }}>
+                {manageGroup.roster.map((r) => (
+                  <ListItem key={r.enrollmentId} disableGutters>
+                    <ListItemText primary={r.childName} />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        size="small"
+                        aria-label="Hapus siswa"
+                        disabled={busy}
+                        onClick={() => void handleRemoveStudent(r.childId)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              <TextField
+                size="small"
+                select
+                label="Tambah Siswa"
+                value={addSelections[manageGroup.id] ?? ''}
+                onChange={(e) => setAddSelections((prev) => ({ ...prev, [manageGroup.id]: e.target.value }))}
+                fullWidth
+                disabled={manageAtCapacity || manageAvailableChildren.length === 0}
+                helperText={
+                  !manageAtCapacity && manageAvailableChildren.length === 0
+                    ? 'Tidak ada siswa dengan periode belajar aktif di kelas ini. Buat periode dulu di Detail Keluarga → Data Anak.'
+                    : undefined
+                }
+              >
+                {manageAvailableChildren.map((c) => {
+                  const existing = activeEnrollments.get(c.id)
+                  return (
+                    <MenuItem key={c.id} value={c.id}>
+                      {c.full_name}
+                      {existing ? ` (saat ini: ${existing.label})` : ''}
+                    </MenuItem>
+                  )
+                })}
+              </TextField>
+              <Button
+                variant="outlined"
+                disabled={!addSelections[manageGroup.id] || busy || manageAtCapacity}
+                onClick={() => void handleAddStudent(manageGroup.id)}
+                sx={{ whiteSpace: 'nowrap' }}
+              >
+                Tambah
+              </Button>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button variant="contained" onClick={() => setManageStudentsGroupId(null)} disabled={busy}>
+              Selesai
+            </Button>
+          </DialogActions>
+        </Dialog>
+      ) : null}
     </Box>
   )
 }

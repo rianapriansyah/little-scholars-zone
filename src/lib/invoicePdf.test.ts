@@ -27,7 +27,7 @@ describe('buildInvoiceMessage', () => {
 
   it('includes the due date line when set', () => {
     const message = buildInvoiceMessage({ ...base, dueDate: '2026-08-20' })
-    expect(message).toContain('Jatuh Tempo: 2026-08-20')
+    expect(message).toContain('Jatuh Tempo: 20-Agustus-2026')
   })
 
   it('includes the bank transfer details', () => {

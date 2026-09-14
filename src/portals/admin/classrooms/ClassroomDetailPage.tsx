@@ -45,7 +45,9 @@ export function ClassroomDetailPage() {
     void load()
   }, [load])
 
-  if (loading) {
+  // Only the first load takes over the page: a background refresh (onSaved/onAssigned) must keep
+  // the tab mounted, or it would lose its local state — an open dialog included.
+  if (loading && !classroom) {
     return (
       <Box display="flex" justifyContent="center" py={6}>
         <CircularProgress />

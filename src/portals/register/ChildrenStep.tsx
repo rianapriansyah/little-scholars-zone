@@ -3,6 +3,7 @@ import { Box, Button, IconButton, Paper, TextField, Typography } from '@mui/mate
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import dayjs from 'dayjs'
 import { formatAge } from '../../lib/calculateAge'
+import { DISPLAY_DATE_FORMAT } from '../../lib/formatDate'
 import { toTitleCase } from '../../lib/textCase'
 import { MAX_CHILDREN, emptyChild, type DraftChild } from '../../lib/registrationDraft'
 
@@ -66,7 +67,7 @@ export function ChildrenStep({ children, onChange }: Props) {
                   birthdate: value?.isValid() ? value.format('YYYY-MM-DD') : null,
                 })
               }
-              format="DD-MM-YYYY"
+              format={DISPLAY_DATE_FORMAT}
               disableFuture
               slotProps={{ textField: { size: 'small', fullWidth: true } }}
             />

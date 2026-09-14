@@ -51,7 +51,7 @@ export function LearningPeriodDialog({ open, child, family, onClose, onSaved }: 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Set right after a successful save, so the invoice prompt survives the form dialog closing —
-  // this component stays mounted, only its own `open` prop toggles (see FamilyPeriodsTab).
+  // this component stays mounted, only its own `open` prop toggles (see ChildPeriodsSection).
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null)
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { Alert, Box, Divider, Paper, Typography } from '@mui/material'
 import dayjs from 'dayjs'
 import { formatAge } from '../../lib/calculateAge'
+import { formatDate } from '../../lib/formatDate'
 import { formatIdr } from '../../lib/formatIdr'
 import { mandatoryFeeTotal, type FeeItemOption, type ProgramOption, type RegistrationDraft } from '../../lib/registrationDraft'
 import { MandatoryFeeCard } from './MandatoryFeeCard'
@@ -46,7 +47,7 @@ export function ReviewStep({ draft, programs, feeItems, receipt }: Props) {
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               Anak {index + 1}: {child.fullName || '—'}
             </Typography>
-            <Row label="Tempat, Tanggal Lahir" value={[child.birthPlace, child.birthdate].filter(Boolean).join(', ')} />
+            <Row label="Tempat, Tanggal Lahir" value={[child.birthPlace, formatDate(child.birthdate, '')].filter(Boolean).join(', ')} />
             {age ? <Row label="Usia" value={age} /> : null}
             <Divider sx={{ my: 1 }} />
             <Row label="Program" value={program?.label ?? '—'} />

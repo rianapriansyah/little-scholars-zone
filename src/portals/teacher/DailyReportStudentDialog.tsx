@@ -32,6 +32,7 @@ import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } fr
 import { CURRICULUM_SUBJECTS, CURRICULUM_SUBJECT_LABELS, isCurriculumSubject } from '../../types/curriculumItem'
 import type { CurriculumItemRow, CurriculumSubject } from '../../types/curriculumItem'
 import type { DailyReportEntry, DailyReportMateri } from '../../types/dailyReport'
+import { formatDate } from '../../lib/formatDate'
 
 /** A numbered, collapsible division of the record, separated from its neighbours by a rule. */
 function Section({
@@ -258,7 +259,7 @@ export function DailyReportStudentDialog({
             {childName}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Laporan Harian · {report.reportDate}
+            Laporan Harian · {formatDate(report.reportDate)}
           </Typography>
         </Box>
         {locked ? (
