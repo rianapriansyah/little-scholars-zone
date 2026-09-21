@@ -1019,7 +1019,7 @@ export type Database = {
         Returns: string[]
       }
       unenroll_child: {
-        Args: { p_child_id: string; p_end_reason?: string }
+        Args: { p_child_id: string; p_classroom_teacher_id: string; p_end_reason?: string }
         Returns: undefined
       }
     }

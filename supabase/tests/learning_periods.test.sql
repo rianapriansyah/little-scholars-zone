@@ -39,23 +39,19 @@ INSERT INTO public.children (id, family_id, full_name) VALUES
   ('00000000-0000-4000-9000-000000000017', '00000000-0000-4000-9000-000000000015', 'LP Child Two');
 
 -- Classroom X and Y are both taught by teacher A; classroom Z by teacher B.
-INSERT INTO public.classrooms (id, label, time_start) VALUES
-  ('00000000-0000-4000-9000-000000000018', 'LP Classroom X', '09:00'),
-  ('00000000-0000-4000-9000-000000000019', 'LP Classroom Y', '11:00'),
-  ('00000000-0000-4000-9000-00000000001a', 'LP Classroom Z', '13:00');
+INSERT INTO public.classrooms (id, label, time_start, time_end, price) VALUES
+  ('00000000-0000-4000-9000-000000000018', 'LP Classroom X', '09:00', '10:00', 500000),
+  ('00000000-0000-4000-9000-000000000019', 'LP Classroom Y', '11:00', '12:00', 500000),
+  ('00000000-0000-4000-9000-00000000001a', 'LP Classroom Z', '13:00', '14:00', 500000);
 
 INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-9000-000000000020', '00000000-0000-4000-9000-000000000018', '00000000-0000-4000-9000-000000000012'),
   ('00000000-0000-4000-9000-000000000021', '00000000-0000-4000-9000-000000000019', '00000000-0000-4000-9000-000000000012'),
   ('00000000-0000-4000-9000-000000000022', '00000000-0000-4000-9000-00000000001a', '00000000-0000-4000-9000-000000000013');
 
--- children_classrooms allows only one active enrollment per child
--- (children_classrooms_one_active_idx). The new tables model a child holding independent
--- periods in two separately-billed classrooms correctly, but that enrollment index blocks it
--- in production today. Dropping it here — inside a transaction that rolls back — lets the
--- two-classroom case below run through the real RPC instead of by direct insert.
-DROP INDEX public.children_classrooms_one_active_idx;
-
+-- Child One sits in X and Y at once: one active enrollment per (child, classroom) is the cap
+-- since 20260921010000_enrollment_per_classroom.sql, so a child holding independent periods in
+-- two separately-billed classrooms is enrollable in both.
 INSERT INTO public.children_classrooms (child_id, classroom_teacher_id, started_at) VALUES
   ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000020', '2026-01-01'),
   ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000021', '2026-01-01'),
@@ -389,6 +385,65 @@ BEGIN
     RAISE EXCEPTION 'FAIL: parent 2 can read family 1''s periods through the view (% rows)', v_periods;
   END IF;
   RAISE NOTICE 'PASS: parent cannot read another family''s periods or attendance';
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Enrollment is scoped per classroom (20260921010000_enrollment_per_classroom.sql)
+-- ---------------------------------------------------------------------------
+
+RESET ROLE;
+
+-- A second group in classroom Z, so a switch within Z has somewhere to go.
+INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
+  ('00000000-0000-4000-9000-000000000023', '00000000-0000-4000-9000-00000000001a', '00000000-0000-4000-9000-000000000012');
+
+DO $$
+DECLARE
+  v_child uuid := '00000000-0000-4000-9000-000000000017'; -- Child Two, active in classroom Z
+  v_rows int;
+BEGIN
+  -- A second program is enrollable while the first stays open.
+  PERFORM public.enroll_child_in_classroom(v_child, '00000000-0000-4000-9000-000000000020');
+  SELECT count(*) INTO v_rows FROM public.children_classrooms
+    WHERE child_id = v_child AND ended_at IS NULL;
+  IF v_rows <> 2 THEN
+    RAISE EXCEPTION 'FAIL: child should hold 2 active enrollments, one per program (% rows)', v_rows;
+  END IF;
+  RAISE NOTICE 'PASS: a child can be enrolled in one class per program';
+
+  -- ...but only one class within the same program.
+  BEGIN
+    PERFORM public.enroll_child_in_classroom(v_child, '00000000-0000-4000-9000-000000000023');
+    RAISE EXCEPTION 'FAIL: a second active enrollment in the same classroom must be rejected';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    RAISE NOTICE 'PASS: enroll refuses a second class in a program the child is already in (%)', SQLERRM;
+  END;
+
+  -- Switching within Z closes only Z's enrollment; X is untouched.
+  PERFORM public.switch_classroom(v_child, '00000000-0000-4000-9000-000000000023', 'test switch');
+  SELECT count(*) INTO v_rows FROM public.children_classrooms
+    WHERE child_id = v_child AND ended_at IS NULL
+      AND classroom_teacher_id = '00000000-0000-4000-9000-000000000020';
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'FAIL: switching program Z must leave the program X enrollment open (% rows)', v_rows;
+  END IF;
+  SELECT count(*) INTO v_rows FROM public.children_classrooms
+    WHERE child_id = v_child AND ended_at IS NULL
+      AND classroom_teacher_id = '00000000-0000-4000-9000-000000000023';
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'FAIL: switch should have opened the new group in program Z (% rows)', v_rows;
+  END IF;
+  RAISE NOTICE 'PASS: switch_classroom only closes the enrollment in its own program';
+
+  -- ...and so does unenroll.
+  PERFORM public.unenroll_child(v_child, '00000000-0000-4000-9000-000000000023', 'test unenroll');
+  SELECT count(*) INTO v_rows FROM public.children_classrooms
+    WHERE child_id = v_child AND ended_at IS NULL;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'FAIL: unenroll must drop one program only (% active rows left)', v_rows;
+  END IF;
+  RAISE NOTICE 'PASS: unenroll_child only ends the named group''s enrollment';
 END $$;
 
 RESET ROLE;

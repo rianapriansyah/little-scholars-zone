@@ -19,7 +19,7 @@ import type { InvoiceData } from '../../../lib/invoicePdf'
 import {
   createLearningPeriod,
   fetchActiveClassrooms,
-  fetchChildActiveClassroom,
+  fetchChildActiveClassrooms,
   fetchPeriod,
 } from '../../../lib/learningPeriods'
 import { fetchPaymentPeriodForLearningPeriod } from '../../../lib/paymentPeriods'
@@ -63,15 +63,16 @@ export function LearningPeriodDialog({ open, child, family, onClose, onSaved }: 
     void (async () => {
       const [listResult, currentResult] = await Promise.all([
         fetchActiveClassrooms(),
-        fetchChildActiveClassroom(child.id),
+        fetchChildActiveClassrooms(child.id),
       ])
       if (!listResult.ok) {
         setError(listResult.error)
         return
       }
       setClassrooms(listResult.data)
-      // Preselect where the child actually sits today; the admin can still pick another.
-      const current = currentResult.ok ? currentResult.data : null
+      // Preselect where the child actually sits today — their most recent class if they are in
+      // several programs. The admin can still pick another, including a brand new program.
+      const current = currentResult.ok ? currentResult.data[0] : null
       setClassroomId(current?.id ?? listResult.data[0]?.id ?? '')
     })()
   }, [open, child.id])

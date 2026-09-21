@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Alert, Box, Button, Chip, Link, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
@@ -17,13 +17,15 @@ import { LearningPeriodDialog } from './LearningPeriodDialog'
 type Props = {
   child: ChildRow
   family: FamilyRow
+  /** Fired after every reload — a new period can open a program the caller has to react to. */
+  onPeriodsChanged?: (periods: LearningPeriodListEntry[]) => void
 }
 
 /**
  * One child's learning periods, and the only place in the app where a new one is created.
  * Lives inside the child's card on the Data Anak tab.
  */
-export function ChildPeriodsSection({ child, family }: Props) {
+export function ChildPeriodsSection({ child, family, onPeriodsChanged }: Props) {
   const [periods, setPeriods] = useState<LearningPeriodListEntry[]>([])
   const [payments, setPayments] = useState<Map<string, PaymentPeriodListEntry>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -31,23 +33,34 @@ export function ChildPeriodsSection({ child, family }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedPeriod, setSelectedPeriod] = useState<LearningPeriodListEntry | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const [periodsResult, paymentsResult] = await Promise.all([
-      fetchPeriodsForChild(child.id),
-      fetchPaymentPeriodsForChild(child.id),
-    ])
-    setLoading(false)
-    if (!periodsResult.ok) {
-      setError(periodsResult.error)
-      return
-    }
-    setError(null)
-    setPeriods(periodsResult.data)
-    setPayments(
-      new Map((paymentsResult.ok ? paymentsResult.data : []).map((payment) => [payment.learningPeriodId, payment])),
-    )
-  }, [child.id])
+  // Held in a ref so `load` keeps a stable identity: the caller passes an inline arrow, and a
+  // changing dependency here would re-fire the mount effect on every parent render.
+  const onPeriodsChangedRef = useRef(onPeriodsChanged)
+  useEffect(() => {
+    onPeriodsChangedRef.current = onPeriodsChanged
+  })
+
+  const load = useCallback(
+    async (notify = false) => {
+      setLoading(true)
+      const [periodsResult, paymentsResult] = await Promise.all([
+        fetchPeriodsForChild(child.id),
+        fetchPaymentPeriodsForChild(child.id),
+      ])
+      setLoading(false)
+      if (!periodsResult.ok) {
+        setError(periodsResult.error)
+        return
+      }
+      setError(null)
+      setPeriods(periodsResult.data)
+      setPayments(
+        new Map((paymentsResult.ok ? paymentsResult.data : []).map((payment) => [payment.learningPeriodId, payment])),
+      )
+      if (notify) onPeriodsChangedRef.current?.(periodsResult.data)
+    },
+    [child.id],
+  )
 
   useEffect(() => {
     void load()
@@ -147,7 +160,7 @@ export function ChildPeriodsSection({ child, family }: Props) {
         child={child}
         family={family}
         onClose={() => setDialogOpen(false)}
-        onSaved={() => void load()}
+        onSaved={() => void load(true)}
       />
 
       {selectedPeriod ? (

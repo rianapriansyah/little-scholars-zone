@@ -48,20 +48,23 @@ export function ChildrenPage() {
     }
 
     const families = new Map<string, FamilyRow>((familiesRes.data ?? []).map((f) => [f.id, f]))
-    const classroomByChild = new Map<string, string>()
+    // A child can sit in one class per program, so this is a list, not a single label.
+    const classroomsByChild = new Map<string, string[]>()
     for (const row of enrollmentsRes.data ?? []) {
       const group = row.classroom_teachers as unknown as
         | { classrooms: { label: string } | null; teachers: { full_name: string } | null }
         | null
-      if (group?.classrooms) {
-        classroomByChild.set(row.child_id, `${group.classrooms.label} (${group.teachers?.full_name ?? '—'})`)
-      }
+      if (!group?.classrooms) continue
+      const label = `${group.classrooms.label} (${group.teachers?.full_name ?? '—'})`
+      const existing = classroomsByChild.get(row.child_id)
+      if (existing) existing.push(label)
+      else classroomsByChild.set(row.child_id, [label])
     }
 
     const views: ChildView[] = (childrenRes.data ?? []).map((c) => ({
       ...c,
       familyName: families.has(c.family_id) ? familyDisplayName(families.get(c.family_id)!) : '—',
-      classroomLabel: classroomByChild.get(c.id) ?? null,
+      classroomLabel: classroomsByChild.get(c.id)?.sort().join(', ') ?? null,
     }))
     setFamilyById(families)
     setRows(views)

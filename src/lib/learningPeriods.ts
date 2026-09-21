@@ -50,21 +50,26 @@ export async function fetchTeacherClassrooms(teacherId: string): Promise<Result<
 }
 
 /**
- * The classroom a child is currently enrolled in, or null. Used to preselect the classroom
- * when an admin opens a new period — enrollment points at a (classroom, teacher) pair, so the
- * classroom comes out through classroom_teachers.
+ * The classrooms a child is currently enrolled in, newest enrollment first. A child can sit in
+ * one class per program, so this is a list — the period dialog preselects the head of it.
+ * Enrollment points at a (classroom, teacher) pair, so the classroom comes out through
+ * classroom_teachers.
  */
-export async function fetchChildActiveClassroom(childId: string): Promise<Result<ClassroomRow | null>> {
+export async function fetchChildActiveClassrooms(childId: string): Promise<Result<ClassroomRow[]>> {
   const { data, error } = await supabase
     .from('children_classrooms')
     .select('classroom_teachers(classrooms(*))')
     .eq('child_id', childId)
     .is('ended_at', null)
-    .maybeSingle()
+    .order('started_at', { ascending: false })
   if (error) return { ok: false, error: error.message }
 
-  const group = data?.classroom_teachers as unknown as { classrooms: ClassroomRow | null } | null
-  return { ok: true, data: group?.classrooms ?? null }
+  const classrooms: ClassroomRow[] = []
+  for (const row of data ?? []) {
+    const group = row.classroom_teachers as unknown as { classrooms: ClassroomRow | null } | null
+    if (group?.classrooms) classrooms.push(group.classrooms)
+  }
+  return { ok: true, data: classrooms }
 }
 
 /** Real, fee-paying classrooms only — is_billable excludes internal work programs (cleaning

@@ -93,21 +93,24 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     setGroups(newGroups)
   }
 
-  const loadActiveEnrollments = async () => {
+  /**
+   * child_id → where the child sits *in this classroom* today. Scoped to the classroom on
+   * purpose: a child may hold a separate active enrollment in another program, and that one is
+   * neither this screen's business nor something Tambah Siswa here should close.
+   */
+  const loadActiveEnrollments = async (classroomId: string) => {
     const { data } = await supabase
       .from('children_classrooms')
-      .select('id, child_id, classroom_teacher_id, classroom_teachers(classrooms(label), teachers(full_name))')
+      .select('id, child_id, classroom_teacher_id, classroom_teachers!inner(classroom_id, teachers(full_name))')
+      .eq('classroom_teachers.classroom_id', classroomId)
       .is('ended_at', null)
     const map = new Map<string, ActiveEnrollment>()
     for (const row of data ?? []) {
-      const ct = row.classroom_teachers as unknown as {
-        classrooms: { label: string } | null
-        teachers: { full_name: string } | null
-      } | null
+      const ct = row.classroom_teachers as unknown as { teachers: { full_name: string } | null } | null
       map.set(row.child_id, {
         enrollmentId: row.id,
         classroomTeacherId: row.classroom_teacher_id,
-        label: `${ct?.classrooms?.label ?? '—'} (${ct?.teachers?.full_name ?? '—'})`,
+        label: ct?.teachers?.full_name ?? '—',
       })
     }
     setActiveEnrollments(map)
@@ -130,7 +133,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     void supabase.from('teachers').select('*').order('full_name').then(({ data }) => setTeachers(data ?? []))
     void supabase.from('children').select('*').eq('active', true).order('full_name').then(({ data }) => setChildren(data ?? []))
     void loadGroups(classroom.id)
-    void loadActiveEnrollments()
+    void loadActiveEnrollments(classroom.id)
     void loadEligibleChildren(classroom.id)
     // Keyed on the id, not the row: onAssigned() hands back a fresh object every time, and
     // re-running this on each of those would wipe in-progress form state.
@@ -221,21 +224,24 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     }
     setAddSelections((prev) => ({ ...prev, [groupId]: '' }))
     await loadGroups(classroom.id)
-    await loadActiveEnrollments()
+    await loadActiveEnrollments(classroom.id)
     onAssigned()
   }
 
-  async function handleRemoveStudent(childId: string) {
+  async function handleRemoveStudent(childId: string, groupId: string) {
     setBusy(true)
     setError(null)
-    const { error: rpcErr } = await supabase.rpc('unenroll_child', { p_child_id: childId })
+    const { error: rpcErr } = await supabase.rpc('unenroll_child', {
+      p_child_id: childId,
+      p_classroom_teacher_id: groupId,
+    })
     setBusy(false)
     if (rpcErr) {
       setError(rpcErr.message)
       return
     }
     await loadGroups(classroom.id)
-    await loadActiveEnrollments()
+    await loadActiveEnrollments(classroom.id)
     onAssigned()
   }
 
@@ -415,7 +421,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                         size="small"
                         aria-label="Hapus siswa"
                         disabled={busy}
-                        onClick={() => void handleRemoveStudent(r.childId)}
+                        onClick={() => void handleRemoveStudent(r.childId, manageGroup.id)}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -445,7 +451,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                   return (
                     <MenuItem key={c.id} value={c.id}>
                       {c.full_name}
-                      {existing ? ` (saat ini: ${existing.label})` : ''}
+                      {existing ? ` (saat ini: kelompok ${existing.label})` : ''}
                     </MenuItem>
                   )
                 })}
