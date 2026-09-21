@@ -447,36 +447,41 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
               ) : (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   {slots.map(({ program, current }) => (
-                    <Paper key={program.classroomId} variant="outlined" sx={{ p: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        <Box sx={{ flexGrow: 1, minWidth: 180 }}>
-                          <Typography variant="subtitle2">{program.classroomLabel}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {program.periodCount > 0
-                              ? `${program.periodCount} periode belajar`
-                              : 'Tanpa periode belajar'}
-                          </Typography>
-                        </Box>
-                        {/* Teacher only — the classroom is already the heading of this card. */}
-                        {current ? (
-                          <Chip size="small" color="success" label={current.teacherName} />
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            Belum terdaftar
-                          </Typography>
-                        )}
-                        <Button
-                          variant={current ? 'outlined' : 'contained'}
-                          size="small"
-                          onClick={() => {
-                            setSelectedGroupId('')
-                            setEndReason('')
-                            setEnrollTarget({ program, current })
-                          }}
-                        >
-                          {current ? 'Pindah Kelas' : 'Daftarkan'}
-                        </Button>
+                    // Everything stacks left under the classroom heading. The card is narrow
+                    // inside the modal, so a heading/action row would only wrap into this
+                    // shape anyway — stacking keeps it identical at every width.
+                    <Paper
+                      key={program.classroomId}
+                      variant="outlined"
+                      sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.75 }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle2">{program.classroomLabel}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {program.periodCount > 0
+                            ? `${program.periodCount} periode belajar`
+                            : 'Tanpa periode belajar'}
+                        </Typography>
                       </Box>
+                      {/* Teacher only — the classroom is already the heading of this card. */}
+                      {current ? (
+                        <Chip size="small" color="success" label={current.teacherName} />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Belum terdaftar
+                        </Typography>
+                      )}
+                      <Button
+                        variant={current ? 'outlined' : 'contained'}
+                        size="small"
+                        onClick={() => {
+                          setSelectedGroupId('')
+                          setEndReason('')
+                          setEnrollTarget({ program, current })
+                        }}
+                      >
+                        {current ? 'Pindah Kelas' : 'Daftarkan'}
+                      </Button>
                     </Paper>
                   ))}
                 </Box>
