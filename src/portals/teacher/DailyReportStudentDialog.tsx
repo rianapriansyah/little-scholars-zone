@@ -23,15 +23,18 @@ import {
 import { AttendanceStatusSelector } from '../../components/AttendanceStatusSelector'
 import { DailyReportMateriPreview } from '../../components/DailyReportMateriPreview'
 import { MasteryLevelSelector } from '../../components/MasteryLevelSelector'
-import { saveDailyReportMateri, submitDailyReport } from '../../lib/dailyReport'
+import { MoodSelector } from '../../components/MoodSelector'
+import { saveDailyReportMateri, saveDailyReportMood, submitDailyReport } from '../../lib/dailyReport'
 import { buildEntries, isSelectionUnchanged, toRpcEntries, toSelection } from '../../lib/dailyReportEntries'
+import { DAILY_REPORT_MATERI_ENABLED } from '../../lib/featureFlags'
 import { recordAttendance } from '../../lib/learningPeriods'
 import type { MasteryLevel } from '../../lib/masteryLevels'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import { CURRICULUM_SUBJECTS, CURRICULUM_SUBJECT_LABELS, isCurriculumSubject } from '../../types/curriculumItem'
 import type { CurriculumItemRow, CurriculumSubject } from '../../types/curriculumItem'
-import type { DailyReportEntry, DailyReportMateri } from '../../types/dailyReport'
+import { MOOD_MOMENTS, MOOD_MOMENT_LABELS } from '../../types/dailyReport'
+import type { DailyReport, DailyReportEntry, DailyReportMoods, MoodMoment } from '../../types/dailyReport'
 import { formatDate } from '../../lib/formatDate'
 
 /** A numbered, collapsible division of the record, separated from its neighbours by a rule. */
@@ -91,13 +94,17 @@ function Field({ label, value, divider = true }: { label: string; value: ReactNo
   )
 }
 
+function sameMoods(a: DailyReportMoods, b: DailyReportMoods) {
+  return MOOD_MOMENTS.every((moment) => a[moment] === b[moment])
+}
+
 type Props = {
   open: boolean
   childName: string
   /** The billed program. Attendance keys on this, not on the teaching group. */
   classroomId: string
   catalog: readonly CurriculumItemRow[]
-  report: DailyReportMateri
+  report: DailyReport
   attendance: ChildAttendanceRow | null
   period: LearningPeriodListEntry | null
   onClose: () => void
@@ -107,10 +114,12 @@ type Props = {
 
 /**
  * One child's whole day, as a modal over the roster: a header, then numbered collapsible
- * divisions — kuota, kehadiran (with its own submit), materi, and the parent preview.
+ * divisions — kehadiran (with its own submit), suasana hati, catatan guru, and, while
+ * DAILY_REPORT_MATERI_ENABLED is on, materi and the parent preview.
  *
  * Attendance is submitted explicitly rather than on tap, so a mis-tap costs nothing until the
- * teacher confirms it — and Materi only unlocks once a 'present' record actually exists.
+ * teacher confirms it — and the report sections only unlock once a 'present' record actually
+ * exists. Everything below Kehadiran is saved together by Simpan Draf / Kirim ke Orang Tua.
  */
 export function DailyReportStudentDialog({
   open,
@@ -128,8 +137,13 @@ export function DailyReportStudentDialog({
   const [reportId, setReportId] = useState<string | null>(report.reportId)
   const [submittedAt, setSubmittedAt] = useState<string | null>(report.submittedAt)
 
+  const [savedMoods, setSavedMoods] = useState<DailyReportMoods>(report.moods)
+  const [draftMoods, setDraftMoods] = useState<DailyReportMoods>(report.moods)
+  const [savedTeacherNote, setSavedTeacherNote] = useState(report.teacherNote)
+  const [draftTeacherNote, setDraftTeacherNote] = useState(report.teacherNote)
+
   const initialStatus = attendance && isAttendanceStatus(attendance.status) ? attendance.status : null
-  /** What is actually stored. Materi gates on this, never on the pending choice. */
+  /** What is actually stored. The report sections gate on this, never on the pending choice. */
   const [savedStatus, setSavedStatus] = useState<AttendanceStatus | null>(initialStatus)
   const [draftStatus, setDraftStatus] = useState<AttendanceStatus | null>(initialStatus)
   const [savedNote, setSavedNote] = useState(attendance?.note ?? '')
@@ -141,11 +155,20 @@ export function DailyReportStudentDialog({
 
   const locked = submittedAt !== null
   const isPresent = savedStatus === 'present'
-  const materiDisabled = busy || locked || !isPresent
+  const reportDisabled = busy || locked || !isPresent
   const attendanceDirty = draftStatus !== savedStatus || draftNote !== savedNote
 
   const entries = useMemo(() => buildEntries(selection, catalog), [selection, catalog])
-  const dirty = !isSelectionUnchanged(selection, savedEntries)
+  const materiDirty = DAILY_REPORT_MATERI_ENABLED && !isSelectionUnchanged(selection, savedEntries)
+  const moodDirty = !sameMoods(draftMoods, savedMoods) || draftTeacherNote !== savedTeacherNote
+  const dirty = materiDirty || moodDirty
+
+  const moodCount = MOOD_MOMENTS.filter((moment) => draftMoods[moment] !== null).length
+  const hasTeacherNote = draftTeacherNote.trim() !== ''
+  /** Something worth sending — an empty report must never reach a parent. */
+  const hasContent = DAILY_REPORT_MATERI_ENABLED
+    ? entries.length > 0 || moodCount > 0 || hasTeacherNote
+    : moodCount > 0 || hasTeacherNote
 
   const bySubject = useMemo(() => {
     const grouped = new Map<CurriculumSubject, CurriculumItemRow[]>(
@@ -170,6 +193,11 @@ export function DailyReportStudentDialog({
       next.delete(itemId)
       return next
     })
+  }
+
+  function setMood(moment: MoodMoment, mood: DailyReportMoods[MoodMoment]) {
+    setNotice(null)
+    setDraftMoods((prev) => ({ ...prev, [moment]: mood }))
   }
 
   async function handleSubmitAttendance() {
@@ -197,19 +225,39 @@ export function DailyReportStudentDialog({
 
   /** Returns the report id on success, null on failure (error already surfaced). */
   async function persist(): Promise<string | null> {
-    const result = await saveDailyReportMateri({
+    const moodResult = await saveDailyReportMood({
+      childId: report.childId,
+      classroomTeacherId: report.classroomTeacherId,
+      reportDate: report.reportDate,
+      moods: draftMoods,
+      teacherNote: draftTeacherNote,
+      // Not edited here — passed straight back so the upsert doesn't erase them.
+      moodNote: report.moodNote,
+      moodNoteParent: report.moodNoteParent,
+    })
+    if (!moodResult.ok) {
+      setError(moodResult.error)
+      return null
+    }
+    setSavedMoods(draftMoods)
+    setSavedTeacherNote(draftTeacherNote)
+    setReportId(moodResult.data)
+
+    // While materi is hidden its entries are left exactly as stored — never saved, never cleared.
+    if (!DAILY_REPORT_MATERI_ENABLED) return moodResult.data
+
+    const materiResult = await saveDailyReportMateri({
       childId: report.childId,
       classroomTeacherId: report.classroomTeacherId,
       reportDate: report.reportDate,
       entries: toRpcEntries(selection),
     })
-    if (!result.ok) {
-      setError(result.error)
+    if (!materiResult.ok) {
+      setError(materiResult.error)
       return null
     }
-    setReportId(result.data)
     setSavedEntries(entries)
-    return result.data
+    return materiResult.data
   }
 
   async function handleSaveDraft() {
@@ -244,6 +292,21 @@ export function DailyReportStudentDialog({
     setNotice('Laporan terkirim. Orang tua sudah bisa melihatnya.')
     onChanged()
   }
+
+  /** Shown at the top of each report section while the child isn't marked present. */
+  const presenceGate =
+    !isPresent && !locked ? (
+      <Alert severity="info" sx={{ mb: 2 }}>
+        {savedStatus === null
+          ? 'Masukkan kehadiran dulu. Laporan hanya diisi untuk siswa yang hadir.'
+          : `Siswa ${ATTENDANCE_STATUS_LABELS[savedStatus].toLowerCase()} hari ini — laporan tidak diisi.`}
+        {reportId ? ' Laporan yang sudah tersimpan tetap aman.' : ''}
+      </Alert>
+    ) : null
+
+  // Sections are numbered as they render, so hiding materi doesn't leave a gap in the sequence.
+  let sectionIndex = 0
+  const nextIndex = () => ++sectionIndex
 
   return (
     <Dialog
@@ -293,7 +356,7 @@ export function DailyReportStudentDialog({
             it is the admin's concern at renewal time. It stays on the period detail screen and
             the admin renewal queue. */}
         <Section
-          index={1}
+          index={nextIndex()}
           title="Kehadiran"
           defaultExpanded
           chip={
@@ -356,115 +419,173 @@ export function DailyReportStudentDialog({
         </Section>
 
         <Section
-          index={2}
-          title="Materi Hari Ini"
+          index={nextIndex()}
+          title="Suasana Hati"
           defaultExpanded
-          chip={entries.length > 0 ? <Chip size="small" label={`${entries.length} materi`} color="primary" /> : null}
+          chip={
+            <Chip
+              size="small"
+              label={`${moodCount}/${MOOD_MOMENTS.length}`}
+              color={moodCount > 0 ? 'primary' : 'default'}
+              variant={moodCount === MOOD_MOMENTS.length ? 'filled' : 'outlined'}
+            />
+          }
         >
-          {!isPresent && !locked ? (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              {savedStatus === null
-                ? 'Masukkan kehadiran dulu. Materi hanya diisi untuk siswa yang hadir.'
-                : `Siswa ${ATTENDANCE_STATUS_LABELS[savedStatus].toLowerCase()} hari ini — materi tidak diisi.`}
-              {reportId ? ' Laporan yang sudah tersimpan tetap aman.' : ''}
-            </Alert>
-          ) : null}
-
-          {catalog.length === 0 ? (
-            <Alert severity="warning">Daftar materi masih kosong. Minta admin mengisinya di menu Kurikulum.</Alert>
-          ) : (
-            <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
-              {CURRICULUM_SUBJECTS.map((subject) => {
-                const items = bySubject.get(subject) ?? []
-                if (items.length === 0) return null
-                const chosen = items.filter((item) => selection.has(item.id)).length
-
-                return (
-                  <Accordion
-                    key={subject}
-                    defaultExpanded
-                    disableGutters
-                    elevation={0}
-                    square
-                    sx={{ bgcolor: 'transparent', mb: 1, '&:before': { display: 'none' } }}
-                  >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 40 }}>
-                      <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
-                        {CURRICULUM_SUBJECT_LABELS[subject]}
-                      </Typography>
-                      <Chip
-                        size="small"
-                        label={`${chosen} dipilih`}
-                        color={chosen > 0 ? 'primary' : 'default'}
-                        variant="outlined"
-                        sx={{ mr: 1 }}
-                      />
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ px: 0, pt: 0 }}>
-                      <Panel>
-                        {items.map((item, itemIndex) => {
-                          const level = selection.get(item.id) ?? null
-                          return (
-                            <Box key={item.id}>
-                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
-                                <Typography
-                                  variant="body1"
-                                  sx={{ flexGrow: 1, minWidth: 0, fontWeight: level ? 600 : 400 }}
-                                >
-                                  {item.label}
-                                </Typography>
-                                {level && !locked ? (
-                                  <Tooltip title="Tandai tidak diajarkan hari ini">
-                                    <span>
-                                      <IconButton
-                                        size="small"
-                                        aria-label={`Hapus ${item.label} dari laporan`}
-                                        onClick={() => clearItem(item.id)}
-                                        disabled={materiDisabled}
-                                      >
-                                        <ClearIcon fontSize="small" />
-                                      </IconButton>
-                                    </span>
-                                  </Tooltip>
-                                ) : null}
-                              </Box>
-                              <MasteryLevelSelector
-                                value={level}
-                                onChange={(next) => setLevel(item.id, next)}
-                                disabled={materiDisabled}
-                                ariaLabel={item.label}
-                              />
-                              {itemIndex < items.length - 1 ? <Divider sx={{ my: 1.5 }} /> : null}
-                            </Box>
-                          )
-                        })}
-                      </Panel>
-                    </AccordionDetails>
-                  </Accordion>
-                )
-              })}
-            </Box>
-          )}
+          {presenceGate}
+          <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
+            <Panel>
+              {MOOD_MOMENTS.map((moment, momentIndex) => (
+                <Field
+                  key={moment}
+                  label={MOOD_MOMENT_LABELS[moment]}
+                  divider={momentIndex < MOOD_MOMENTS.length - 1}
+                  value={
+                    <MoodSelector
+                      value={draftMoods[moment]}
+                      onChange={(mood) => setMood(moment, mood)}
+                      disabled={reportDisabled}
+                      ariaLabel={`${childName} — suasana hati ${MOOD_MOMENT_LABELS[moment].toLowerCase()}`}
+                    />
+                  }
+                />
+              ))}
+            </Panel>
+          </Box>
         </Section>
 
-        <Section index={3} title="Pratinjau untuk Orang Tua">
-          <Panel>
-            <DailyReportMateriPreview entries={entries} />
-          </Panel>
+        <Section
+          index={nextIndex()}
+          title="Catatan Guru"
+          defaultExpanded
+          chip={hasTeacherNote ? <Chip size="small" label="Terisi" color="primary" /> : null}
+        >
+          {presenceGate}
+          <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
+            <Panel>
+              <TextField
+                placeholder="Ceritakan hari si kecil — apa yang menonjol, apa yang perlu diperhatikan di rumah."
+                value={draftTeacherNote}
+                onChange={(e) => {
+                  setNotice(null)
+                  setDraftTeacherNote(e.target.value)
+                }}
+                disabled={reportDisabled}
+                fullWidth
+                multiline
+                minRows={3}
+                helperText="Terlihat oleh orang tua setelah laporan dikirim."
+              />
+            </Panel>
+          </Box>
         </Section>
+
+        {DAILY_REPORT_MATERI_ENABLED ? (
+          <>
+            <Section
+              index={nextIndex()}
+              title="Materi Hari Ini"
+              defaultExpanded
+              chip={entries.length > 0 ? <Chip size="small" label={`${entries.length} materi`} color="primary" /> : null}
+            >
+              {presenceGate}
+
+              {catalog.length === 0 ? (
+                <Alert severity="warning">Daftar materi masih kosong. Minta admin mengisinya di menu Kurikulum.</Alert>
+              ) : (
+                <Box sx={{ opacity: isPresent || locked ? 1 : 0.55 }}>
+                  {CURRICULUM_SUBJECTS.map((subject) => {
+                    const items = bySubject.get(subject) ?? []
+                    if (items.length === 0) return null
+                    const chosen = items.filter((item) => selection.has(item.id)).length
+
+                    return (
+                      <Accordion
+                        key={subject}
+                        defaultExpanded
+                        disableGutters
+                        elevation={0}
+                        square
+                        sx={{ bgcolor: 'transparent', mb: 1, '&:before': { display: 'none' } }}
+                      >
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 40 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+                            {CURRICULUM_SUBJECT_LABELS[subject]}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            label={`${chosen} dipilih`}
+                            color={chosen > 0 ? 'primary' : 'default'}
+                            variant="outlined"
+                            sx={{ mr: 1 }}
+                          />
+                        </AccordionSummary>
+                        <AccordionDetails sx={{ px: 0, pt: 0 }}>
+                          <Panel>
+                            {items.map((item, itemIndex) => {
+                              const level = selection.get(item.id) ?? null
+                              return (
+                                <Box key={item.id}>
+                                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
+                                    <Typography
+                                      variant="body1"
+                                      sx={{ flexGrow: 1, minWidth: 0, fontWeight: level ? 600 : 400 }}
+                                    >
+                                      {item.label}
+                                    </Typography>
+                                    {level && !locked ? (
+                                      <Tooltip title="Tandai tidak diajarkan hari ini">
+                                        <span>
+                                          <IconButton
+                                            size="small"
+                                            aria-label={`Hapus ${item.label} dari laporan`}
+                                            onClick={() => clearItem(item.id)}
+                                            disabled={reportDisabled}
+                                          >
+                                            <ClearIcon fontSize="small" />
+                                          </IconButton>
+                                        </span>
+                                      </Tooltip>
+                                    ) : null}
+                                  </Box>
+                                  <MasteryLevelSelector
+                                    value={level}
+                                    onChange={(next) => setLevel(item.id, next)}
+                                    disabled={reportDisabled}
+                                    ariaLabel={item.label}
+                                  />
+                                  {itemIndex < items.length - 1 ? <Divider sx={{ my: 1.5 }} /> : null}
+                                </Box>
+                              )
+                            })}
+                          </Panel>
+                        </AccordionDetails>
+                      </Accordion>
+                    )
+                  })}
+                </Box>
+              )}
+            </Section>
+
+            <Section index={nextIndex()} title="Pratinjau untuk Orang Tua">
+              <Panel>
+                <DailyReportMateriPreview entries={entries} />
+              </Panel>
+            </Section>
+          </>
+        ) : null}
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: 'wrap', bgcolor: 'action.hover' }}>
         <Box sx={{ flexGrow: 1 }} />
         {!locked ? (
           <>
-            <Button variant="outlined" onClick={() => void handleSaveDraft()} disabled={materiDisabled || !dirty}>
+            <Button variant="outlined" onClick={() => void handleSaveDraft()} disabled={reportDisabled || !dirty}>
               {dirty ? 'Simpan Draf' : 'Tersimpan'}
             </Button>
             <Button
               variant="contained"
               onClick={() => void handleSubmitReport()}
-              disabled={materiDisabled || entries.length === 0}
+              disabled={reportDisabled || !hasContent}
             >
               Kirim ke Orang Tua
             </Button>

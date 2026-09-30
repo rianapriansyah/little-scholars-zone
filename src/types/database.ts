@@ -341,12 +341,12 @@ export type Database = {
             foreignKeyName: "daily_report_items_report_id_fkey"
             columns: ["report_id"]
             isOneToOne: false
-            referencedRelation: "daily_reports"
+            referencedRelation: "children_daily_reports"
             referencedColumns: ["id"]
           },
         ]
       }
-      daily_reports: {
+      children_daily_reports: {
         Row: {
           child_id: string
           classroom_teacher_id: string
@@ -361,6 +361,7 @@ export type Database = {
           report_date: string
           session_id: string | null
           submitted_at: string | null
+          teacher_note: string | null
         }
         Insert: {
           child_id: string
@@ -376,6 +377,7 @@ export type Database = {
           report_date?: string
           session_id?: string | null
           submitted_at?: string | null
+          teacher_note?: string | null
         }
         Update: {
           child_id?: string
@@ -391,17 +393,18 @@ export type Database = {
           report_date?: string
           session_id?: string | null
           submitted_at?: string | null
+          teacher_note?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "daily_reports_child_id_fkey"
+            foreignKeyName: "children_daily_reports_child_id_fkey"
             columns: ["child_id"]
             isOneToOne: false
             referencedRelation: "children"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "daily_reports_classroom_teacher_id_fkey"
+            foreignKeyName: "children_daily_reports_classroom_teacher_id_fkey"
             columns: ["classroom_teacher_id"]
             isOneToOne: false
             referencedRelation: "classroom_teachers"
@@ -993,6 +996,7 @@ export type Database = {
           p_mood_note_parent?: string
           p_mood_studying?: string
           p_report_date: string
+          p_teacher_note?: string
         }
         Returns: string
       }

@@ -21,13 +21,13 @@ import { todayIsoDateInWita } from '../../lib/classStatus'
 import {
   fetchClassRoster,
   fetchCurriculumItems,
-  fetchDailyReportMateri,
+  fetchDailyReport,
   type RosterEntry,
 } from '../../lib/dailyReport'
 import { fetchAttendanceByChild, fetchPeriodsCoveringDate } from '../../lib/learningPeriods'
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../../types/attendance'
 import type { CurriculumItemRow } from '../../types/curriculumItem'
-import type { DailyReportMateri } from '../../types/dailyReport'
+import type { DailyReport } from '../../types/dailyReport'
 import { formatDate } from '../../lib/formatDate'
 import { DailyReportStudentDialog } from './DailyReportStudentDialog'
 
@@ -42,8 +42,8 @@ type ClassOption = {
 
 /**
  * Everything the teacher fills in right after class: the roster summarises each child's day at
- * a glance, and tapping one opens their sheet, where attendance is set first and the materi
- * report second — the report only applies to a child who was actually present.
+ * a glance, and tapping one opens their sheet, where attendance is set first and the report
+ * second — the report only applies to a child who was actually present.
  */
 export function DailyReportPage() {
   const { user } = useAuth()
@@ -65,7 +65,7 @@ export function DailyReportPage() {
   const [periods, setPeriods] = useState<Map<string, LearningPeriodListEntry>>(new Map())
 
   const [selectedChild, setSelectedChild] = useState<RosterEntry | null>(null)
-  const [openReport, setOpenReport] = useState<DailyReportMateri | null>(null)
+  const [openReport, setOpenReport] = useState<DailyReport | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [opening, setOpening] = useState(false)
@@ -171,7 +171,7 @@ export function DailyReportPage() {
   async function handleOpenChild(child: RosterEntry) {
     setOpening(true)
     setError(null)
-    const result = await fetchDailyReportMateri(child.childId, classroomTeacherId, reportDate)
+    const result = await fetchDailyReport(child.childId, classroomTeacherId, reportDate)
     setOpening(false)
     if (!result.ok) {
       setError(result.error)

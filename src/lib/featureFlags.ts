@@ -9,7 +9,16 @@
  * portal's nav and from the "Kelas Saya" class cards. Set back to true to restore it — both
  * entry points (TeacherLayout, TeacherRosterPage) read this one flag.
  */
-export const DAILY_REPORT_ENABLED = false
+export const DAILY_REPORT_ENABLED = true
+
+/**
+ * Laporan Harian rework (owner request, 2026-09-30): the per-student sheet is being rebuilt around
+ * mood and a teacher's note, so "Materi Hari Ini" and "Pratinjau untuk Orang Tua" are hidden
+ * entirely from DailyReportStudentDialog for now. The materi data, RPC and components are all
+ * untouched — set back to true to bring both sections (and the materi save path) back as they
+ * were.
+ */
+export const DAILY_REPORT_MATERI_ENABLED = false
 
 /**
  * Parent self-registration wizard (/register) and its "Daftar di sini" link on the login page.

@@ -2,7 +2,8 @@ import { supabase } from './supabase'
 import type { Result } from './result'
 import { isCurriculumSubject } from '../types/curriculumItem'
 import type { CurriculumItemRow } from '../types/curriculumItem'
-import type { DailyReportEntry, DailyReportMateri } from '../types/dailyReport'
+import { isMood } from '../types/dailyReport'
+import type { DailyReport, DailyReportEntry, DailyReportMoods } from '../types/dailyReport'
 import { parseMasteryLevel, sortEntries, type RpcEntry } from './dailyReportEntries'
 
 export type { Result } from './result'
@@ -61,7 +62,7 @@ export async function fetchClassReportSummaries(
   reportDate: string,
 ): Promise<Result<Map<string, ReportSummary>>> {
   const { data, error } = await supabase
-    .from('daily_reports')
+    .from('children_daily_reports')
     .select('id, child_id, submitted_at')
     .eq('classroom_teacher_id', classroomTeacherId)
     .eq('report_date', reportDate)
@@ -74,23 +75,36 @@ export async function fetchClassReportSummaries(
   return { ok: true, data: summaries }
 }
 
+/** A stored mood value, or null for anything unset or unrecognised. */
+function toMood(value: string | null) {
+  return isMood(value) ? value : null
+}
+
+const NO_MOODS: DailyReportMoods = { arrival: null, studying: null, departure: null }
+
 /**
- * The Materi Hari Ini section for one student on one date. Returns an empty, unsaved
- * DailyReportMateri when no report exists yet, so callers never branch on null.
+ * One student's report for one class on one date — materi entries, moods and the teacher's note.
+ * Returns an empty, unsaved DailyReport when no report exists yet, so callers never branch on
+ * null.
+ *
+ * Filtered by classroom_teacher_id as well as child and date: a report is one per child per class
+ * per day (children_daily_reports_child_class_date_key), so a child attending two programs on the
+ * same day has two, and child + date alone would match both.
  */
-export async function fetchDailyReportMateri(
+export async function fetchDailyReport(
   childId: string,
   classroomTeacherId: string,
   reportDate: string,
-): Promise<Result<DailyReportMateri>> {
+): Promise<Result<DailyReport>> {
   // Kept as one string literal: Postgrest infers the embedded row types from the literal, and
   // a concatenated expression degrades the result to GenericStringError.
   const { data, error } = await supabase
-    .from('daily_reports')
+    .from('children_daily_reports')
     .select(
-      'id, child_id, classroom_teacher_id, report_date, submitted_at, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
+      'id, child_id, classroom_teacher_id, report_date, submitted_at, mood_arrival, mood_studying, mood_departure, mood_note, mood_note_parent, teacher_note, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
     )
     .eq('child_id', childId)
+    .eq('classroom_teacher_id', classroomTeacherId)
     .eq('report_date', reportDate)
     .maybeSingle()
   if (error) return { ok: false, error: error.message }
@@ -98,7 +112,18 @@ export async function fetchDailyReportMateri(
   if (!data) {
     return {
       ok: true,
-      data: { reportId: null, childId, classroomTeacherId, reportDate, submittedAt: null, entries: [] },
+      data: {
+        reportId: null,
+        childId,
+        classroomTeacherId,
+        reportDate,
+        submittedAt: null,
+        entries: [],
+        moods: NO_MOODS,
+        teacherNote: '',
+        moodNote: null,
+        moodNoteParent: null,
+      },
     }
   }
 
@@ -126,6 +151,14 @@ export async function fetchDailyReportMateri(
       reportDate: data.report_date,
       submittedAt: data.submitted_at,
       entries: sortEntries(entries),
+      moods: {
+        arrival: toMood(data.mood_arrival),
+        studying: toMood(data.mood_studying),
+        departure: toMood(data.mood_departure),
+      },
+      teacherNote: data.teacher_note ?? '',
+      moodNote: data.mood_note,
+      moodNoteParent: data.mood_note_parent,
     },
   }
 }
@@ -146,6 +179,39 @@ export async function saveDailyReportMateri(params: {
     p_classroom_teacher_id: params.classroomTeacherId,
     p_report_date: params.reportDate,
     p_entries: params.entries,
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data }
+}
+
+/**
+ * Upserts the report's moods and teacher note. Returns the report id.
+ *
+ * save_daily_report_mood writes every field it is given, NULL included — it saves the whole
+ * panel, it doesn't patch — so moodNote / moodNoteParent must be the values that were loaded,
+ * passed straight back, or they would be erased. A blank teacher note is stored as NULL.
+ */
+export async function saveDailyReportMood(params: {
+  childId: string
+  classroomTeacherId: string
+  reportDate: string
+  moods: DailyReportMoods
+  teacherNote: string
+  moodNote: string | null
+  moodNoteParent: string | null
+}): Promise<Result<string>> {
+  const { data, error } = await supabase.rpc('save_daily_report_mood', {
+    p_child_id: params.childId,
+    p_classroom_teacher_id: params.classroomTeacherId,
+    p_report_date: params.reportDate,
+    // The generated Args type models these as optional strings rather than string | null;
+    // undefined is omitted from the payload, so the RPC's DEFAULT NULL applies.
+    p_mood_arrival: params.moods.arrival ?? undefined,
+    p_mood_studying: params.moods.studying ?? undefined,
+    p_mood_departure: params.moods.departure ?? undefined,
+    p_mood_note: params.moodNote ?? undefined,
+    p_mood_note_parent: params.moodNoteParent ?? undefined,
+    p_teacher_note: params.teacherNote.trim() || undefined,
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
