@@ -103,6 +103,46 @@ function sameMoods(a: DailyReportMoods, b: DailyReportMoods) {
   return MOOD_MOMENTS.every((moment) => a[moment] === b[moment])
 }
 
+/** A small yes/no dialog stacked over the report — for the two actions that can't be taken back. */
+function ConfirmDialog({
+  open,
+  title,
+  children,
+  cancelLabel,
+  confirmLabel,
+  confirmColor = 'primary',
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean
+  title: string
+  children: ReactNode
+  cancelLabel: string
+  confirmLabel: string
+  confirmColor?: 'primary' | 'error'
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onClose={onCancel} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
+      <DialogTitle sx={{ fontWeight: 700 }}>{title}</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary">
+          {children}
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        <Button variant="outlined" onClick={onCancel}>
+          {cancelLabel}
+        </Button>
+        <Button variant="contained" color={confirmColor} onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 type Props = {
   open: boolean
   childName: string
@@ -162,6 +202,8 @@ export function DailyReportStudentDialog({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false)
+  const [confirmingClose, setConfirmingClose] = useState(false)
 
   /** Sent to the parent. Everything is read-only for the teacher from here on. */
   const locked = submittedAt !== null
@@ -190,6 +232,27 @@ export function DailyReportStudentDialog({
    * something other than what is on screen, so Kirim waits until those are saved (or undone).
    */
   const unsavedElsewhere = moodDirty || materiDirty
+
+  /** Sections with edits that closing would throw away, named in the close warning. */
+  const unsavedSections = [
+    attendanceDirty ? 'Kehadiran' : null,
+    moodDirty ? 'Suasana Hati' : null,
+    noteDirty ? 'Catatan Guru' : null,
+    materiDirty ? 'Materi Hari Ini' : null,
+  ].filter((name): name is string => name !== null)
+
+  /**
+   * Every way out of the dialog — Tutup, the ✕, the backdrop, Escape — comes through here, so none
+   * of them can silently discard a teacher's unsaved edits.
+   */
+  function requestClose() {
+    if (busy) return
+    if (unsavedSections.length > 0) {
+      setConfirmingClose(true)
+      return
+    }
+    onClose()
+  }
 
   const bySubject = useMemo(() => {
     const grouped = new Map<CurriculumSubject, CurriculumItemRow[]>(
@@ -291,11 +354,13 @@ export function DailyReportStudentDialog({
   function handleSaveNoteDraft() {
     void run(async () => {
       const savedId = await persistTeacherNote()
-      return savedId ? 'Catatan tersimpan sebagai draf. Belum dikirim ke orang tua.' : null
+      return savedId ? 'Catatan tersimpan sebagai draft. Belum dikirim ke orang tua.' : null
     })
   }
 
+  /** The send itself — reached only from the Kirim confirmation; the Kirim button just opens that. */
   function handleSubmitReport() {
+    setConfirmingSubmit(false)
     void run(async () => {
       // Kirim includes whatever is in the note box — sending a stale note would lock the report
       // with something other than what is on screen. Skip the round trip when nothing changed
@@ -351,7 +416,7 @@ export function DailyReportStudentDialog({
   return (
     <Dialog
       open={open}
-      onClose={busy ? undefined : onClose}
+      onClose={requestClose}
       fullWidth
       maxWidth="sm"
       slotProps={{ paper: { sx: { borderRadius: 2 } } }}
@@ -370,7 +435,7 @@ export function DailyReportStudentDialog({
         ) : reportId ? (
           <Chip size="small" label="Draf" color="warning" variant="outlined" />
         ) : null}
-        <IconButton onClick={onClose} disabled={busy} aria-label="Tutup" size="small" sx={{ mt: -0.5 }}>
+        <IconButton onClick={requestClose} disabled={busy} aria-label="Tutup" size="small" sx={{ mt: -0.5 }}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -541,12 +606,12 @@ export function DailyReportStudentDialog({
                   onClick={handleSaveNoteDraft}
                   disabled={reportDisabled || !noteDirty}
                 >
-                  {noteDirty || !savedTeacherNote ? 'Simpan sebagai Draf' : 'Draf Tersimpan'}
+                  {noteDirty || !savedTeacherNote ? 'Draft' : 'Draft Tersimpan'}
                 </Button>
                 <Button
                   variant="contained"
                   sx={{ flex: 1 }}
-                  onClick={handleSubmitReport}
+                  onClick={() => setConfirmingSubmit(true)}
                   disabled={reportDisabled || !hasContent || unsavedElsewhere}
                 >
                   {busy ? 'Menyimpan…' : 'Kirim'}
@@ -681,10 +746,37 @@ export function DailyReportStudentDialog({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'action.hover' }}>
-        <Button variant="contained" onClick={onClose} disabled={busy}>
+        <Button variant="contained" onClick={requestClose} disabled={busy}>
           Tutup
         </Button>
       </DialogActions>
+
+      <ConfirmDialog
+        open={confirmingSubmit}
+        title="Kirim laporan?"
+        cancelLabel="Batal"
+        confirmLabel="Kirim"
+        onCancel={() => setConfirmingSubmit(false)}
+        onConfirm={handleSubmitReport}
+      >
+        Setelah dikirim, laporan {childName} tidak bisa diubah lagi — termasuk kehadiran, suasana hati, dan
+        catatan guru. Koreksi hanya bisa dilakukan oleh admin.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmingClose}
+        title="Perubahan belum disimpan"
+        cancelLabel="Kembali"
+        confirmLabel="Tutup tanpa menyimpan"
+        confirmColor="error"
+        onCancel={() => setConfirmingClose(false)}
+        onConfirm={() => {
+          setConfirmingClose(false)
+          onClose()
+        }}
+      >
+        Belum disimpan: {unsavedSections.join(', ')}. Jika ditutup sekarang, perubahan ini akan hilang.
+      </ConfirmDialog>
     </Dialog>
   )
 }
