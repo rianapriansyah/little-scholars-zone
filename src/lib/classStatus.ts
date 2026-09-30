@@ -39,16 +39,27 @@ export function getClassStatus(startTime: Date, now: Date, endTime: Date | null 
 export type ClockInWindowStatus = 'too_early' | 'open'
 
 /**
- * Masuk Kelas opens 5 minutes before the scheduled start and never closes again — unlike the
+ * How early Masuk Kelas becomes pressable. Mirrors clock_in_classroom_teacher's own floor — the
+ * server re-checks it, this only stops the teacher tapping a button that would be refused.
+ *
+ * An hour rather than the old 5 minutes: a clock-in before the scheduled start is always
+ * recorded *as* the scheduled start (see the clamp_early_clock_in trigger), so tapping early
+ * banks nothing, and the tight floor only ever turned a teacher who genuinely arrived early
+ * into an admin backfill.
+ */
+const CLOCK_IN_OPENS_MINUTES_BEFORE_START = 60
+
+/**
+ * Masuk Kelas opens an hour before the scheduled start and never closes again — unlike the
  * old 'missed' cutoff, a genuinely late teacher can still tap it herself. What actually gets
- * recorded once she does (normalised to the start on time, kept real if late) is decided
- * server-side in clock_in_classroom_teacher and read back afterwards as arrivalStatus, so there
- * is no client-side equivalent to keep in sync — this only governs whether the button itself is
- * pressable yet.
+ * recorded once she does (the scheduled start for anything from the window opening through 5
+ * minutes past it, the real time once genuinely late) is decided server-side in
+ * clock_in_classroom_teacher, so there is no client-side equivalent to keep in sync — this only
+ * governs whether the button itself is pressable yet.
  */
 export function getClockInWindowStatus(startTime: Date, now: Date): ClockInWindowStatus {
   const minutesFromStart = (now.getTime() - startTime.getTime()) / 60_000
-  if (minutesFromStart < -5) return 'too_early'
+  if (minutesFromStart < -CLOCK_IN_OPENS_MINUTES_BEFORE_START) return 'too_early'
   return 'open'
 }
 

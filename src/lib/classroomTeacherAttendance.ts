@@ -132,10 +132,17 @@ export function buildContiguousChainLinks(classes: ChainableClass[]): ChainLink[
 
 /**
  * "Selesaikan kelas dan lanjut ke kelas selanjutnya" — closes the source class and opens the
- * destination class in one atomic, server-validated step, at the moment the teacher actually taps
- * it. The RPC independently re-confirms the two classes are genuinely back-to-back rather than
- * trusting buildContiguousChainLinks' client-side pairing blindly, and still enforces the normal
- * clock-out window on the source class — this is a real clock-out, just a combined one.
+ * destination class in one atomic, server-validated step. The RPC independently re-confirms the two
+ * classes are genuinely back-to-back rather than trusting buildContiguousChainLinks' client-side
+ * pairing blindly, and still enforces the normal clock-out floor on the source class — this is a
+ * real clock-out, just a combined one.
+ *
+ * Both sides are recorded at the scheduled boundary, not at the tap instant: on a 08:00–10:00
+ * class chaining into a 10:00–12:00 one, tapping this at 09:56 or at 10:04 records the first
+ * class's end and the second's start as exactly 10:00 either way. Saying "lanjut" asserts the two
+ * ran together with no gap, so the boundary is the truthful record of when each one ended and
+ * began — and since the classes are back-to-back, one instant is both. The other button
+ * (clockOutClassroomTeacher) is unaffected and still keeps genuine overtime real.
  */
 export async function clockOutAndContinueClassroomTeacher(
   fromClassroomTeacherId: string,
@@ -292,11 +299,23 @@ export function findIncompleteTeacherAttendance(
   return result
 }
 
+/** What the row actually ended up holding — not necessarily what was sent. See the note below. */
+export type SavedClassroomTeacherAttendance = {
+  id: string
+  clockedInAt: string | null
+  clockedOutAt: string | null
+}
+
 /**
  * Admin fill-in/correction. A plain upsert rather than the teacher RPCs — admin already has
- * unrestricted RLS access, and correcting a punch is exactly the case the 5-minute window is
- * not meant to guard against. Always tags both timestamps' source as 'admin' on save: this is
- * the admin explicitly attesting to the values shown in the dialog, not a partial patch.
+ * unrestricted RLS access, and correcting a punch is exactly the case the clock-in/out windows
+ * are not meant to guard against. Always tags both timestamps' source as 'admin' on save: this
+ * is the admin explicitly attesting to the values shown in the dialog, not a partial patch.
+ *
+ * Returns the stored timestamps, not the submitted ones: the clamp_early_clock_in trigger raises
+ * a jam masuk typed before the class's own start up to that start (the owner's no-pay-before-the
+ * -class rule, which holds for a hand-entered correction too), so the caller has to re-read what
+ * landed rather than assume its input survived verbatim.
  */
 export async function saveClassroomTeacherAttendance(params: {
   classroomTeacherId: string
@@ -304,7 +323,7 @@ export async function saveClassroomTeacherAttendance(params: {
   clockedInAt: string | null
   clockedOutAt: string | null
   notes?: string | null
-}): Promise<Result<string>> {
+}): Promise<Result<SavedClassroomTeacherAttendance>> {
   const { data: userRes } = await supabase.auth.getUser()
 
   const { data, error } = await supabase
@@ -322,8 +341,11 @@ export async function saveClassroomTeacherAttendance(params: {
       },
       { onConflict: 'classroom_teacher_id,session_date' },
     )
-    .select('id')
+    .select('id, clocked_in_at, clocked_out_at')
     .single()
   if (error) return { ok: false, error: error.message }
-  return { ok: true, data: data.id }
+  return {
+    ok: true,
+    data: { id: data.id, clockedInAt: data.clocked_in_at, clockedOutAt: data.clocked_out_at },
+  }
 }

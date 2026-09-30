@@ -61,6 +61,12 @@ type ContinueDialogState = {
   toId: string
   fromLabel: string
   toLabel: string
+  /**
+   * HH:mm of the shared boundary — the source's time_end, which is also the destination's
+   * time_start (that is what made them a chain link). Shown in the dialog because it is what
+   * actually gets recorded on both classes if she continues, whatever time she taps.
+   */
+  boundary: string
 }
 
 const STATUS_BORDER_COLOR: Record<ClassStatusBorder, string | undefined> = {
@@ -266,6 +272,7 @@ export function TeacherRosterPage() {
           toId: link.toClassroomTeacherId,
           fromLabel: group.classroom.label,
           toLabel: toGroup?.classroom.label ?? 'kelas selanjutnya',
+          boundary: group.classroom.time_end.slice(0, 5),
         })
         return
       }
@@ -494,6 +501,13 @@ export function TeacherRosterPage() {
             <DialogContent>
               <Typography variant="body2" color="text.secondary">
                 {continueDialog.toLabel} dimulai langsung setelah kelas ini berakhir. Pilih salah satu di bawah ini.
+              </Typography>
+              {/* Says the recorded time outright: continuing always books both classes at the
+                  shared boundary, so a teacher tapping a few minutes either side of it isn't left
+                  guessing why her jam selesai doesn't match the clock. */}
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                Jika lanjut, {continueDialog.fromLabel} dicatat selesai <strong>{continueDialog.boundary}</strong> dan{' '}
+                {continueDialog.toLabel} dicatat mulai <strong>{continueDialog.boundary}</strong>.
               </Typography>
             </DialogContent>
             <DialogActions sx={{ flexDirection: 'column', alignItems: 'stretch', gap: 1, px: 3, pb: 2 }}>

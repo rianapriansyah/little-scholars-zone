@@ -80,12 +80,18 @@ describe('getClockInWindowStatus', () => {
     expect(getClockInWindowStatus(start, start)).toBe('open')
   })
 
-  it('is open up to 5 minutes before start', () => {
-    expect(getClockInWindowStatus(start, new Date(start.getTime() - 5 * 60_000))).toBe('open')
+  it('is open up to an hour before start', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() - 60 * 60_000))).toBe('open')
   })
 
-  it('is too_early more than 5 minutes before start', () => {
-    expect(getClockInWindowStatus(start, new Date(start.getTime() - 5 * 60_000 - 1))).toBe('too_early')
+  // The old 5-minute floor: now well inside the window, since an early tap is recorded as the
+  // scheduled start anyway and there is nothing left for it to guard against.
+  it('is open half an hour before start', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() - 30 * 60_000))).toBe('open')
+  })
+
+  it('is too_early more than an hour before start', () => {
+    expect(getClockInWindowStatus(start, new Date(start.getTime() - 60 * 60_000 - 1))).toBe('too_early')
   })
 
   it('is open up to 5 minutes after start', () => {

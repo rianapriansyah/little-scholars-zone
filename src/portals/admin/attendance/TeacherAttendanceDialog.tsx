@@ -124,6 +124,8 @@ function ClassAttendanceForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  /** Set when the server's clamp moved jam masuk, so the admin isn't surprised by the new value. */
+  const [clampedTo, setClampedTo] = useState<string | null>(null)
 
   async function handleSave() {
     if (clockedOutTime && !clockedInTime) {
@@ -141,6 +143,7 @@ function ClassAttendanceForm({
     setSaving(true)
     setError(null)
     setSaved(false)
+    setClampedTo(null)
     const result = await saveClassroomTeacherAttendance({
       classroomTeacherId: entry.classroomTeacherId,
       sessionDate,
@@ -153,6 +156,14 @@ function ClassAttendanceForm({
       setError(result.error)
       return
     }
+    // The fields show what was stored, not what was typed — a jam masuk before the class's own
+    // start is raised to that start server-side (clamp_early_clock_in). Leaving the typed value
+    // on screen would have the form disagree with the chips above it and with the report.
+    const storedIn = result.data.clockedInAt ? witaWallClockTime(result.data.clockedInAt) : ''
+    const storedOut = result.data.clockedOutAt ? witaWallClockTime(result.data.clockedOutAt) : ''
+    if (storedIn !== clockedInTime) setClampedTo(storedIn)
+    setClockedInTime(storedIn)
+    setClockedOutTime(storedOut)
     setSaved(true)
     onSaved()
   }
@@ -169,7 +180,14 @@ function ClassAttendanceForm({
           Tersimpan.
         </Alert>
       ) : null}
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      {clampedTo ? (
+        <Alert severity="info" onClose={() => setClampedTo(null)}>
+          Jam masuk sebelum kelas dimulai dihitung mulai jam kelas — tersimpan sebagai {clampedTo}.
+        </Alert>
+      ) : null}
+      {/* flex-start, not center: the Jam Masuk field carries a helper line below it, and centring
+          the 40px clear button against the taller field would leave it floating low. */}
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
         <TextField
           size="small"
           label="Jam Masuk"
@@ -178,9 +196,16 @@ function ClassAttendanceForm({
           onChange={(e) => {
             setClockedInTime(e.target.value)
             setSaved(false)
+            setClampedTo(null)
           }}
           fullWidth
           slotProps={{ inputLabel: { shrink: true } }}
+          // No real start to be early against on a flexi-hours program — see is_flexi_hours.
+          helperText={
+            entry.isFlexiHours
+              ? undefined
+              : `Sebelum ${entry.timeStart.slice(0, 5)} tetap dihitung mulai ${entry.timeStart.slice(0, 5)}.`
+          }
         />
         <IconButton
           aria-label="Hapus jam masuk"
@@ -188,6 +213,7 @@ function ClassAttendanceForm({
           onClick={() => {
             setClockedInTime('')
             setSaved(false)
+            setClampedTo(null)
           }}
           sx={{
             width: 40,
@@ -259,6 +285,7 @@ function ClassAttendanceForm({
             setClockedInTime(entry.timeStart.slice(0, 5))
             setClockedOutTime(entry.timeEnd.slice(0, 5))
             setSaved(false)
+            setClampedTo(null)
           }}
           disabled={saving}
           sx={{ flex: 1 }}
