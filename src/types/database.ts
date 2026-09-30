@@ -992,9 +992,15 @@ export type Database = {
           p_classroom_teacher_id: string
           p_mood_arrival?: string
           p_mood_departure?: string
-          p_mood_note?: string
-          p_mood_note_parent?: string
           p_mood_studying?: string
+          p_report_date: string
+        }
+        Returns: string
+      }
+      save_daily_report_teacher_note: {
+        Args: {
+          p_child_id: string
+          p_classroom_teacher_id: string
           p_report_date: string
           p_teacher_note?: string
         }

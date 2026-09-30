@@ -54,12 +54,8 @@ export const MOOD_MOMENT_LABELS: Record<MoodMoment, string> = {
 export type DailyReportMoods = Record<MoodMoment, Mood | null>
 
 /**
- * One student's daily report for one date. `reportId` is null when the teacher has not saved
- * anything yet; `submittedAt` null means draft (not visible to parents).
- *
- * `moodNote` / `moodNoteParent` are not edited anywhere in the current UI, but are carried
- * through so saving the mood panel writes them back unchanged — save_daily_report_mood replaces
- * every field it is given, NULL included, so dropping them here would silently erase them.
+ * One student's daily report for one class on one date. `reportId` is null when the teacher has
+ * not saved anything yet; `submittedAt` null means draft (not visible to parents).
  */
 export type DailyReport = {
   reportId: string | null
@@ -70,8 +66,6 @@ export type DailyReport = {
   entries: DailyReportEntry[]
   moods: DailyReportMoods
   teacherNote: string
-  moodNote: string | null
-  moodNoteParent: string | null
 }
 
 /** Per-student status shown in the class roster on the entry screen. */

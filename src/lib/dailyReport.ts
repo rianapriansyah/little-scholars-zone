@@ -101,7 +101,7 @@ export async function fetchDailyReport(
   const { data, error } = await supabase
     .from('children_daily_reports')
     .select(
-      'id, child_id, classroom_teacher_id, report_date, submitted_at, mood_arrival, mood_studying, mood_departure, mood_note, mood_note_parent, teacher_note, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
+      'id, child_id, classroom_teacher_id, report_date, submitted_at, mood_arrival, mood_studying, mood_departure, teacher_note, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
     )
     .eq('child_id', childId)
     .eq('classroom_teacher_id', classroomTeacherId)
@@ -121,8 +121,6 @@ export async function fetchDailyReport(
         entries: [],
         moods: NO_MOODS,
         teacherNote: '',
-        moodNote: null,
-        moodNoteParent: null,
       },
     }
   }
@@ -157,8 +155,6 @@ export async function fetchDailyReport(
         departure: toMood(data.mood_departure),
       },
       teacherNote: data.teacher_note ?? '',
-      moodNote: data.mood_note,
-      moodNoteParent: data.mood_note_parent,
     },
   }
 }
@@ -185,20 +181,14 @@ export async function saveDailyReportMateri(params: {
 }
 
 /**
- * Upserts the report's moods and teacher note. Returns the report id.
- *
- * save_daily_report_mood writes every field it is given, NULL included — it saves the whole
- * panel, it doesn't patch — so moodNote / moodNoteParent must be the values that were loaded,
- * passed straight back, or they would be erased. A blank teacher note is stored as NULL.
+ * Suasana Hati's Simpan. Upserts the three moods — and only those: the teacher note is not touched,
+ * saved or unsaved. A null mood clears it. Returns the report id.
  */
 export async function saveDailyReportMood(params: {
   childId: string
   classroomTeacherId: string
   reportDate: string
   moods: DailyReportMoods
-  teacherNote: string
-  moodNote: string | null
-  moodNoteParent: string | null
 }): Promise<Result<string>> {
   const { data, error } = await supabase.rpc('save_daily_report_mood', {
     p_child_id: params.childId,
@@ -209,8 +199,25 @@ export async function saveDailyReportMood(params: {
     p_mood_arrival: params.moods.arrival ?? undefined,
     p_mood_studying: params.moods.studying ?? undefined,
     p_mood_departure: params.moods.departure ?? undefined,
-    p_mood_note: params.moodNote ?? undefined,
-    p_mood_note_parent: params.moodNoteParent ?? undefined,
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data }
+}
+
+/**
+ * Catatan Guru's Simpan sebagai Draf (and the save half of Kirim). Upserts the teacher note —
+ * and only that: the moods are not touched. A blank note is stored as NULL. Returns the report id.
+ */
+export async function saveDailyReportTeacherNote(params: {
+  childId: string
+  classroomTeacherId: string
+  reportDate: string
+  teacherNote: string
+}): Promise<Result<string>> {
+  const { data, error } = await supabase.rpc('save_daily_report_teacher_note', {
+    p_child_id: params.childId,
+    p_classroom_teacher_id: params.classroomTeacherId,
+    p_report_date: params.reportDate,
     p_teacher_note: params.teacherNote.trim() || undefined,
   })
   if (error) return { ok: false, error: error.message }

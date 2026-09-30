@@ -291,9 +291,17 @@ BEGIN
     '00000000-0000-4000-8000-000000000016',
     '00000000-0000-4000-8000-000000000031',
     '2026-08-03',
-    p_mood_arrival => 'sedih',
-    p_teacher_note => 'Catatan kelas sore'
+    p_mood_arrival => 'sedih'
   );
+
+  IF public.save_daily_report_teacher_note(
+    '00000000-0000-4000-8000-000000000016',
+    '00000000-0000-4000-8000-000000000031',
+    '2026-08-03',
+    'Catatan kelas sore'
+  ) <> v_second_id THEN
+    RAISE EXCEPTION 'FAIL: the note and the moods for one class/day must land on the same report';
+  END IF;
 
   IF v_second_id = v_first_id THEN
     RAISE EXCEPTION 'FAIL: a second program on the same day must get its own report, not reuse %', v_first_id;
@@ -313,12 +321,44 @@ BEGIN
     RAISE EXCEPTION 'FAIL: saving the second program''s report changed the first one';
   END IF;
 
+  -- Saving the note must not have cleared the mood saved just before it.
   IF NOT EXISTS (
     SELECT 1 FROM public.children_daily_reports
     WHERE id = v_second_id AND mood_arrival = 'sedih' AND teacher_note = 'Catatan kelas sore'
   ) THEN
-    RAISE EXCEPTION 'FAIL: save_daily_report_mood did not store mood_arrival / teacher_note';
+    RAISE EXCEPTION 'FAIL: saving the teacher note clobbered the saved mood (or neither was stored)';
   END IF;
+
+  -- ...and saving the moods again must not clear the note.
+  PERFORM public.save_daily_report_mood(
+    '00000000-0000-4000-8000-000000000016',
+    '00000000-0000-4000-8000-000000000031',
+    '2026-08-03',
+    p_mood_arrival => 'senang',
+    p_mood_departure => 'biasa'
+  );
+  IF NOT EXISTS (
+    SELECT 1 FROM public.children_daily_reports
+    WHERE id = v_second_id AND mood_arrival = 'senang' AND mood_departure = 'biasa'
+      AND teacher_note = 'Catatan kelas sore'
+  ) THEN
+    RAISE EXCEPTION 'FAIL: saving the moods clobbered the saved teacher note';
+  END IF;
+
+  -- A blank note is stored as NULL, not ''.
+  PERFORM public.save_daily_report_teacher_note(
+    '00000000-0000-4000-8000-000000000016',
+    '00000000-0000-4000-8000-000000000031',
+    '2026-08-03',
+    '   '
+  );
+  IF NOT EXISTS (
+    SELECT 1 FROM public.children_daily_reports
+    WHERE id = v_second_id AND teacher_note IS NULL AND mood_arrival = 'senang'
+  ) THEN
+    RAISE EXCEPTION 'FAIL: a blank teacher note should be stored as NULL, leaving the moods alone';
+  END IF;
+  RAISE NOTICE 'PASS: mood and teacher note save independently, neither clobbers the other';
 
   -- Each report matches exactly one attendance row.
   IF (
@@ -429,6 +469,33 @@ BEGIN
   EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
     RAISE NOTICE 'PASS: submitted report locked for the teacher (%)', SQLERRM;
+  END;
+
+  -- Read-only after Kirim covers the mood and the note too, not just materi.
+  BEGIN
+    PERFORM public.save_daily_report_mood(
+      '00000000-0000-4000-8000-000000000016',
+      '00000000-0000-4000-8000-000000000019',
+      '2026-08-03',
+      p_mood_arrival => 'sedih'
+    );
+    RAISE EXCEPTION 'FAIL: a submitted report''s moods must not be editable by the teacher';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    RAISE NOTICE 'PASS: submitted report''s moods locked for the teacher (%)', SQLERRM;
+  END;
+
+  BEGIN
+    PERFORM public.save_daily_report_teacher_note(
+      '00000000-0000-4000-8000-000000000016',
+      '00000000-0000-4000-8000-000000000019',
+      '2026-08-03',
+      'Mengubah setelah terkirim'
+    );
+    RAISE EXCEPTION 'FAIL: a submitted report''s teacher note must not be editable by the teacher';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    RAISE NOTICE 'PASS: submitted report''s teacher note locked for the teacher (%)', SQLERRM;
   END;
 END $$;
 
