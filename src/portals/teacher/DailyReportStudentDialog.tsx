@@ -218,6 +218,12 @@ export function DailyReportStudentDialog({
   const materiDirty = DAILY_REPORT_MATERI_ENABLED && !isSelectionUnchanged(selection, savedEntries)
 
   const moodCount = MOOD_MOMENTS.filter((moment) => draftMoods[moment] !== null).length
+  /**
+   * Suasana Hati saves all or nothing: a half-filled panel ("senang on arrival, blank after") says
+   * less than an empty one, and a parent reading two of three moods can't tell whether the third
+   * was neutral or simply not recorded. So Simpan stays disabled until all three are chosen.
+   */
+  const moodComplete = moodCount === MOOD_MOMENTS.length
   const hasSavedMood = MOOD_MOMENTS.some((moment) => savedMoods[moment] !== null)
   const hasTeacherNote = draftTeacherNote.trim() !== ''
   /**
@@ -561,15 +567,24 @@ export function DailyReportStudentDialog({
             </Panel>
           </Box>
           {!locked ? (
-            <Button
-              variant="contained"
-              fullWidth
-              sx={{ mt: 1.5 }}
-              onClick={handleSaveMood}
-              disabled={reportDisabled || !moodDirty}
-            >
-              {busy ? 'Menyimpan…' : moodDirty ? 'Simpan' : 'Tersimpan'}
-            </Button>
+            <>
+              <Button
+                variant="contained"
+                fullWidth
+                sx={{ mt: 1.5 }}
+                onClick={handleSaveMood}
+                disabled={reportDisabled || !moodDirty || !moodComplete}
+              >
+                {/* "Tersimpan" only when something really is stored — otherwise a fresh, empty
+                    panel would claim to be saved. */}
+                {busy ? 'Menyimpan…' : !moodDirty && hasSavedMood ? 'Tersimpan' : 'Simpan'}
+              </Button>
+              {isPresent && !moodComplete ? (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  Pilih ketiga suasana hati untuk bisa menyimpan.
+                </Typography>
+              ) : null}
+            </>
           ) : null}
         </Section>
 
@@ -620,9 +635,12 @@ export function DailyReportStudentDialog({
               {/* Say why Kirim is off, rather than leaving a teacher to guess. */}
               {isPresent && unsavedElsewhere ? (
                 <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>
-                  {moodDirty
-                    ? 'Simpan suasana hati dulu sebelum mengirim.'
-                    : 'Simpan materi dulu sebelum mengirim.'}
+                  {!moodDirty
+                    ? 'Simpan materi dulu sebelum mengirim.'
+                    : moodComplete
+                      ? 'Simpan suasana hati dulu sebelum mengirim.'
+                      : // Saying "simpan" alone would point at a button that is itself disabled.
+                        'Lengkapi ketiga suasana hati lalu simpan sebelum mengirim.'}
                 </Typography>
               ) : isPresent && !hasContent ? (
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>

@@ -12,8 +12,12 @@ type Props = {
 
 /**
  * Senang / Biasa / Sedih as three buttons, same shape as AttendanceStatusSelector. Unlike
- * attendance, tapping the active mood clears it: a mood is optional, and a teacher who picked
- * one by mistake needs a way back to "not recorded" without asking an admin.
+ * attendance, tapping the active mood clears it: a teacher who picked one by mistake needs a way
+ * back to "not recorded" without asking an admin.
+ *
+ * The face carries the meaning on its own — no word beside it — so three moods fit a phone row
+ * comfortably and read at a glance. MOOD_LABELS still rides along as the accessible name and as
+ * the long-press tooltip, so the meaning is never only in a picture.
  */
 export function MoodSelector({ value, onChange, disabled = false, ariaLabel }: Props) {
   return (
@@ -31,12 +35,14 @@ export function MoodSelector({ value, onChange, disabled = false, ariaLabel }: P
           key={mood}
           value={mood}
           aria-label={MOOD_LABELS[mood]}
+          title={MOOD_LABELS[mood]}
           color={mood === 'senang' ? 'success' : mood === 'sedih' ? 'warning' : 'info'}
-          sx={{ py: 1, fontWeight: 600, gap: 0.75 }}
+          // Bigger than body text: the emoji is now the whole label, and it doubles as the tap
+          // target on a phone.
+          sx={{ py: 0.75, fontSize: '1.6rem', lineHeight: 1.2 }}
           size="small"
         >
           <span aria-hidden>{MOOD_EMOJI[mood]}</span>
-          {MOOD_LABELS[mood]}
         </ToggleButton>
       ))}
     </ToggleButtonGroup>
