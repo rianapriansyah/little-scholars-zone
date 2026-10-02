@@ -893,6 +893,19 @@ export type Database = {
         Args: { p_classroom_teacher_id: string }
         Returns: boolean
       }
+      daily_report_for_attendance: {
+        Args: { p_child_id: string; p_classroom_id: string; p_report_date: string }
+        Returns: {
+          id: string
+          submitted_at: string | null
+          mood_arrival: string | null
+          mood_studying: string | null
+          mood_departure: string | null
+          teacher_note: string | null
+          teacher_full_name: string | null
+          teacher_call_name: string | null
+        }[]
+      }
       clock_in_classroom_teacher: {
         Args: { p_classroom_teacher_id: string }
         Returns: string

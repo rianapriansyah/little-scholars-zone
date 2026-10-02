@@ -583,6 +583,125 @@ BEGIN
   RAISE NOTICE 'PASS: admin reads everything and can correct a submitted report';
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- daily_report_for_attendance — SECURITY DEFINER, so its own WHERE clause is the access control
+-- rather than RLS. These check it matches children_daily_reports' policies exactly.
+-- Child One's 2026-08-03 report (Test Classroom, teacher A) is submitted by now; the second
+-- program's report (Test Classroom 2, also teacher A) is still a draft.
+-- ---------------------------------------------------------------------------
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated","app_metadata":{"role":"parent"}}';
+
+DO $$
+DECLARE
+  v_rows int;
+  v_teacher text;
+BEGIN
+  SELECT count(*) INTO v_rows FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03');
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'FAIL: parent should see own child''s SUBMITTED report, got % rows', v_rows;
+  END IF;
+
+  -- The teachers table has no parent policy at all; the RPC is the only way they get the name.
+  SELECT teacher_full_name INTO v_teacher FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03');
+  IF v_teacher IS DISTINCT FROM 'Test Teacher A' THEN
+    RAISE EXCEPTION 'FAIL: parent should get the teacher name, got %', coalesce(v_teacher, 'NULL');
+  END IF;
+  RAISE NOTICE 'PASS: parent reads own child''s submitted report, teacher name included';
+
+  -- The other program's report was never submitted.
+  SELECT count(*) INTO v_rows FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000030', '2026-08-03');
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'FAIL: parent can see a DRAFT report through the RPC (% rows)', v_rows;
+  END IF;
+  RAISE NOTICE 'PASS: a draft stays invisible to the parent';
+
+  -- Wrong classroom for a real report: the two programs must not bleed into each other.
+  SELECT count(*) INTO v_rows FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000030', '2026-08-04');
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'FAIL: RPC returned a report for the wrong classroom/date (% rows)', v_rows;
+  END IF;
+  RAISE NOTICE 'PASS: the classroom filter keeps two programs apart';
+END $$;
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000005","role":"authenticated","app_metadata":{"role":"parent"}}';
+
+DO $$
+DECLARE
+  v_rows int;
+BEGIN
+  SELECT count(*) INTO v_rows FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03');
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'FAIL: parent 2 can read family 1''s report through the RPC (% rows)', v_rows;
+  END IF;
+  RAISE NOTICE 'PASS: the RPC does not leak another family''s report';
+END $$;
+
+-- Teacher B holds no group in Test Classroom, so teacher A's report is not theirs to read.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000003","role":"authenticated","app_metadata":{"role":"teacher"}}';
+
+DO $$
+DECLARE
+  v_rows int;
+BEGIN
+  SELECT count(*) INTO v_rows FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03');
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'FAIL: a teacher can read another teacher''s report through the RPC (% rows)', v_rows;
+  END IF;
+  RAISE NOTICE 'PASS: the RPC does not leak another teacher''s report';
+END $$;
+
+-- Teacher A owns both, draft included.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000002","role":"authenticated","app_metadata":{"role":"teacher"}}';
+
+DO $$
+DECLARE
+  v_submitted int;
+  v_draft int;
+BEGIN
+  SELECT count(*) INTO v_submitted FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03');
+  SELECT count(*) INTO v_draft FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000030', '2026-08-03');
+  IF v_submitted <> 1 OR v_draft <> 1 THEN
+    RAISE EXCEPTION 'FAIL: the writing teacher should read both their reports (% submitted, % draft)', v_submitted, v_draft;
+  END IF;
+  RAISE NOTICE 'PASS: the writing teacher reads their own reports, draft included';
+END $$;
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}';
+
+DO $$
+DECLARE
+  v_submitted int;
+  v_draft int;
+BEGIN
+  SELECT count(*) INTO v_submitted FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03');
+  SELECT count(*) INTO v_draft FROM public.daily_report_for_attendance(
+    '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000030', '2026-08-03');
+  IF v_submitted <> 1 OR v_draft <> 1 THEN
+    RAISE EXCEPTION 'FAIL: admin should read both reports (% submitted, % draft)', v_submitted, v_draft;
+  END IF;
+  RAISE NOTICE 'PASS: admin reads every report through the RPC';
+END $$;
+
 RESET ROLE;
 
 DO $$ BEGIN RAISE NOTICE 'ALL DAILY REPORT TESTS PASSED'; END $$;

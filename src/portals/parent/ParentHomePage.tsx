@@ -118,6 +118,10 @@ export function ParentHomePage() {
                       key={group.classroomId}
                       group={group}
                       defaultExpanded={index === 0}
+                      // Tapping a date opens that day: how the child was, and the teacher's note.
+                      // A report the teacher has not sent stays invisible — the RPC behind this
+                      // only returns submitted ones to a parent.
+                      attendanceDetail
                     />
                   ))}
                 </Box>

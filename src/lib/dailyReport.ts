@@ -193,49 +193,46 @@ export type DailyReportSummary = {
 }
 
 /**
- * The report that belongs to one attendance row, or null when the teacher never filed one.
+ * The report that belongs to one attendance row, or null when there is none to show.
  *
- * Attendance is keyed by program (child, classroom, date) and the report by teaching group
- * (child, classroom_teacher, date), so the two only meet through classroom_teachers — see the
- * join below. A child in two programs on the same day has one report per program, and the
- * classroom filter is what keeps this from returning the other program's.
+ * Goes through the daily_report_for_attendance RPC rather than querying the table: attendance is
+ * keyed by program (child, classroom, date) and the report by teaching group (child,
+ * classroom_teacher, date), so joining them needs classroom_teachers and teachers — neither of
+ * which a parent can read in full. The RPC does that join server-side and applies the same access
+ * rules the table's own policies do, so a parent still only ever sees their own child's submitted
+ * reports. See 20261002010000_daily_report_for_attendance.sql.
  */
 export async function fetchDailyReportForAttendance(
   childId: string,
   classroomId: string,
   reportDate: string,
 ): Promise<Result<DailyReportSummary | null>> {
-  // One string literal, same reasoning as fetchDailyReport: Postgrest infers the embedded row
-  // types from the literal. !inner so the classroom filter below actually restricts the rows
-  // rather than just nulling the embed.
-  const { data, error } = await supabase
-    .from('children_daily_reports')
-    .select(
-      'id, submitted_at, mood_arrival, mood_studying, mood_departure, teacher_note, classroom_teachers!inner(classroom_id, teachers(full_name, call_name))',
-    )
-    .eq('child_id', childId)
-    .eq('report_date', reportDate)
-    .eq('classroom_teachers.classroom_id', classroomId)
-    .maybeSingle()
+  const { data, error } = await supabase.rpc('daily_report_for_attendance', {
+    p_child_id: childId,
+    p_classroom_id: classroomId,
+    p_report_date: reportDate,
+  })
   if (error) return { ok: false, error: error.message }
-  if (!data) return { ok: true, data: null }
 
-  const group = data.classroom_teachers as unknown as {
-    teachers: { full_name: string; call_name: string | null } | null
-  } | null
+  // A table-returning function comes back as an array; the RPC caps it at one row. Empty means
+  // either no report exists or the caller may not see it — both read as "nothing to show".
+  const row = data?.[0]
+  if (!row) return { ok: true, data: null }
 
   return {
     ok: true,
     data: {
-      reportId: data.id,
-      submittedAt: data.submitted_at,
+      reportId: row.id,
+      submittedAt: row.submitted_at,
       moods: {
-        arrival: toMood(data.mood_arrival),
-        studying: toMood(data.mood_studying),
-        departure: toMood(data.mood_departure),
+        arrival: toMood(row.mood_arrival),
+        studying: toMood(row.mood_studying),
+        departure: toMood(row.mood_departure),
       },
-      teacherNote: data.teacher_note,
-      teacherName: group?.teachers ? teacherDisplayName(group.teachers) : null,
+      teacherNote: row.teacher_note,
+      teacherName: row.teacher_full_name
+        ? teacherDisplayName({ full_name: row.teacher_full_name, call_name: row.teacher_call_name })
+        : null,
     },
   }
 }
