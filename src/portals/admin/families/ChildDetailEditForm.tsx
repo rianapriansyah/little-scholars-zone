@@ -71,10 +71,16 @@ type Props = {
   onCreated?: (child: ChildRow) => void
   hideActions?: boolean
   onBusyChange?: (busy: { saving: boolean }) => void
+  /**
+   * Leave for the family's own screen. The caller owns it because this form is inside a modal:
+   * the two parents shown here are a pointer, and the rest of the family record — contact details,
+   * the other children, billing — lives behind it. Omitted, the button is not rendered.
+   */
+  onGoToFamily?: () => void
 }
 
 export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(function ChildDetailEditForm(
-  { child, family, onSaved, onCreated, hideActions = false, onBusyChange },
+  { child, family, onSaved, onCreated, hideActions = false, onBusyChange, onGoToFamily },
   ref,
 ) {
   const [fullName, setFullName] = useState('')
@@ -412,6 +418,33 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
               </Button>
             </Box>
           )}
+        </FormPanel>
+      </FormSection>
+
+      {/* Just the two names: enough to confirm whose child this is without leaving the modal.
+          Everything else about the family — contact details, siblings, billing — is one button
+          away rather than duplicated here, where it would drift out of date. */}
+      <FormSection title="Orang Tua">
+        <FormPanel>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              Ayah
+            </Typography>
+            <Typography variant="body1">{family.father_name?.trim() || '—'}</Typography>
+          </Box>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              Ibu
+            </Typography>
+            <Typography variant="body1">{family.mother_name?.trim() || '—'}</Typography>
+          </Box>
+          {onGoToFamily ? (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button variant="outlined" onClick={onGoToFamily}>
+                Menuju Ke Data Keluarga
+              </Button>
+            </Box>
+          ) : null}
         </FormPanel>
       </FormSection>
 

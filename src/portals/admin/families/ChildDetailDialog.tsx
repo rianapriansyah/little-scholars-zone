@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton } from '@mui/material'
 import type { ChildRow } from '../../../types/child'
@@ -19,6 +20,7 @@ type Props = {
  *  Adding a child uses the same dialog — once the first Simpan creates the row, the periods and
  *  classes sections unlock in place, so there is one look and one flow for both. */
 export function ChildDetailDialog({ open, child, family, onClose, onSaved }: Props) {
+  const navigate = useNavigate()
   // Create mode only: the row inserted by the first Simpan, which the form then edits.
   const [createdChild, setCreatedChild] = useState<ChildRow | null>(null)
 
@@ -38,7 +40,18 @@ export function ChildDetailDialog({ open, child, family, onClose, onSaved }: Pro
       </DialogTitle>
       <DialogContent dividers>
         {open ? (
-          <ChildDetailEditForm child={shownChild} family={family} onSaved={onSaved} onCreated={setCreatedChild} />
+          <ChildDetailEditForm
+            child={shownChild}
+            family={family}
+            onSaved={onSaved}
+            onCreated={setCreatedChild}
+            // Closes first: opened from the family's own screen this modal is covering the page
+            // it would navigate to, so without the close nothing would appear to happen.
+            onGoToFamily={() => {
+              onClose()
+              void navigate(`/admin/families/${family.id}`)
+            }}
+          />
         ) : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
