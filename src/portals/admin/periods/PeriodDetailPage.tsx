@@ -1,27 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom'
 import DeleteIcon from '@mui/icons-material/DeleteOutline'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import PaymentsIcon from '@mui/icons-material/PaymentsOutlined'
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Breadcrumbs,
   Button,
   Chip,
   CircularProgress,
-  Divider,
   Link,
   Paper,
   Typography,
 } from '@mui/material'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
-import { LearningPeriodDetail } from '../../../components/LearningPeriodDetail'
 import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
-import { isNearingEnd } from '../../../lib/attendanceQuota'
+import { ProgramPeriodCard } from '../../../components/ProgramPeriodCard'
 import { fetchPeriodsForChild } from '../../../lib/learningPeriods'
 import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
 import { groupPeriodsByProgram, type ChildProgramGroup } from '../../../lib/periodGrouping'
@@ -29,95 +23,6 @@ import { deletePaymentReceipt } from '../../../lib/receiptStorage'
 import { supabase } from '../../../lib/supabase'
 import type { LearningPeriodListEntry } from '../../../types/attendance'
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/payment'
-
-/**
- * One program of one child, collapsible. The summary carries everything needed to triage without
- * opening it — which program, whether it is still running, how many days are left — so a child in
- * several programs can be read at a glance and only the interesting one expanded.
- */
-function ProgramCard({
-  group,
-  defaultExpanded,
-  paymentStatus,
-  onPay,
-  onDelete,
-}: {
-  group: ChildProgramGroup
-  defaultExpanded: boolean
-  paymentStatus: (periodId: string) => PaymentStatus | null
-  onPay: (period: LearningPeriodListEntry) => void
-  onDelete: (period: LearningPeriodListEntry) => void
-}) {
-  return (
-    <Accordion
-      defaultExpanded={defaultExpanded}
-      disableGutters
-      variant="outlined"
-      sx={{ '&:before': { display: 'none' }, borderRadius: 2, overflow: 'hidden' }}
-    >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { my: 1.5 } }}>
-        <Box sx={{ width: '100%', minWidth: 0, pr: 1 }}>
-          <Typography sx={{ fontWeight: 700 }}>{group.classroomLabel}</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 0.75 }}>
-            <Chip
-              size="small"
-              label={group.isActive ? 'Berjalan' : 'Selesai'}
-              color={group.isActive ? 'success' : 'default'}
-              variant={group.isActive ? 'filled' : 'outlined'}
-            />
-            {group.daysRemaining !== null ? (
-              <Chip
-                size="small"
-                label={`Sisa ${group.daysRemaining} hari`}
-                color={isNearingEnd({ daysRemaining: group.daysRemaining }) ? 'warning' : 'default'}
-                variant={isNearingEnd({ daysRemaining: group.daysRemaining }) ? 'filled' : 'outlined'}
-              />
-            ) : null}
-            {/* Only worth saying once a renewal exists; one period is the normal case. */}
-            {group.periods.length > 1 ? (
-              <Chip size="small" variant="outlined" label={`${group.periods.length} periode`} />
-            ) : null}
-          </Box>
-        </Box>
-      </AccordionSummary>
-
-      <AccordionDetails sx={{ pt: 0 }}>
-        {group.periods.map((period, index) => {
-          const status = paymentStatus(period.id)
-          return (
-            <Box key={period.id}>
-              {index > 0 ? <Divider sx={{ my: 2.5 }} /> : null}
-              <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: { xs: 1.5, sm: 2 } }}>
-                <LearningPeriodDetail periodId={period.id} hideChildName attendanceDetail />
-              </Box>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1.5 }}>
-                <Chip
-                  size="small"
-                  label={status ? PAYMENT_STATUS_LABELS[status] : 'Belum ada tagihan'}
-                  color={status === 'paid' ? 'success' : 'warning'}
-                  variant={status === 'paid' ? 'filled' : 'outlined'}
-                />
-                <Box sx={{ flexGrow: 1 }} />
-                <Button size="small" variant="outlined" startIcon={<PaymentsIcon />} onClick={() => onPay(period)}>
-                  Pembayaran
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={() => onDelete(period)}
-                >
-                  Hapus
-                </Button>
-              </Box>
-            </Box>
-          )
-        })}
-      </AccordionDetails>
-    </Accordion>
-  )
-}
 
 /**
  * One child's learning periods, grouped into a collapsible card per program — the same shape the
@@ -238,15 +143,44 @@ export function PeriodDetailPage() {
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             {programs.map((group, index) => (
-              <ProgramCard
+              <ProgramPeriodCard
                 key={group.classroomId}
                 group={group}
                 // Open the one that was deep-linked; otherwise only the first, so a child in
                 // several programs does not open as a wall of detail.
                 defaultExpanded={focusClassroomId ? group.classroomId === focusClassroomId : index === 0}
-                paymentStatus={(periodId) => payments.get(periodId) ?? null}
-                onPay={setPayTarget}
-                onDelete={setDeleteTarget}
+                attendanceDetail
+                renderPeriodActions={(period) => {
+                  const status = payments.get(period.id) ?? null
+                  return (
+                    <>
+                      <Chip
+                        size="small"
+                        label={status ? PAYMENT_STATUS_LABELS[status] : 'Belum ada tagihan'}
+                        color={status === 'paid' ? 'success' : 'warning'}
+                        variant={status === 'paid' ? 'filled' : 'outlined'}
+                      />
+                      <Box sx={{ flexGrow: 1 }} />
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<PaymentsIcon />}
+                        onClick={() => setPayTarget(period)}
+                      >
+                        Pembayaran
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        startIcon={<DeleteIcon />}
+                        onClick={() => setDeleteTarget(period)}
+                      >
+                        Hapus
+                      </Button>
+                    </>
+                  )
+                }}
               />
             ))}
           </Box>

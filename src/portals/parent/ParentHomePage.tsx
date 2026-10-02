@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react'
-import { Alert, Avatar, Box, CircularProgress, Divider, Paper, Typography } from '@mui/material'
+import { Alert, Avatar, Box, CircularProgress, Divider, Typography } from '@mui/material'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFamilyProfile } from '../../hooks/useFamilyProfile'
-import { LearningPeriodDetail } from '../../components/LearningPeriodDetail'
+import { ProgramPeriodCard } from '../../components/ProgramPeriodCard'
 import { fetchPeriodsForChild } from '../../lib/learningPeriods'
-import type { LearningPeriodListEntry } from '../../types/attendance'
+import { groupPeriodsByProgram, type ChildProgramGroup } from '../../lib/periodGrouping'
 import type { ChildRow } from '../../types/child'
 
 /**
- * One section per child, their billed programs beneath. A child enrolled in two separately
- * billed classrooms holds an independent period for each, so both appear here with their own
- * quota and attendance history.
+ * One section per child, their billed programs beneath as collapsible cards — the same card the
+ * admin period screen uses, minus its invoice and delete controls, so a parent reads exactly what
+ * the centre sees without being offered anything to change.
+ *
+ * Grouped by program rather than listed per period: a renewal is the same program continuing, and
+ * stacking each renewal as another full-height panel buried the one that is actually running.
  */
 type ChildWithPeriods = {
   child: ChildRow
-  periods: LearningPeriodListEntry[]
+  programs: ChildProgramGroup[]
 }
 
 export function ParentHomePage() {
@@ -54,7 +57,7 @@ export function ParentHomePage() {
           }
           return
         }
-        results.push({ child, periods: periodResult.data })
+        results.push({ child, programs: groupPeriodsByProgram(periodResult.data) })
       }
 
       if (!cancelled) {
@@ -89,7 +92,7 @@ export function ParentHomePage() {
         <Typography color="text.secondary">Belum ada data anak.</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {entries.map(({ child, periods }) => (
+          {entries.map(({ child, programs }) => (
             <Box key={child.id}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
                 <Avatar src={child.photo_url ?? undefined} sx={{ width: 40, height: 40 }}>
@@ -101,18 +104,21 @@ export function ParentHomePage() {
               </Box>
               <Divider sx={{ mb: 2 }} />
 
-              {periods.length === 0 ? (
+              {programs.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   Belum ada program belajar yang terdaftar.
                 </Typography>
               ) : (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {periods.map((period) => (
-                    // The child's name is the section heading above, so the card leads with
-                    // the program instead of repeating it.
-                    <Paper key={period.id} variant="outlined" sx={{ p: { xs: 2, sm: 2.5 } }}>
-                      <LearningPeriodDetail periodId={period.id} hideChildName />
-                    </Paper>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {programs.map((group, index) => (
+                    // The child's name is the section heading above, so the card leads with the
+                    // program instead of repeating it. Only the first opens: a parent with a
+                    // child in two programs should see both at a glance, not scroll past one.
+                    <ProgramPeriodCard
+                      key={group.classroomId}
+                      group={group}
+                      defaultExpanded={index === 0}
+                    />
                   ))}
                 </Box>
               )}
