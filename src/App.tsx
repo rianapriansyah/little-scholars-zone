@@ -60,7 +60,8 @@ export default function App() {
               <Route path="classrooms/:classroomId" element={<ClassroomDetailPage />} />
               <Route path="curriculum" element={<CurriculumPage />} />
               <Route path="periods" element={<PeriodsPage />} />
-              <Route path="periods/:periodId" element={<PeriodDetailPage />} />
+              {/* Keyed by child, not by period: one screen holds every program they are in. */}
+              <Route path="periods/:childId" element={<PeriodDetailPage />} />
               <Route path="teachers-attendance" element={<TeachersAttendancePage />} />
               <Route path="manage-account" element={<ManageAccountPage />} />
             </Route>

@@ -103,7 +103,13 @@ export function ChildPeriodsSection({ child, family, onPeriodsChanged }: Props) 
                 return (
                   <TableRow key={period.id} hover>
                     <TableCell>
-                      <Link component={RouterLink} to={`/admin/periods/${period.id}`} underline="hover">
+                      {/* The detail screen is per child now, so carry the program along to open
+                          its card rather than landing on whichever one happens to be first. */}
+                      <Link
+                        component={RouterLink}
+                        to={`/admin/periods/${child.id}?program=${period.classroomId}`}
+                        underline="hover"
+                      >
                         #{period.periodNo}
                       </Link>
                     </TableCell>
