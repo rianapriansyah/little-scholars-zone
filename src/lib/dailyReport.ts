@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import type { Result } from './result'
 import { isCurriculumSubject } from '../types/curriculumItem'
 import type { CurriculumItemRow } from '../types/curriculumItem'
+import { teacherDisplayName } from './teacherName'
 import { isMood } from '../types/dailyReport'
 import type { DailyReport, DailyReportEntry, DailyReportMoods } from '../types/dailyReport'
 import { parseMasteryLevel, sortEntries, type RpcEntry } from './dailyReportEntries'
@@ -178,6 +179,65 @@ export async function saveDailyReportMateri(params: {
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
+}
+
+/** What one attendance day's report held, for the read-only attendance detail dialog. */
+export type DailyReportSummary = {
+  reportId: string
+  /** null means the teacher saved a draft but never sent it. */
+  submittedAt: string | null
+  moods: DailyReportMoods
+  teacherNote: string | null
+  /** Who wrote it, as they are addressed on screen. null if the teacher row has gone. */
+  teacherName: string | null
+}
+
+/**
+ * The report that belongs to one attendance row, or null when the teacher never filed one.
+ *
+ * Attendance is keyed by program (child, classroom, date) and the report by teaching group
+ * (child, classroom_teacher, date), so the two only meet through classroom_teachers — see the
+ * join below. A child in two programs on the same day has one report per program, and the
+ * classroom filter is what keeps this from returning the other program's.
+ */
+export async function fetchDailyReportForAttendance(
+  childId: string,
+  classroomId: string,
+  reportDate: string,
+): Promise<Result<DailyReportSummary | null>> {
+  // One string literal, same reasoning as fetchDailyReport: Postgrest infers the embedded row
+  // types from the literal. !inner so the classroom filter below actually restricts the rows
+  // rather than just nulling the embed.
+  const { data, error } = await supabase
+    .from('children_daily_reports')
+    .select(
+      'id, submitted_at, mood_arrival, mood_studying, mood_departure, teacher_note, classroom_teachers!inner(classroom_id, teachers(full_name, call_name))',
+    )
+    .eq('child_id', childId)
+    .eq('report_date', reportDate)
+    .eq('classroom_teachers.classroom_id', classroomId)
+    .maybeSingle()
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: true, data: null }
+
+  const group = data.classroom_teachers as unknown as {
+    teachers: { full_name: string; call_name: string | null } | null
+  } | null
+
+  return {
+    ok: true,
+    data: {
+      reportId: data.id,
+      submittedAt: data.submitted_at,
+      moods: {
+        arrival: toMood(data.mood_arrival),
+        studying: toMood(data.mood_studying),
+        departure: toMood(data.mood_departure),
+      },
+      teacherNote: data.teacher_note,
+      teacherName: group?.teachers ? teacherDisplayName(group.teachers) : null,
+    },
+  }
 }
 
 /**

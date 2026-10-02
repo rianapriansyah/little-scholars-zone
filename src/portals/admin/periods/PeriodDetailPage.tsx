@@ -88,7 +88,7 @@ function ProgramCard({
             <Box key={period.id}>
               {index > 0 ? <Divider sx={{ my: 2.5 }} /> : null}
               <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: { xs: 1.5, sm: 2 } }}>
-                <LearningPeriodDetail periodId={period.id} hideChildName />
+                <LearningPeriodDetail periodId={period.id} hideChildName attendanceDetail />
               </Box>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1.5 }}>
                 <Chip

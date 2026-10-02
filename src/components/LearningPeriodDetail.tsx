@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import {
   Alert,
   Box,
@@ -7,6 +8,7 @@ import {
   Divider,
   List,
   ListItem,
+  ListItemButton,
   ListItemText,
   Paper,
   Typography,
@@ -15,6 +17,7 @@ import { formatDate } from '../lib/formatDate'
 import { fetchPeriod, fetchPeriodAttendances } from '../lib/learningPeriods'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
+import { AttendanceDetailDialog } from './AttendanceDetailDialog'
 
 const STATUS_COLOR: Record<AttendanceStatus, 'success' | 'warning' | 'info'> = {
   present: 'success',
@@ -48,6 +51,16 @@ type Props = {
    * program becomes the card's title instead of repeating the name on every card.
    */
   hideChildName?: boolean
+  /**
+   * Make each Riwayat Absensi row open AttendanceDetailDialog — that day's status, its note, and
+   * the daily report filed against it.
+   *
+   * Opt-in rather than always on: this component is shared with the parent portal, and whether
+   * parents see daily reports is a product decision that has not been taken yet (the columns are
+   * readable to them at the API level either way, but nothing in the app shows them). Admin passes
+   * it; teacher and parent are unchanged until asked.
+   */
+  attendanceDetail?: boolean
 }
 
 /**
@@ -57,11 +70,12 @@ type Props = {
  *
  * Shared by the teacher and admin portals; each supplies its own breadcrumbs around it.
  */
-export function LearningPeriodDetail({ periodId, hideChildName = false }: Props) {
+export function LearningPeriodDetail({ periodId, hideChildName = false, attendanceDetail = false }: Props) {
   const [period, setPeriod] = useState<LearningPeriodListEntry | null>(null)
   const [attendances, setAttendances] = useState<ChildAttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [openAttendance, setOpenAttendance] = useState<ChildAttendanceRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -128,6 +142,7 @@ export function LearningPeriodDetail({ periodId, hideChildName = false }: Props)
       <Divider sx={{ mb: 1.5 }} />
       <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
         Riwayat Absensi ({attendances.length})
+        {attendanceDetail && attendances.length > 0 ? ' · klik satu tanggal untuk detailnya' : ''}
       </Typography>
 
       {attendances.length === 0 ? (
@@ -139,8 +154,9 @@ export function LearningPeriodDetail({ periodId, hideChildName = false }: Props)
           <List disablePadding>
             {attendances.map((row, index) => {
               const status = isAttendanceStatus(row.status) ? row.status : null
-              return (
-                <ListItem key={row.id} divider={index < attendances.length - 1} sx={{ gap: 1 }}>
+              const divider = index < attendances.length - 1
+              const content = (
+                <>
                   <ListItemText primary={formatDate(row.attendance_date)} secondary={row.note ?? undefined} />
                   {status ? (
                     <Chip
@@ -152,12 +168,39 @@ export function LearningPeriodDetail({ periodId, hideChildName = false }: Props)
                   ) : (
                     <Chip size="small" variant="outlined" label={row.status} />
                   )}
+                </>
+              )
+
+              return attendanceDetail ? (
+                <ListItemButton
+                  key={row.id}
+                  divider={divider}
+                  onClick={() => setOpenAttendance(row)}
+                  sx={{ gap: 1 }}
+                  aria-label={`Detail absensi ${formatDate(row.attendance_date)}`}
+                >
+                  {content}
+                  <ChevronRightIcon sx={{ color: 'text.disabled' }} />
+                </ListItemButton>
+              ) : (
+                <ListItem key={row.id} divider={divider} sx={{ gap: 1 }}>
+                  {content}
                 </ListItem>
               )
             })}
           </List>
         </Paper>
       )}
+
+      {openAttendance ? (
+        <AttendanceDetailDialog
+          open
+          attendance={openAttendance}
+          childId={period.childId}
+          classroomId={period.classroomId}
+          onClose={() => setOpenAttendance(null)}
+        />
+      ) : null}
     </Box>
   )
 }
