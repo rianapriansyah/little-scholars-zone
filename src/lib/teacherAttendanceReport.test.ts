@@ -88,8 +88,8 @@ describe('formatHoursMinutes', () => {
 
 describe('summarizeAttendanceByClass', () => {
   const classes = [
-    { classroomTeacherId: 'a', classroomLabel: 'Kelas A' },
-    { classroomTeacherId: 'b', classroomLabel: 'Kelas B' },
+    { classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: 8000 },
+    { classroomTeacherId: 'b', classroomLabel: 'Kelas B', rate: 10000 },
   ]
 
   it('sums minutes per class and grand total, counting only cells within `dates`', () => {
@@ -103,10 +103,65 @@ describe('summarizeAttendanceByClass', () => {
     const result = summarizeAttendanceByClass(classes, dates, rows)
 
     expect(result.classTotals).toEqual([
-      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', totalMinutes: 95 },
-      { classroomTeacherId: 'b', classroomLabel: 'Kelas B', totalMinutes: 30 },
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: 8000, totalMinutes: 95, pay: (95 / 60) * 8000 },
+      { classroomTeacherId: 'b', classroomLabel: 'Kelas B', rate: 10000, totalMinutes: 30, pay: (30 / 60) * 10000 },
     ])
     expect(result.grandTotalMinutes).toBe(125)
+  })
+
+  it('prices each class at its own rate rather than the grand total at one rate', () => {
+    const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 60 }),
+      fakeRow({ classroomTeacherId: 'b', sessionDate: '2026-08-03', minutesTaught: 60 }),
+    ]
+
+    const result = summarizeAttendanceByClass(classes, ['2026-08-03'], rows)
+
+    // 1h at 8.000 + 1h at 10.000. Multiplying the 2h total by either rate would be wrong.
+    expect(result.estimatedPay).toBe(18000)
+    expect(result.classesMissingRate).toEqual([])
+  })
+
+  it('leaves a class with no rate out of the money but keeps its minutes in the total', () => {
+    const mixed = [
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: 8000 },
+      { classroomTeacherId: 'b', classroomLabel: 'Piket Pagi', rate: null },
+    ]
+    const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 60 }),
+      fakeRow({ classroomTeacherId: 'b', sessionDate: '2026-08-03', minutesTaught: 30 }),
+    ]
+
+    const result = summarizeAttendanceByClass(mixed, ['2026-08-03'], rows)
+
+    expect(result.grandTotalMinutes).toBe(90)
+    expect(result.estimatedPay).toBe(8000)
+    // Named so an incomplete figure explains itself instead of reading as the whole month.
+    expect(result.classesMissingRate).toEqual(['Piket Pagi'])
+  })
+
+  it('reports no estimate at all when nothing worked has a rate', () => {
+    const unrated = [{ classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: null }]
+    const rows = [fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 60 })]
+
+    const result = summarizeAttendanceByClass(unrated, ['2026-08-03'], rows)
+
+    // null, not 0 — "belum diatur" is a different statement from "earned nothing".
+    expect(result.estimatedPay).toBeNull()
+    expect(result.grandTotalMinutes).toBe(60)
+  })
+
+  it('does not name a rate-less class the teacher never worked', () => {
+    const mixed = [
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: 8000 },
+      { classroomTeacherId: 'b', classroomLabel: 'Kelas B', rate: null },
+    ]
+    const rows = [fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 60 })]
+
+    const result = summarizeAttendanceByClass(mixed, ['2026-08-03'], rows)
+
+    expect(result.estimatedPay).toBe(8000)
+    expect(result.classesMissingRate).toEqual([])
   })
 
   it('ignores a row whose date is not in the weekday list — this is the bug that caused MyAttendancePage and the PDF to disagree', () => {
@@ -133,8 +188,8 @@ describe('summarizeAttendanceByClass', () => {
   it('gives a class with no attendance rows at all a total of zero', () => {
     const result = summarizeAttendanceByClass(classes, ['2026-08-03'], [])
     expect(result.classTotals).toEqual([
-      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', totalMinutes: 0 },
-      { classroomTeacherId: 'b', classroomLabel: 'Kelas B', totalMinutes: 0 },
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: 8000, totalMinutes: 0, pay: 0 },
+      { classroomTeacherId: 'b', classroomLabel: 'Kelas B', rate: 10000, totalMinutes: 0, pay: 0 },
     ])
     expect(result.grandTotalMinutes).toBe(0)
   })

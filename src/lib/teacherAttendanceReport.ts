@@ -101,9 +101,19 @@ function summarizeKeterangan(arrival: ArrivalStatus, departure: DepartureStatus)
 export type TeacherAttendanceReportClass = {
   classroomTeacherId: string
   classroomLabel: string
+  /**
+   * IDR per hour for this class — classrooms.teacher_rate, not the teacher's own. null means it
+   * has not been set yet: the minutes still count toward Total Durasi, but earn nothing and are
+   * reported as missing rather than silently valued at zero.
+   */
+  rate: number | null
 }
 
-export type ClassMinutesTotal = TeacherAttendanceReportClass & { totalMinutes: number }
+export type ClassMinutesTotal = TeacherAttendanceReportClass & {
+  totalMinutes: number
+  /** totalMinutes at this class's own rate, or null when it has none. */
+  pay: number | null
+}
 
 /**
  * The single source of truth for "how many minutes did this teacher teach this month" — every
@@ -120,7 +130,18 @@ export function summarizeAttendanceByClass(
   classes: TeacherAttendanceReportClass[],
   dates: string[],
   attendanceRows: ClassroomTeacherAttendanceStatus[],
-): { classTotals: ClassMinutesTotal[]; grandTotalMinutes: number } {
+): {
+  classTotals: ClassMinutesTotal[]
+  grandTotalMinutes: number
+  /**
+   * Summed per class at each class's own rate, not from grandTotalMinutes — a teacher working two
+   * classes at different rates has no single rate to multiply by. null when no class that has
+   * worked minutes carries a rate, so the caller can say "belum diatur" instead of showing Rp 0.
+   */
+  estimatedPay: number | null
+  /** Classes with minutes but no rate. Their time is in the total durasi but not in the money. */
+  classesMissingRate: string[]
+} {
   const minutesByKey = new Map<string, number>()
   for (const row of attendanceRows) {
     if (row.minutesTaught != null) minutesByKey.set(`${row.classroomTeacherId}|${row.sessionDate}`, row.minutesTaught)
@@ -131,18 +152,30 @@ export function summarizeAttendanceByClass(
     for (const date of dates) {
       totalMinutes += minutesByKey.get(`${cls.classroomTeacherId}|${date}`) ?? 0
     }
-    return { ...cls, totalMinutes }
+    return { ...cls, totalMinutes, pay: cls.rate != null ? (totalMinutes / 60) * cls.rate : null }
   })
 
   const grandTotalMinutes = classTotals.reduce((sum, c) => sum + c.totalMinutes, 0)
-  return { classTotals, grandTotalMinutes }
+  const payable = classTotals.filter((c) => c.pay !== null && c.totalMinutes > 0)
+  const classesMissingRate = classTotals
+    .filter((c) => c.rate === null && c.totalMinutes > 0)
+    .map((c) => c.classroomLabel)
+
+  return {
+    classTotals,
+    grandTotalMinutes,
+    estimatedPay: payable.length > 0 ? payable.reduce((sum, c) => sum + (c.pay ?? 0), 0) : null,
+    classesMissingRate,
+  }
 }
 
 export type MonthlyAttendanceSummary = {
   label: string
   grandTotalMinutes: number
-  /** IDR. null means the teacher has no rate configured — show a "belum diatur" hint instead of Rp 0. */
+  /** IDR. null means no class they worked has a rate yet — show "belum diatur" instead of Rp 0. */
   estimatedPay: number | null
+  /** Classes whose minutes are in grandTotalMinutes but not in estimatedPay, for want of a rate. */
+  classesMissingRate: string[]
 }
 
 /**
@@ -152,12 +185,11 @@ export type MonthlyAttendanceSummary = {
  * like downloadTeacherAttendanceReport does, so the preview can never disagree with the PDF.
  */
 export async function fetchMonthlyAttendanceSummary(params: {
+  /** Each carries its own rate — see TeacherAttendanceReportClass. */
   classes: TeacherAttendanceReportClass[]
-  /** IDR per hour. null means not configured — estimatedPay comes back null too. */
-  rate: number | null
   referenceDate?: string
 }): Promise<Result<MonthlyAttendanceSummary>> {
-  const { classes, rate } = params
+  const { classes } = params
   const { start, end, label } = currentMonthRange(params.referenceDate)
 
   const fetchResult = await fetchMonthlyAttendance(
@@ -168,16 +200,13 @@ export async function fetchMonthlyAttendanceSummary(params: {
   if (!fetchResult.ok) return fetchResult
 
   const dates = weekdaysInRange(start, end)
-  const { grandTotalMinutes } = summarizeAttendanceByClass(classes, dates, fetchResult.data)
+  const { grandTotalMinutes, estimatedPay, classesMissingRate } = summarizeAttendanceByClass(
+    classes,
+    dates,
+    fetchResult.data,
+  )
 
-  return {
-    ok: true,
-    data: {
-      label,
-      grandTotalMinutes,
-      estimatedPay: rate != null ? (grandTotalMinutes / 60) * rate : null,
-    },
-  }
+  return { ok: true, data: { label, grandTotalMinutes, estimatedPay, classesMissingRate } }
 }
 
 const MARGIN_LEFT = 14
@@ -196,12 +225,11 @@ const PAGE_BOTTOM_MARGIN = 16
  */
 export async function downloadTeacherAttendanceReport(params: {
   teacherName: string
+  /** Each carries its own rate — see TeacherAttendanceReportClass. */
   classes: TeacherAttendanceReportClass[]
-  /** IDR per hour. null means not configured — the estimate line is skipped, not shown as Rp 0. */
-  rate: number | null
   referenceDate?: string
 }): Promise<Result<void>> {
-  const { teacherName, classes, rate } = params
+  const { teacherName, classes } = params
   const { start, end, label } = currentMonthRange(params.referenceDate)
 
   const fetchResult = await fetchMonthlyAttendance(
@@ -217,7 +245,11 @@ export async function downloadTeacherAttendanceReport(params: {
   }
 
   const dates = weekdaysInRange(start, end)
-  const { classTotals, grandTotalMinutes } = summarizeAttendanceByClass(classes, dates, fetchResult.data)
+  const { classTotals, grandTotalMinutes, estimatedPay, classesMissingRate } = summarizeAttendanceByClass(
+    classes,
+    dates,
+    fetchResult.data,
+  )
   const totalMinutesByClass = new Map(classTotals.map((c) => [c.classroomTeacherId, c.totalMinutes]))
 
   const doc = new jsPDF()
@@ -292,43 +324,55 @@ export async function downloadTeacherAttendanceReport(params: {
   doc.text('Ringkasan Total Durasi Bulan Ini', MARGIN_LEFT, cursorY)
   cursorY += 4
 
-  // When a rate is set: "15 jam 7 menit x Rp 8.000" then the estimated pay, both bold so they
-  // read as the bottom-line answer. Skipped (not shown as Rp 0) when the teacher has no rate
-  // configured yet — see the Rate section on the Edit Guru dialog.
-  const rateRows: (string | { content: string; styles?: Record<string, unknown> })[][] =
-    rate != null
-      ? [
-          [
-            'Total Keseluruhan dalam satuan Jam x Rate per Jam',
-            `${formatHoursMinutes(grandTotalMinutes)} x ${formatIdr(rate)}`,
-          ],
-          [
-            { content: `Estimasi yang akan diterima ${teacherName}`, styles: { fontStyle: 'bold' } },
-            { content: formatIdr((grandTotalMinutes / 60) * rate), styles: { fontStyle: 'bold' } },
-          ],
-        ]
-      : [
-          [
-            {
-              content: 'Rate per jam belum diatur — atur di menu Guru untuk melihat estimasi gaji.',
-              styles: { fontStyle: 'italic' },
-            },
-            '',
-          ],
-        ]
+  // The rate belongs to the class now, so there is no single "jam x rate" to print: each class
+  // is priced on its own row and the estimate is their sum. A class with no rate set shows the
+  // reason in its own cell rather than a blank, so an incomplete total explains itself.
+  type Cell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> }
+  const summaryRows: Cell[][] = classTotals.map((c) => [
+    c.classroomLabel,
+    `${c.totalMinutes} menit`,
+    c.rate != null ? formatIdr(c.rate) : '—',
+    c.pay != null ? formatIdr(c.pay) : c.totalMinutes > 0 ? 'Rate belum diatur' : '—',
+  ])
+
+  summaryRows.push([
+    { content: 'Total Keseluruhan', styles: { fontStyle: 'bold' } },
+    { content: `${grandTotalMinutes} menit`, styles: { fontStyle: 'bold' } },
+    '',
+    {
+      content: estimatedPay != null ? formatIdr(estimatedPay) : 'Belum bisa dihitung',
+      styles: { fontStyle: 'bold' },
+    },
+  ])
+
+  summaryRows.push([
+    {
+      content:
+        estimatedPay != null
+          ? `Estimasi yang akan diterima ${teacherName}: ${formatIdr(estimatedPay)}`
+          : 'Rate per jam belum diatur di kelas manapun — atur di menu Kelas untuk melihat estimasi gaji.',
+      colSpan: 4,
+      styles: { fontStyle: estimatedPay != null ? 'bold' : 'italic' },
+    },
+  ])
+
+  // Only when the number is real but incomplete: naming the classes left out stops the total
+  // being read as the whole month's pay.
+  if (estimatedPay != null && classesMissingRate.length > 0) {
+    summaryRows.push([
+      {
+        content: `Belum termasuk ${classesMissingRate.join(', ')} — rate per jam belum diatur.`,
+        colSpan: 4,
+        styles: { fontStyle: 'italic' },
+      },
+    ])
+  }
 
   autoTable(doc, {
     startY: cursorY,
     margin: { left: MARGIN_LEFT },
-    head: [['Kelas', 'Total Durasi']],
-    body: [
-      ...classTotals.map((c) => [c.classroomLabel, `${c.totalMinutes} menit`]),
-      [
-        { content: 'Total Keseluruhan', styles: { fontStyle: 'bold' } },
-        { content: `${grandTotalMinutes} menit`, styles: { fontStyle: 'bold' } },
-      ],
-      ...rateRows,
-    ],
+    head: [['Kelas', 'Total Durasi', 'Rate / Jam', 'Estimasi']],
+    body: summaryRows,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [46, 87, 76] },
   })

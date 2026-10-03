@@ -82,8 +82,8 @@ export function TeachersAttendancePage() {
       classes: confirmDownloadTeacher.classes.map((c) => ({
         classroomTeacherId: c.classroomTeacherId,
         classroomLabel: c.classroomLabel,
+        rate: c.classroomRate,
       })),
-      rate: confirmDownloadTeacher.teacherRate,
       referenceDate: sessionDate,
     }).then((result) => {
       if (cancelled) return
@@ -109,10 +109,10 @@ export function TeachersAttendancePage() {
     setDownloadError(null)
     const result = await downloadTeacherAttendanceReport({
       teacherName: row.teacherName,
-      rate: row.teacherRate,
       classes: row.classes.map((c) => ({
         classroomTeacherId: c.classroomTeacherId,
         classroomLabel: c.classroomLabel,
+        rate: c.classroomRate,
       })),
       referenceDate: sessionDate,
     })
@@ -274,9 +274,16 @@ export function TeachersAttendancePage() {
                     </Typography>
                   </>
                 ) : (
-                  'Rate per jam belum diatur — atur di menu Guru untuk melihat estimasi gaji.'
+                  'Rate per jam belum diatur di kelas manapun — atur di menu Kelas untuk melihat estimasi gaji.'
                 )}
               </Typography>
+              {/* The rate is per class now, so a teacher can have a real number that still leaves
+                  hours out. Say which, rather than let the total read as the whole month. */}
+              {downloadSummary.estimatedPay != null && downloadSummary.classesMissingRate.length > 0 ? (
+                <Typography variant="body2" color="warning.main" sx={{ mt: 0.5 }}>
+                  Belum termasuk {downloadSummary.classesMissingRate.join(', ')} — rate per jam belum diatur.
+                </Typography>
+              ) : null}
             </Box>
           ) : null
         }

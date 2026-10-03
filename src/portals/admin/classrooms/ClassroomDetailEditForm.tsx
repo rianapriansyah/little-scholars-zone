@@ -45,6 +45,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
     const [timeStart, setTimeStart] = useState('10:00')
     const [timeEnd, setTimeEnd] = useState('11:00')
     const [price, setPrice] = useState('')
+    /** What a teacher earns per hour here — classrooms.teacher_rate. Raw digits, like price. */
+    const [teacherRate, setTeacherRate] = useState('')
     const [guaranteedDays, setGuaranteedDays] = useState('20')
     const [active, setActive] = useState(true)
     const [isBillable, setIsBillable] = useState(true)
@@ -62,6 +64,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       // Raw digits only: numeric(12,2) can arrive with a fractional part, which the grouped
       // display and digitsOnly() would both mangle.
       setPrice(classroom ? String(Math.round(classroom.price)) : '')
+      setTeacherRate(classroom?.teacher_rate != null ? String(Math.round(classroom.teacher_rate)) : '')
       setGuaranteedDays(String(classroom?.guaranteed_days ?? 20))
       setActive(classroom?.active ?? true)
       setIsBillable(classroom?.is_billable ?? true)
@@ -145,6 +148,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             time_start: timeStart,
             time_end: timeEnd,
             price: priceValue,
+            teacher_rate: teacherRate ? Number(teacherRate) : null,
             guaranteed_days: guaranteedDaysValue,
             active,
             is_billable: isBillable,
@@ -162,6 +166,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           time_start: timeStart,
           time_end: timeEnd,
           price: priceValue,
+          teacher_rate: teacherRate ? Number(teacherRate) : null,
           guaranteed_days: guaranteedDaysValue,
           is_billable: isBillable,
           is_flexi_hours: isFlexiHours,
@@ -303,6 +308,21 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
               absen masuk/keluar kapan saja.
             </Typography>
           ) : null}
+
+          {/* Outside the Bisa Ditagih branch on purpose: an internal program is not billed to a
+              family but is still paid work, so it carries a rate like any other class. */}
+          <Divider />
+          <Typography variant="subtitle2">Gaji Guru</Typography>
+          <TextField
+            size="small"
+            label="Rate per Jam"
+            value={groupDigits(teacherRate)}
+            onChange={(e) => setTeacherRate(digitsOnly(e.target.value))}
+            fullWidth
+            inputMode="numeric"
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
+            helperText="Dibayarkan ke siapa pun yang mengajar kelas ini. Kosongkan bila belum ditentukan — jamnya tetap tercatat, tapi belum masuk estimasi gaji."
+          />
 
           {isEdit ? (
             <>

@@ -85,8 +85,11 @@ export type ClassroomTeacherAttendanceListEntry = {
   teacherId: string
   classroomLabel: string
   teacherName: string
-  /** Hourly rate in IDR, or null if not configured. Same value on every entry for this teacher. */
-  teacherRate: number | null
+  /**
+   * What this class pays per hour, in IDR — classrooms.teacher_rate, not the teacher's own. null
+   * means not set yet. Varies per entry: a teacher's classes can pay differently.
+   */
+  classroomRate: number | null
   timeStart: string
   timeEnd: string
   /** No real schedule to clock in/out against (e.g. Pembuatan Konten) — see classrooms.is_flexi_hours. */

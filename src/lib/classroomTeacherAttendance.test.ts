@@ -32,7 +32,7 @@ function entry(overrides: Partial<ClassroomTeacherAttendanceListEntry> = {}): Cl
     teacherId: 't1',
     classroomLabel: 'Kelas Bintang',
     teacherName: 'Bu Rina',
-    teacherRate: null,
+    classroomRate: null,
     timeStart: '08:00:00',
     timeEnd: '10:00:00', // 2026-07-14T02:00:00Z in WITA
     isFlexiHours: false,

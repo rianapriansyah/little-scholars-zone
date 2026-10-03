@@ -165,7 +165,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   const { data: groupRows, error: gError } = await supabase
     .from('classroom_teachers')
     .select(
-      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours), teachers(full_name, call_name, rate)',
+      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours, teacher_rate), teachers(full_name, call_name)',
     )
   if (gError) return { ok: false, error: gError.message }
 
@@ -184,11 +184,16 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   const entries: ClassroomTeacherAttendanceListEntry[] = []
   for (const group of groupRows ?? []) {
     const classroom = group.classrooms as unknown as
-      | { label: string; time_start: string; time_end: string; active: boolean; is_flexi_hours: boolean }
+      | {
+          label: string
+          time_start: string
+          time_end: string
+          active: boolean
+          is_flexi_hours: boolean
+          teacher_rate: number | null
+        }
       | null
-    const teacher = group.teachers as unknown as
-      | { full_name: string; call_name: string | null; rate: number | null }
-      | null
+    const teacher = group.teachers as unknown as { full_name: string; call_name: string | null } | null
     if (!classroom || !classroom.active) continue
 
     entries.push({
@@ -196,7 +201,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
       teacherId: group.teacher_id,
       classroomLabel: classroom.label,
       teacherName: teacher ? teacherDisplayName(teacher) : '—',
-      teacherRate: teacher?.rate ?? null,
+      classroomRate: classroom.teacher_rate,
       timeStart: classroom.time_start,
       timeEnd: classroom.time_end,
       isFlexiHours: classroom.is_flexi_hours,
@@ -211,7 +216,6 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
 export type TeacherAttendanceGroup = {
   teacherId: string
   teacherName: string
-  teacherRate: number | null
   classes: ClassroomTeacherAttendanceListEntry[]
 }
 
@@ -234,7 +238,6 @@ export function groupAttendanceByTeacher(entries: ClassroomTeacherAttendanceList
       byTeacher.set(entry.teacherId, {
         teacherId: entry.teacherId,
         teacherName: entry.teacherName,
-        teacherRate: entry.teacherRate,
         classes: [entry],
       })
     }

@@ -254,6 +254,7 @@ export type Database = {
           is_flexi_hours: boolean
           label: string
           price: number
+          teacher_rate: number | null
           time_end: string
           time_start: string
         }
@@ -266,6 +267,7 @@ export type Database = {
           is_flexi_hours?: boolean
           label: string
           price: number
+          teacher_rate?: number | null
           time_end: string
           time_start: string
         }
@@ -278,6 +280,7 @@ export type Database = {
           is_flexi_hours?: boolean
           label?: string
           price?: number
+          teacher_rate?: number | null
           time_end?: string
           time_start?: string
         }

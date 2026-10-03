@@ -70,6 +70,8 @@ export function MyAttendancePage() {
   const { teacher } = useTeacherProfile(user?.id)
   const [classes, setClasses] = useState<TeacherAttendanceReportClass[]>([])
   const [totalMinutes, setTotalMinutes] = useState(0)
+  /** Summed per class at each class's own rate — see summarizeAttendanceByClass. */
+  const [estimatedPay, setEstimatedPay] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
@@ -86,7 +88,7 @@ export function MyAttendancePage() {
 
     const { data: groupRows, error: gError } = await supabase
       .from('classroom_teachers')
-      .select('id, classrooms(label)')
+      .select('id, classrooms(label, teacher_rate)')
       .eq('teacher_id', teacher.id)
     if (gError) {
       setError(gError.message)
@@ -95,8 +97,12 @@ export function MyAttendancePage() {
     }
 
     const teacherClasses: TeacherAttendanceReportClass[] = (groupRows ?? []).map((row) => {
-      const classroom = row.classrooms as unknown as { label: string } | null
-      return { classroomTeacherId: row.id, classroomLabel: classroom?.label ?? '—' }
+      const classroom = row.classrooms as unknown as { label: string; teacher_rate: number | null } | null
+      return {
+        classroomTeacherId: row.id,
+        classroomLabel: classroom?.label ?? '—',
+        rate: classroom?.teacher_rate ?? null,
+      }
     })
     setClasses(teacherClasses)
 
@@ -112,12 +118,13 @@ export function MyAttendancePage() {
     }
     // Same cell-by-cell calculation the PDF uses (see summarizeAttendanceByClass) rather than
     // summing every fetched row directly — a stray non-weekday row must not inflate this either.
-    const { grandTotalMinutes } = summarizeAttendanceByClass(
+    const { grandTotalMinutes, estimatedPay: pay } = summarizeAttendanceByClass(
       teacherClasses,
       weekdaysInRange(start, end),
       attendanceResult.data,
     )
     setTotalMinutes(grandTotalMinutes)
+    setEstimatedPay(pay)
   }, [teacher, start, end])
 
   useEffect(() => {
@@ -130,7 +137,6 @@ export function MyAttendancePage() {
     setDownloadError(null)
     const result = await downloadTeacherAttendanceReport({
       teacherName: teacherDisplayName(teacher),
-      rate: teacher.rate,
       classes,
       referenceDate,
     })
@@ -146,7 +152,7 @@ export function MyAttendancePage() {
     )
   }
 
-  const estimatedPay = teacher.rate != null ? formatIdr((totalMinutes / 60) * teacher.rate) : null
+  const estimatedPayLabel = estimatedPay != null ? formatIdr(estimatedPay) : null
 
   return (
     <Box>
@@ -189,8 +195,8 @@ export function MyAttendancePage() {
           <StatTile label="Total Durasi" value={formatHoursMinutes(totalMinutes)} hint={periodLabel} />
           <StatTile
             label="Estimasi yang akan diterima"
-            value={estimatedPay ?? '—'}
-            hint={estimatedPay ? 'Perkiraan kasar, bukan patokan' : 'Rate belum diatur'}
+            value={estimatedPayLabel ?? '—'}
+            hint={estimatedPayLabel ? 'Perkiraan kasar, bukan patokan' : 'Rate kelas belum diatur'}
           />
         </Box>
 
