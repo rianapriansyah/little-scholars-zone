@@ -26,7 +26,6 @@ import { supabase } from '../../../lib/supabase'
 import type { ClassroomRow } from '../../../types/classroom'
 import type { TeacherRow } from '../../../types/teacher'
 import type { ChildRow } from '../../../types/child'
-import { MAX_STUDENTS_PER_TEACHER } from '../../../lib/enrollmentLimits'
 import { fetchChildIdsWithOpenPeriod } from '../../../lib/learningPeriods'
 
 type Group = {
@@ -252,7 +251,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const manageAvailableChildren = children.filter(
     (c) => !manageRosterChildIds.has(c.id) && eligibleChildIds.has(c.id),
   )
-  const manageAtCapacity = (manageGroup?.roster.length ?? 0) >= MAX_STUDENTS_PER_TEACHER
+  const manageAtCapacity = (manageGroup?.roster.length ?? 0) >= classroom.max_students_per_teacher
 
   return (
     <Box>
@@ -317,7 +316,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                 {classroom.is_billable ? (
                   <>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Siswa ({group.roster.length}/{MAX_STUDENTS_PER_TEACHER})
+                      Siswa ({group.roster.length}/{classroom.max_students_per_teacher})
                     </Typography>
                     {group.roster.length === 0 ? (
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -405,7 +404,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
           </DialogTitle>
           <DialogContent dividers>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Siswa ({manageGroup.roster.length}/{MAX_STUDENTS_PER_TEACHER})
+              Siswa ({manageGroup.roster.length}/{classroom.max_students_per_teacher})
             </Typography>
             {manageGroup.roster.length === 0 ? (
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>

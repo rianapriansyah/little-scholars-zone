@@ -253,6 +253,7 @@ export type Database = {
           is_billable: boolean
           is_flexi_hours: boolean
           label: string
+          max_students_per_teacher: number
           price: number
           teacher_rate: number | null
           time_end: string
@@ -266,6 +267,7 @@ export type Database = {
           is_billable?: boolean
           is_flexi_hours?: boolean
           label: string
+          max_students_per_teacher?: number
           price: number
           teacher_rate?: number | null
           time_end: string
@@ -279,6 +281,7 @@ export type Database = {
           is_billable?: boolean
           is_flexi_hours?: boolean
           label?: string
+          max_students_per_teacher?: number
           price?: number
           teacher_rate?: number | null
           time_end?: string

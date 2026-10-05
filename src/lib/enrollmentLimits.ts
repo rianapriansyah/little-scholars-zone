@@ -1,1 +1,0 @@
-export const MAX_STUDENTS_PER_TEACHER = 6

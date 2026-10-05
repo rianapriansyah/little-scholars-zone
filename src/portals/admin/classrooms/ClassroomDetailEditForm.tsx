@@ -47,6 +47,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
     const [price, setPrice] = useState('')
     /** What a teacher earns per hour here — classrooms.teacher_rate. Raw digits, like price. */
     const [teacherRate, setTeacherRate] = useState('')
+    /** Children one teacher may hold here — classrooms.max_students_per_teacher. */
+    const [maxStudents, setMaxStudents] = useState('6')
     const [guaranteedDays, setGuaranteedDays] = useState('20')
     const [active, setActive] = useState(true)
     const [isBillable, setIsBillable] = useState(true)
@@ -65,6 +67,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       // display and digitsOnly() would both mangle.
       setPrice(classroom ? String(Math.round(classroom.price)) : '')
       setTeacherRate(classroom?.teacher_rate != null ? String(Math.round(classroom.teacher_rate)) : '')
+      setMaxStudents(String(classroom?.max_students_per_teacher ?? 6))
       setGuaranteedDays(String(classroom?.guaranteed_days ?? 20))
       setActive(classroom?.active ?? true)
       setIsBillable(classroom?.is_billable ?? true)
@@ -138,6 +141,13 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         setError('Jumlah hari dijamin harus bilangan bulat minimal 1.')
         return
       }
+      // Mirrors classrooms_max_students_per_teacher_positive so the form says what is wrong
+      // instead of surfacing a constraint violation.
+      const maxStudentsValue = Number(maxStudents)
+      if (!Number.isInteger(maxStudentsValue) || maxStudentsValue < 1) {
+        setError('Maksimal siswa per guru harus bilangan bulat minimal 1.')
+        return
+      }
 
       setSaving(true)
       if (isEdit) {
@@ -149,6 +159,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             time_end: timeEnd,
             price: priceValue,
             teacher_rate: teacherRate ? Number(teacherRate) : null,
+            max_students_per_teacher: maxStudentsValue,
             guaranteed_days: guaranteedDaysValue,
             active,
             is_billable: isBillable,
@@ -167,6 +178,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           time_end: timeEnd,
           price: priceValue,
           teacher_rate: teacherRate ? Number(teacherRate) : null,
+          max_students_per_teacher: maxStudentsValue,
           guaranteed_days: guaranteedDaysValue,
           is_billable: isBillable,
           is_flexi_hours: isFlexiHours,
@@ -295,6 +307,20 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
                   helperText="Dipakai untuk periode baru. Periode yang sudah berjalan tidak ikut berubah."
                 />
               </Box>
+
+              {/* Billable only: no child is ever enrolled into an internal work program, so the
+                  limit has nothing to bind on there. */}
+              <TextField
+                size="small"
+                label="Maksimal Siswa per Guru"
+                type="number"
+                value={maxStudents}
+                onChange={(e) => setMaxStudents(e.target.value)}
+                required
+                fullWidth
+                slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                helperText="Berlaku untuk setiap guru di kelas ini — kelas dengan 3 guru menampung 3 kali angka ini. Menurunkannya tidak mengeluarkan siswa yang sudah terdaftar, hanya menutup pendaftaran berikutnya."
+              />
             </>
           ) : (
             <FormControlLabel

@@ -38,7 +38,6 @@ import {
   type ClockInWindowStatus,
 } from '../../lib/classStatus'
 import { teacherDisplayName } from '../../lib/teacherName'
-import { MAX_STUDENTS_PER_TEACHER } from '../../lib/enrollmentLimits'
 import {
   buildContiguousChainLinks,
   clockInClassroomTeacher,
@@ -411,7 +410,7 @@ export function TeacherRosterPage() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Sen–Jum · {classroom.time_start.slice(0, 5)}
               {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
-              {MAX_STUDENTS_PER_TEACHER} siswa
+              {classroom.max_students_per_teacher} siswa
             </Typography>
             {group.roster.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
