@@ -13,6 +13,12 @@ export type RosterEntry = {
   childId: string
   childName: string
   photoUrl: string | null
+  /**
+   * When this child joined this teaching group. Carried because the save RPCs refuse a report
+   * dated before it, so the roster has to be able to say why a child cannot be opened rather
+   * than letting the teacher fill a sheet that will be rejected on Simpan.
+   */
+  startedAt: string
 }
 
 export type ReportSummary = {
@@ -40,7 +46,7 @@ export async function fetchCurriculumItems(options?: { includeInactive?: boolean
 export async function fetchClassRoster(classroomTeacherId: string): Promise<Result<RosterEntry[]>> {
   const { data, error } = await supabase
     .from('children_classrooms')
-    .select('child_id, children(full_name, photo_url)')
+    .select('child_id, started_at, children(full_name, photo_url)')
     .eq('classroom_teacher_id', classroomTeacherId)
     .is('ended_at', null)
   if (error) return { ok: false, error: error.message }
@@ -51,6 +57,7 @@ export async function fetchClassRoster(classroomTeacherId: string): Promise<Resu
       childId: row.child_id,
       childName: child?.full_name ?? '—',
       photoUrl: child?.photo_url ?? null,
+      startedAt: row.started_at,
     }
   })
   roster.sort((a, b) => a.childName.localeCompare(b.childName))

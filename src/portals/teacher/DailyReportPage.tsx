@@ -249,20 +249,28 @@ export function DailyReportPage() {
           </Typography>
 
           {roster.map((child) => {
-            // Deliberately just the name: status belongs in the child's own sheet, where
-            // there is room for it. The collapsed list stays a clean scan of who is in class.
+            // The save RPCs refuse a report dated before the child joined this group, so a child
+            // enrolled after the selected date is shown but not openable — greyed out with the
+            // date, rather than hidden. Hiding would read as "where did he go?"; this reads as
+            // "his enrolment date is wrong, go fix it", which is what it always means.
+            const notYetEnrolled = child.startedAt > reportDate
+            // Deliberately just the name otherwise: status belongs in the child's own sheet,
+            // where there is room for it. The collapsed list stays a clean scan of who is in class.
             return (
               <Paper key={child.childId} variant="outlined">
                 <ListItemButton
                   onClick={() => void handleOpenChild(child)}
-                  disabled={opening}
+                  disabled={opening || notYetEnrolled}
                   sx={{ py: 1.5, borderRadius: 1 }}
                 >
                   <ListItemAvatar>
                     <Avatar src={child.photoUrl ?? undefined}>{child.childName.charAt(0).toUpperCase()}</Avatar>
                   </ListItemAvatar>
-                  <ListItemText primary={child.childName} />
-                  <ChevronRightIcon sx={{ ml: 1, color: 'text.disabled' }} />
+                  <ListItemText
+                    primary={child.childName}
+                    secondary={notYetEnrolled ? `Terdaftar di kelompok ini mulai ${formatDate(child.startedAt)}` : undefined}
+                  />
+                  {notYetEnrolled ? null : <ChevronRightIcon sx={{ ml: 1, color: 'text.disabled' }} />}
                 </ListItemButton>
               </Paper>
             )

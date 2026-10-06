@@ -27,6 +27,8 @@ import type { ClassroomRow } from '../../../types/classroom'
 import type { TeacherRow } from '../../../types/teacher'
 import type { ChildRow } from '../../../types/child'
 import { fetchChildIdsWithOpenPeriod } from '../../../lib/learningPeriods'
+import { enrollmentStartDefault } from '../../../lib/enrollmentStart'
+import { todayIsoDateInWita } from '../../../lib/classStatus'
 
 type Group = {
   id: string
@@ -50,8 +52,15 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   /** Children with an open learning period in this classroom — the only ones enrollable. */
   const [eligibleChildIds, setEligibleChildIds] = useState<Set<string>>(new Set())
 
+  /** child_id → start of their earliest learning period in this classroom, for the date default. */
+  const [periodStartByChild, setPeriodStartByChild] = useState<Map<string, string>>(new Map())
+  /** Children who already hold or held an enrollment here — a move, not a first assignment. */
+  const [everEnrolledChildIds, setEverEnrolledChildIds] = useState<Set<string>>(new Set())
+
   const [newTeacherId, setNewTeacherId] = useState('')
   const [addSelections, setAddSelections] = useState<Record<string, string>>({})
+  /** group id → the Tanggal Mulai shown for the child currently picked in that group. */
+  const [addStartDates, setAddStartDates] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** Set when a plain delete hit the FK guard — offers the confirmed cascade delete instead. */
@@ -124,9 +133,37 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     setEligibleChildIds(result.data)
   }
 
+  /**
+   * What Tanggal Mulai needs to pick its own default: when each child's programme began here,
+   * and whether they have sat in this classroom before. Ended enrollments count — a child coming
+   * back to a classroom under a new teacher is still a move, not a first assignment.
+   */
+  const loadEnrollmentContext = async (classroomId: string) => {
+    const [{ data: periodRows }, { data: enrollmentRows }] = await Promise.all([
+      supabase
+        .from('learning_periods')
+        .select('child_id, start_date')
+        .eq('classroom_id', classroomId)
+        .order('start_date'),
+      supabase
+        .from('children_classrooms')
+        .select('child_id, classroom_teachers!inner(classroom_id)')
+        .eq('classroom_teachers.classroom_id', classroomId),
+    ])
+
+    const starts = new Map<string, string>()
+    // Ordered by start_date, so the first row seen per child is their earliest period.
+    for (const row of periodRows ?? []) {
+      if (!starts.has(row.child_id)) starts.set(row.child_id, row.start_date)
+    }
+    setPeriodStartByChild(starts)
+    setEverEnrolledChildIds(new Set((enrollmentRows ?? []).map((row) => row.child_id)))
+  }
+
   useEffect(() => {
     setNewTeacherId('')
     setAddSelections({})
+    setAddStartDates({})
     setError(null)
 
     void supabase.from('teachers').select('*').order('full_name').then(({ data }) => setTeachers(data ?? []))
@@ -134,6 +171,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     void loadGroups(classroom.id)
     void loadActiveEnrollments(classroom.id)
     void loadEligibleChildren(classroom.id)
+    void loadEnrollmentContext(classroom.id)
     // Keyed on the id, not the row: onAssigned() hands back a fresh object every time, and
     // re-running this on each of those would wipe in-progress form state.
   }, [classroom.id])
@@ -207,23 +245,45 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     onAssigned()
   }
 
+  /** The date the field opens on for a child, before the admin touches it. */
+  function defaultStartFor(childId: string) {
+    return enrollmentStartDefault({
+      periodStart: periodStartByChild.get(childId) ?? null,
+      hasPriorEnrollment: everEnrolledChildIds.has(childId),
+      today: todayIsoDateInWita(),
+    })
+  }
+
   async function handleAddStudent(groupId: string) {
     const childId = addSelections[groupId]
     if (!childId) return
     setBusy(true)
     setError(null)
     const existing = activeEnrollments.get(childId)
+    // Both branches carry the date: this same button switches a child who already sits in this
+    // classroom, and a date that reached only one of the two would silently do nothing for them.
+    const startedAt = addStartDates[groupId] || defaultStartFor(childId)
     const { error: rpcErr } = existing
-      ? await supabase.rpc('switch_classroom', { p_child_id: childId, p_new_classroom_teacher_id: groupId })
-      : await supabase.rpc('enroll_child_in_classroom', { p_child_id: childId, p_classroom_teacher_id: groupId })
+      ? await supabase.rpc('switch_classroom', {
+          p_child_id: childId,
+          p_new_classroom_teacher_id: groupId,
+          p_started_at: startedAt,
+        })
+      : await supabase.rpc('enroll_child_in_classroom', {
+          p_child_id: childId,
+          p_classroom_teacher_id: groupId,
+          p_started_at: startedAt,
+        })
     setBusy(false)
     if (rpcErr) {
       setError(rpcErr.message)
       return
     }
     setAddSelections((prev) => ({ ...prev, [groupId]: '' }))
+    setAddStartDates((prev) => ({ ...prev, [groupId]: '' }))
     await loadGroups(classroom.id)
     await loadActiveEnrollments(classroom.id)
+    await loadEnrollmentContext(classroom.id)
     onAssigned()
   }
 
@@ -436,7 +496,16 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                 select
                 label="Tambah Siswa"
                 value={addSelections[manageGroup.id] ?? ''}
-                onChange={(e) => setAddSelections((prev) => ({ ...prev, [manageGroup.id]: e.target.value }))}
+                onChange={(e) => {
+                  const childId = e.target.value
+                  setAddSelections((prev) => ({ ...prev, [manageGroup.id]: childId }))
+                  // Re-default the date to the child just picked, rather than leaving the date
+                  // left over from whoever was selected before.
+                  setAddStartDates((prev) => ({
+                    ...prev,
+                    [manageGroup.id]: childId ? defaultStartFor(childId) : '',
+                  }))
+                }}
                 fullWidth
                 disabled={manageAtCapacity || manageAvailableChildren.length === 0}
                 helperText={
@@ -464,6 +533,20 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                 Tambah
               </Button>
             </Box>
+
+            {addSelections[manageGroup.id] ? (
+              <TextField
+                size="small"
+                type="date"
+                label="Tanggal Mulai"
+                value={addStartDates[manageGroup.id] ?? ''}
+                onChange={(e) => setAddStartDates((prev) => ({ ...prev, [manageGroup.id]: e.target.value }))}
+                InputLabelProps={{ shrink: true }}
+                sx={{ mt: 1.5 }}
+                fullWidth
+                helperText="Tanggal siswa mulai belajar di kelompok ini. Mundurkan jika absensinya sudah tercatat sebelum hari ini — laporan harian sebelum tanggal ini tidak bisa diisi."
+              />
+            ) : null}
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button variant="contained" onClick={() => setManageStudentsGroupId(null)} disabled={busy}>

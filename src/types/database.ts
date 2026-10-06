@@ -940,7 +940,7 @@ export type Database = {
         Returns: string
       }
       enroll_child_in_classroom: {
-        Args: { p_child_id: string; p_classroom_teacher_id: string }
+        Args: { p_child_id: string; p_classroom_teacher_id: string; p_started_at?: string }
         Returns: undefined
       }
       family_active_classroom_ids: {
@@ -1031,6 +1031,7 @@ export type Database = {
           p_child_id: string
           p_end_reason?: string
           p_new_classroom_teacher_id: string
+          p_started_at?: string
         }
         Returns: undefined
       }
