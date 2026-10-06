@@ -150,6 +150,7 @@ export function PeriodDetailPage() {
                 // several programs does not open as a wall of detail.
                 defaultExpanded={focusClassroomId ? group.classroomId === focusClassroomId : index === 0}
                 attendanceDetail
+                attendanceDelete
                 renderPeriodActions={(period) => {
                   const status = payments.get(period.id) ?? null
                   return (

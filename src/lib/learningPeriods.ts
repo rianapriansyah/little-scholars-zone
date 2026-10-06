@@ -203,6 +203,27 @@ export async function recordAttendance(params: {
   return { ok: true, data }
 }
 
+/**
+ * Admin-only. Removes an attendance day that should never have been recorded and hands it back to
+ * the period's quota — not the same thing as correcting one, which recordAttendance already does
+ * by overwriting the status.
+ *
+ * Refused by the database when a daily report has been filed against the day; the report has to
+ * go first, or the day would be gone with a report still pointing at it.
+ */
+export async function deleteChildAttendance(attendanceId: string): Promise<Result<void>> {
+  const { error } = await supabase.rpc('delete_child_attendance', { p_attendance_id: attendanceId })
+  if (error) {
+    return {
+      ok: false,
+      error: error.message.includes('daily report')
+        ? 'Tidak dapat dihapus: hari ini sudah memiliki laporan harian.'
+        : error.message,
+    }
+  }
+  return { ok: true, data: undefined }
+}
+
 export async function fetchPeriod(periodId: string): Promise<Result<LearningPeriodListEntry>> {
   const { data, error } = await supabase
     .from('learning_period_status')

@@ -935,6 +935,10 @@ export type Database = {
         Args: { p_classroom_teacher_id: string }
         Returns: undefined
       }
+      delete_child_attendance: {
+        Args: { p_attendance_id: string }
+        Returns: undefined
+      }
       delete_learning_period: {
         Args: { p_learning_period_id: string }
         Returns: string

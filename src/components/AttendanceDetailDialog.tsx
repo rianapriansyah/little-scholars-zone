@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
+import DeleteIcon from '@mui/icons-material/DeleteOutline'
 import {
   Alert,
   Box,
@@ -14,7 +15,9 @@ import {
   IconButton,
   Typography,
 } from '@mui/material'
+import { ConfirmDialog } from './ConfirmDialog'
 import { fetchDailyReportForAttendance, type DailyReportSummary } from '../lib/dailyReport'
+import { deleteChildAttendance } from '../lib/learningPeriods'
 import { formatDate, formatDateTime } from '../lib/formatDate'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow } from '../types/attendance'
@@ -48,21 +51,42 @@ type Props = {
   childId: string
   classroomId: string
   onClose: () => void
+  /**
+   * Show Hapus Absensi. Admin only — this dialog is shared with the parent portal, so the action
+   * is opt-in rather than role-checked here. The database checks the role for real.
+   */
+  allowDelete?: boolean
+  /** Called after a successful delete so the list behind the dialog can reload. */
+  onDeleted?: () => void
 }
 
 /**
  * What actually happened on one attendance day: the status and its note, plus the daily report
  * the teacher filed for it — moods and Catatan Guru.
  *
- * Read-only on purpose. Correcting attendance moves a paid day of the family's quota, and a sent
- * report is locked against its own teacher, so neither belongs behind a row tapped while browsing
- * a period's history. The report is fetched when the dialog opens rather than with the list: most
- * rows are never opened, and one query per row would be dozens for nothing.
+ * Read-only but for one admin action. Correcting attendance moves a paid day of the family's
+ * quota, and a sent report is locked against its own teacher, so neither belongs behind a row
+ * tapped while browsing a period's history. Deleting a day that never happened is the exception
+ * (allowDelete) — there was previously no way to take one back, and a day wrongly recorded still
+ * costs the family one of its guaranteed days.
+ *
+ * The report is fetched when the dialog opens rather than with the list: most rows are never
+ * opened, and one query per row would be dozens for nothing.
  */
-export function AttendanceDetailDialog({ open, attendance, childId, classroomId, onClose }: Props) {
+export function AttendanceDetailDialog({
+  open,
+  attendance,
+  childId,
+  classroomId,
+  onClose,
+  allowDelete = false,
+  onDeleted,
+}: Props) {
   const [report, setReport] = useState<DailyReportSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const status = isAttendanceStatus(attendance.status) ? attendance.status : null
   const isPresent = status === 'present'
@@ -97,6 +121,20 @@ export function AttendanceDetailDialog({ open, attendance, childId, classroomId,
   }, [open, isPresent, childId, classroomId, attendance.attendance_date])
 
   const moodCount = MOOD_MOMENTS.filter((moment) => report?.moods[moment] != null).length
+
+  async function handleDelete() {
+    setDeleting(true)
+    setError(null)
+    const result = await deleteChildAttendance(attendance.id)
+    setDeleting(false)
+    setConfirmDelete(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    onDeleted?.()
+    onClose()
+  }
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
@@ -235,10 +273,27 @@ export function AttendanceDetailDialog({ open, attendance, childId, classroomId,
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'action.hover' }}>
+        {allowDelete ? (
+          <>
+            <Button color="error" startIcon={<DeleteIcon />} onClick={() => setConfirmDelete(true)} disabled={deleting}>
+              Hapus Absensi
+            </Button>
+            <Box sx={{ flexGrow: 1 }} />
+          </>
+        ) : null}
         <Button variant="contained" onClick={onClose}>
           Tutup
         </Button>
       </DialogActions>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Hapus Absensi"
+        description={`Hapus absensi ${formatDate(attendance.attendance_date)}? Hari ini akan dikembalikan ke kuota periode belajar. Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => void handleDelete()}
+      />
     </Dialog>
   )
 }

@@ -61,6 +61,8 @@ type Props = {
    * it; teacher and parent are unchanged until asked.
    */
   attendanceDetail?: boolean
+  /** Admin only: let a day that should never have been recorded be deleted from its dialog. */
+  attendanceDelete?: boolean
 }
 
 /**
@@ -70,7 +72,12 @@ type Props = {
  *
  * Shared by the teacher and admin portals; each supplies its own breadcrumbs around it.
  */
-export function LearningPeriodDetail({ periodId, hideChildName = false, attendanceDetail = false }: Props) {
+export function LearningPeriodDetail({
+  periodId,
+  hideChildName = false,
+  attendanceDetail = false,
+  attendanceDelete = false,
+}: Props) {
   const [period, setPeriod] = useState<LearningPeriodListEntry | null>(null)
   const [attendances, setAttendances] = useState<ChildAttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -199,6 +206,10 @@ export function LearningPeriodDetail({ periodId, hideChildName = false, attendan
           childId={period.childId}
           classroomId={period.classroomId}
           onClose={() => setOpenAttendance(null)}
+          allowDelete={attendanceDelete}
+          // Reloads the period too, not just the list: deleting a day hands it back to the quota,
+          // so Terpakai/Sisa and the Selesai chip above are all stale the moment it succeeds.
+          onDeleted={() => void load()}
         />
       ) : null}
     </Box>

@@ -11,6 +11,8 @@ type Props = {
   defaultExpanded?: boolean
   /** See LearningPeriodDetail — opens a day's attendance and its daily report. */
   attendanceDetail?: boolean
+  /** See LearningPeriodDetail — admin only, adds Hapus Absensi inside that dialog. */
+  attendanceDelete?: boolean
   /**
    * Per-period controls under each period's detail: admin puts the invoice and delete buttons
    * here. Omitted, the card is purely something to read — which is what the parent portal wants.
@@ -30,6 +32,7 @@ export function ProgramPeriodCard({
   group,
   defaultExpanded = false,
   attendanceDetail = false,
+  attendanceDelete = false,
   renderPeriodActions,
 }: Props) {
   return (
@@ -72,7 +75,12 @@ export function ProgramPeriodCard({
             <Box key={period.id}>
               {index > 0 ? <Divider sx={{ my: 2.5 }} /> : null}
               <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: { xs: 1.5, sm: 2 } }}>
-                <LearningPeriodDetail periodId={period.id} hideChildName attendanceDetail={attendanceDetail} />
+                <LearningPeriodDetail
+                  periodId={period.id}
+                  hideChildName
+                  attendanceDetail={attendanceDetail}
+                  attendanceDelete={attendanceDelete}
+                />
               </Box>
               {actions ? (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1.5 }}>{actions}</Box>
