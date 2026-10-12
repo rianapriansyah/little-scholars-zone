@@ -13,7 +13,10 @@ export type ClassRosterRow = {
   /** The billed program. child_attendances keys off this, not off the teaching group. */
   classroomId: string
   classroomLabel: string
+  teacherId: string
   teacherName: string
+  /** For the Ingatkan Guru reminder. Null when the teacher has no number on record. */
+  teacherPhone: string | null
   timeStart: string
   timeEnd: string
   childId: string
@@ -35,13 +38,26 @@ export type ClassAttendanceGap = {
   classroomTeacherId: string
   classroomId: string
   classroomLabel: string
+  teacherId: string
   teacherName: string
+  teacherPhone: string | null
   timeStart: string
   timeEnd: string
   /** Children whose attendance for the date is still missing, by name. */
   unfilled: UnfilledStudent[]
   /** How many children could have had attendance recorded at all — the denominator. */
   eligibleCount: number
+}
+
+/** One teacher's whole outstanding day — the shape the card renders and the reminder quotes. */
+export type TeacherAttendanceGapGroup = {
+  teacherId: string
+  teacherName: string
+  teacherPhone: string | null
+  /** Her classes with gaps, in the order she taught them. */
+  classes: ClassAttendanceGap[]
+  /** Unmarked students across all of them, for the one reminder that covers the lot. */
+  totalUnfilled: number
 }
 
 /**
@@ -68,7 +84,9 @@ export function groupUnfilledAttendance(rows: readonly ClassRosterRow[], date: s
         classroomTeacherId: row.classroomTeacherId,
         classroomId: row.classroomId,
         classroomLabel: row.classroomLabel,
+        teacherId: row.teacherId,
         teacherName: row.teacherName,
+        teacherPhone: row.teacherPhone,
         timeStart: row.timeStart,
         timeEnd: row.timeEnd,
         unfilled: [],
@@ -89,6 +107,42 @@ export function groupUnfilledAttendance(rows: readonly ClassRosterRow[], date: s
     (a, b) => a.timeStart.localeCompare(b.timeStart) || a.classroomLabel.localeCompare(b.classroomLabel),
   )
   return gaps
+}
+
+/**
+ * Collapses the per-class gaps under the teacher who owns them, so the card reads teacher →
+ * class → student and one Ingatkan Guru covers a teacher's whole day rather than firing a
+ * separate WhatsApp per class. The same collapse groupAttendanceByTeacher does for the
+ * teacher-attendance card above it, on this card's own rows.
+ *
+ * Grouped on teacherId, not on the displayed name: two teachers can share a call name, and
+ * merging them would address a reminder about one teacher's class to the other's phone.
+ *
+ * Each teacher's classes keep the order they arrive in, which groupUnfilledAttendance has
+ * already sorted chronologically — a teacher's day should read the way she actually taught it.
+ */
+export function groupGapsByTeacher(gaps: readonly ClassAttendanceGap[]): TeacherAttendanceGapGroup[] {
+  const byTeacher = new Map<string, TeacherAttendanceGapGroup>()
+
+  for (const gap of gaps) {
+    let group = byTeacher.get(gap.teacherId)
+    if (!group) {
+      group = {
+        teacherId: gap.teacherId,
+        teacherName: gap.teacherName,
+        teacherPhone: gap.teacherPhone,
+        classes: [],
+        totalUnfilled: 0,
+      }
+      byTeacher.set(gap.teacherId, group)
+    }
+    group.classes.push(gap)
+    group.totalUnfilled += gap.unfilled.length
+  }
+
+  const groups = [...byTeacher.values()]
+  groups.sort((a, b) => a.teacherName.localeCompare(b.teacherName))
+  return groups
 }
 
 /**
@@ -121,7 +175,9 @@ function childClassroomKey(childId: string, classroomId: string): string {
 type ClassMeta = {
   classroomId: string
   classroomLabel: string
+  teacherId: string
   teacherName: string
+  teacherPhone: string | null
   timeStart: string
   timeEnd: string
 }
@@ -142,7 +198,7 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
     supabase
       .from('classroom_teachers')
       .select(
-        'id, classroom_id, classrooms(label, time_start, time_end, active, is_billable), teachers(full_name, call_name)',
+        'id, classroom_id, teacher_id, classrooms(label, time_start, time_end, active, is_billable), teachers(full_name, call_name, contact_phone)',
       ),
     supabase
       .from('children_classrooms')
@@ -166,13 +222,17 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
     const classroom = group.classrooms as unknown as
       | { label: string; time_start: string; time_end: string; active: boolean; is_billable: boolean }
       | null
-    const teacher = group.teachers as unknown as { full_name: string; call_name: string | null } | null
+    const teacher = group.teachers as unknown as
+      | { full_name: string; call_name: string | null; contact_phone: string | null }
+      | null
     if (!classroom || !classroom.active || !classroom.is_billable) continue
 
     classes.set(group.id, {
       classroomId: group.classroom_id,
       classroomLabel: classroom.label,
+      teacherId: group.teacher_id,
       teacherName: teacher ? teacherDisplayName(teacher) : '—',
+      teacherPhone: teacher?.contact_phone ?? null,
       timeStart: classroom.time_start,
       timeEnd: classroom.time_end,
     })
@@ -199,7 +259,9 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
       classroomTeacherId: enrollment.classroom_teacher_id,
       classroomId: meta.classroomId,
       classroomLabel: meta.classroomLabel,
+      teacherId: meta.teacherId,
       teacherName: meta.teacherName,
+      teacherPhone: meta.teacherPhone,
       timeStart: meta.timeStart,
       timeEnd: meta.timeEnd,
       childId: enrollment.child_id,

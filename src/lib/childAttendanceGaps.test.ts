@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  groupGapsByTeacher,
   groupUnfilledAttendance,
   selectEndedClassAttendanceGaps,
   type ClassAttendanceGap,
@@ -14,7 +15,9 @@ function row(overrides: Partial<ClassRosterRow> = {}): ClassRosterRow {
     classroomTeacherId: 'ct1',
     classroomId: 'c1',
     classroomLabel: 'Kelas Bintang',
+    teacherId: 't1',
     teacherName: 'Bu Rina',
+    teacherPhone: '081234567890',
     timeStart: '08:00:00',
     timeEnd: '10:00:00',
     childId: 'child1',
@@ -73,7 +76,13 @@ describe('groupUnfilledAttendance', () => {
     const gaps = groupUnfilledAttendance(
       [
         row(),
-        row({ classroomTeacherId: 'ct2', teacherName: 'Bu Ayu', childId: 'child2', childName: 'Bima' }),
+        row({
+          classroomTeacherId: 'ct2',
+          teacherId: 't2',
+          teacherName: 'Bu Ayu',
+          childId: 'child2',
+          childName: 'Bima',
+        }),
       ],
       DATE,
     )
@@ -101,7 +110,9 @@ function gap(overrides: Partial<ClassAttendanceGap> = {}): ClassAttendanceGap {
     classroomTeacherId: 'ct1',
     classroomId: 'c1',
     classroomLabel: 'Kelas Bintang',
+    teacherId: 't1',
     teacherName: 'Bu Rina',
+    teacherPhone: '081234567890',
     timeStart: '08:00:00',
     timeEnd: '10:00:00',
     unfilled: [{ childId: 'child1', childName: 'Adi' }],
@@ -150,5 +161,60 @@ describe('selectEndedClassAttendanceGaps', () => {
       ELEVEN_WITA,
     )
     expect(kept.map((g) => g.classroomTeacherId)).toEqual(['ct1'])
+  })
+})
+
+describe('groupGapsByTeacher', () => {
+  it('nests a teacher\'s classes under her, summing the students across them', () => {
+    const groups = groupGapsByTeacher([
+      gap(),
+      gap({
+        classroomTeacherId: 'ct2',
+        classroomLabel: 'Kelas Pelangi',
+        timeStart: '13:30:00',
+        timeEnd: '15:30:00',
+        unfilled: [
+          { childId: 'child2', childName: 'Bima' },
+          { childId: 'child3', childName: 'Citra' },
+        ],
+      }),
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].teacherName).toBe('Bu Rina')
+    expect(groups[0].classes.map((c) => c.classroomLabel)).toEqual(['Kelas Bintang', 'Kelas Pelangi'])
+    expect(groups[0].totalUnfilled).toBe(3)
+  })
+
+  it('keeps the order the classes arrive in, which is the order she taught them', () => {
+    const groups = groupGapsByTeacher([
+      gap({ classroomTeacherId: 'ct1', timeStart: '08:00:00' }),
+      gap({ classroomTeacherId: 'ct2', timeStart: '10:00:00' }),
+      gap({ classroomTeacherId: 'ct3', timeStart: '13:30:00' }),
+    ])
+    expect(groups[0].classes.map((c) => c.timeStart)).toEqual(['08:00:00', '10:00:00', '13:30:00'])
+  })
+
+  it('orders teachers by name', () => {
+    const groups = groupGapsByTeacher([
+      gap({ teacherId: 't2', teacherName: 'Bu Rina' }),
+      gap({ classroomTeacherId: 'ct2', teacherId: 't1', teacherName: 'Bu Ayu' }),
+    ])
+    expect(groups.map((g) => g.teacherName)).toEqual(['Bu Ayu', 'Bu Rina'])
+  })
+
+  it('separates two teachers who share a call name', () => {
+    // Grouped on teacherId, not the displayed name: merging them would address a reminder about
+    // one teacher's class to the other's phone.
+    const groups = groupGapsByTeacher([
+      gap({ teacherId: 't1', teacherName: 'Bu Sri', teacherPhone: '081100000001' }),
+      gap({
+        classroomTeacherId: 'ct2',
+        teacherId: 't2',
+        teacherName: 'Bu Sri',
+        teacherPhone: '081100000002',
+      }),
+    ])
+    expect(groups).toHaveLength(2)
+    expect(groups.map((g) => g.teacherPhone)).toEqual(['081100000001', '081100000002'])
   })
 })

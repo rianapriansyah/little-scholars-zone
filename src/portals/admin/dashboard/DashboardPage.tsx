@@ -175,7 +175,11 @@ export function DashboardPage() {
 
       <IncompleteAttendanceCard entries={attendanceEntries} isClassDay={isWitaClassDay()} onSaved={() => void load()} />
 
-      <UnfilledStudentAttendanceCard gaps={attendanceGaps} isClassDay={isWitaClassDay()} />
+      <UnfilledStudentAttendanceCard
+        gaps={attendanceGaps}
+        date={todayIsoDateInWita()}
+        isClassDay={isWitaClassDay()}
+      />
 
       <Paper variant="outlined" sx={{ borderRadius: 2, p: { xs: 2, sm: 3 } }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
