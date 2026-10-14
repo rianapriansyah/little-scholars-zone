@@ -12,7 +12,7 @@ import type { LearningPeriodListEntry } from '../../../types/attendance'
 import type { ChildRow } from '../../../types/child'
 import type { FamilyRow } from '../../../types/family'
 import { PAYMENT_STATUS_LABELS } from '../../../types/payment'
-import { LearningPeriodDialog } from './LearningPeriodDialog'
+import { LearningPeriodDialog } from '../../../components/LearningPeriodDialog'
 
 type Props = {
   child: ChildRow

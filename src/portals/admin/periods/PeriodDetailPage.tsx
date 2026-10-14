@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom'
+import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/DeleteOutline'
 import PaymentsIcon from '@mui/icons-material/PaymentsOutlined'
 import {
@@ -14,6 +15,7 @@ import {
   Typography,
 } from '@mui/material'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { LearningPeriodDialog } from '../../../components/LearningPeriodDialog'
 import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
 import { ProgramPeriodCard } from '../../../components/ProgramPeriodCard'
 import { fetchPeriodsForChild } from '../../../lib/learningPeriods'
@@ -22,6 +24,8 @@ import { groupPeriodsByProgram, type ChildProgramGroup } from '../../../lib/peri
 import { deletePaymentReceipt } from '../../../lib/receiptStorage'
 import { supabase } from '../../../lib/supabase'
 import type { LearningPeriodListEntry } from '../../../types/attendance'
+import type { ChildRow } from '../../../types/child'
+import type { FamilyRow } from '../../../types/family'
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/payment'
 
 /**
@@ -40,9 +44,13 @@ export function PeriodDetailPage() {
 
   const [programs, setPrograms] = useState<ChildProgramGroup[]>([])
   const [childName, setChildName] = useState('')
+  /** The child and their family, which Tambah Periode Belajar needs to raise the invoice. */
+  const [child, setChild] = useState<ChildRow | null>(null)
+  const [family, setFamily] = useState<FamilyRow | null>(null)
   const [payments, setPayments] = useState<Map<string, PaymentStatus>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
   const [payTarget, setPayTarget] = useState<LearningPeriodListEntry | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<LearningPeriodListEntry | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -50,12 +58,22 @@ export function PeriodDetailPage() {
   const load = useCallback(async () => {
     if (!childId) return
     setLoading(true)
-    const result = await fetchPeriodsForChild(childId)
+    // The child row comes back alongside the periods rather than being derived from them: a child
+    // with no period yet has no period to read a name off, and that is exactly when an admin is
+    // here to add one. The embedded family is what the dialog needs to offer the invoice after.
+    const [result, childRes] = await Promise.all([
+      fetchPeriodsForChild(childId),
+      supabase.from('children').select('*, families(*)').eq('id', childId).maybeSingle(),
+    ])
     if (!result.ok) {
       setLoading(false)
       setError(result.error)
       return
     }
+
+    const childRow = childRes.data as unknown as (ChildRow & { families: FamilyRow | null }) | null
+    setChild(childRow)
+    setFamily(childRow?.families ?? null)
 
     // Best-effort, same as the grid: a failed payment lookup still shows the periods.
     const paymentsResult = await fetchPaymentPeriodsByLearningPeriodIds(result.data.map((p) => p.id))
@@ -66,7 +84,7 @@ export function PeriodDetailPage() {
 
     setLoading(false)
     setError(null)
-    setChildName(result.data[0]?.childName ?? '')
+    setChildName(childRow?.full_name ?? result.data[0]?.childName ?? '')
     setPayments(statusByPeriodId)
     setPrograms(groupPeriodsByProgram(result.data))
   }, [childId])
@@ -127,66 +145,108 @@ export function PeriodDetailPage() {
         <Box display="flex" justifyContent="center" py={6}>
           <CircularProgress />
         </Box>
-      ) : programs.length === 0 ? (
-        <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
-          <Typography color="text.secondary">Siswa ini belum memiliki periode belajar.</Typography>
-        </Paper>
       ) : (
         <>
           <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
             {childName}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {programs.length === 1 ? '1 program' : `${programs.length} program`} · klik satu program untuk melihat
-            kuota, riwayat absensi, dan pembayarannya.
-          </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {programs.map((group, index) => (
-              <ProgramPeriodCard
-                key={group.classroomId}
-                group={group}
-                // Open the one that was deep-linked; otherwise only the first, so a child in
-                // several programs does not open as a wall of detail.
-                defaultExpanded={focusClassroomId ? group.classroomId === focusClassroomId : index === 0}
-                attendanceDetail
-                attendanceDelete
-                renderPeriodActions={(period) => {
-                  const status = payments.get(period.id) ?? null
-                  return (
-                    <>
-                      <Chip
-                        size="small"
-                        label={status ? PAYMENT_STATUS_LABELS[status] : 'Belum ada tagihan'}
-                        color={status === 'paid' ? 'success' : 'warning'}
-                        variant={status === 'paid' ? 'filled' : 'outlined'}
-                      />
-                      <Box sx={{ flexGrow: 1 }} />
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<PaymentsIcon />}
-                        onClick={() => setPayTarget(period)}
-                      >
-                        Pembayaran
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => setDeleteTarget(period)}
-                      >
-                        Hapus
-                      </Button>
-                    </>
-                  )
-                }}
-              />
-            ))}
+          {/* The header row, not inside the empty branch: a child with no period at all is the
+              clearest reason to be on this screen, and hiding the button there would send the
+              admin back to Detail Keluarga for the one thing they came to do. */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 2,
+              mb: 2,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              {programs.length === 0
+                ? 'Belum ada periode belajar.'
+                : `${programs.length === 1 ? '1 program' : `${programs.length} program`} · klik satu program untuk melihat kuota, riwayat absensi, dan pembayarannya.`}
+            </Typography>
+            {/* Disabled until the child row has loaded — the dialog needs it and the family for
+                the invoice it offers once the period is saved. */}
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              disabled={!child || !family}
+              onClick={() => setAddOpen(true)}
+              sx={{ flexShrink: 0 }}
+            >
+              Tambah Periode Belajar
+            </Button>
           </Box>
+
+          {programs.length === 0 ? (
+            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
+              <Typography color="text.secondary">
+                Siswa ini belum memiliki periode belajar. Tambahkan satu untuk mulai mencatat absensi.
+              </Typography>
+            </Paper>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {programs.map((group, index) => (
+                <ProgramPeriodCard
+                  key={group.classroomId}
+                  group={group}
+                  // Open the one that was deep-linked; otherwise only the first, so a child in
+                  // several programs does not open as a wall of detail.
+                  defaultExpanded={focusClassroomId ? group.classroomId === focusClassroomId : index === 0}
+                  attendanceDetail
+                  attendanceDelete
+                  renderPeriodActions={(period) => {
+                    const status = payments.get(period.id) ?? null
+                    return (
+                      <>
+                        <Chip
+                          size="small"
+                          label={status ? PAYMENT_STATUS_LABELS[status] : 'Belum ada tagihan'}
+                          color={status === 'paid' ? 'success' : 'warning'}
+                          variant={status === 'paid' ? 'filled' : 'outlined'}
+                        />
+                        <Box sx={{ flexGrow: 1 }} />
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<PaymentsIcon />}
+                          onClick={() => setPayTarget(period)}
+                        >
+                          Pembayaran
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                          onClick={() => setDeleteTarget(period)}
+                        >
+                          Hapus
+                        </Button>
+                      </>
+                    )
+                  }}
+                />
+              ))}
+            </Box>
+          )}
         </>
       )}
+
+      {child && family ? (
+        <LearningPeriodDialog
+          open={addOpen}
+          child={child}
+          family={family}
+          onClose={() => setAddOpen(false)}
+          onSaved={() => void load()}
+        />
+      ) : null}
 
       {payTarget ? (
         <PaymentPeriodDialog

@@ -12,21 +12,21 @@ import {
   MenuItem,
   TextField,
 } from '@mui/material'
-import { SendInvoiceDialog } from '../../../components/SendInvoiceDialog'
-import { todayIsoDateInWita } from '../../../lib/classStatus'
-import { formatIdr } from '../../../lib/formatIdr'
-import type { InvoiceData } from '../../../lib/invoicePdf'
+import { SendInvoiceDialog } from './SendInvoiceDialog'
+import { todayIsoDateInWita } from '../lib/classStatus'
+import { formatIdr } from '../lib/formatIdr'
+import type { InvoiceData } from '../lib/invoicePdf'
 import {
   createLearningPeriod,
   fetchActiveClassrooms,
   fetchChildActiveClassrooms,
   fetchPeriod,
-} from '../../../lib/learningPeriods'
-import { fetchPaymentPeriodForLearningPeriod } from '../../../lib/paymentPeriods'
-import { familyDisplayName } from '../../../lib/familyDisplayName'
-import type { ChildRow } from '../../../types/child'
-import type { ClassroomRow } from '../../../types/classroom'
-import type { FamilyRow } from '../../../types/family'
+} from '../lib/learningPeriods'
+import { fetchPaymentPeriodForLearningPeriod } from '../lib/paymentPeriods'
+import { familyDisplayName } from '../lib/familyDisplayName'
+import type { ChildRow } from '../types/child'
+import type { ClassroomRow } from '../types/classroom'
+import type { FamilyRow } from '../types/family'
 
 const DEFAULT_GUARANTEED_DAYS = 20
 
