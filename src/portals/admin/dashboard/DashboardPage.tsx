@@ -4,9 +4,12 @@ import { supabase } from '../../../lib/supabase'
 import { isWitaClassDay, todayIsoDateInWita } from '../../../lib/classStatus'
 import { fetchAttendanceRoster } from '../../../lib/classroomTeacherAttendance'
 import { fetchUnfilledClassAttendance, type ClassAttendanceGap } from '../../../lib/childAttendanceGaps'
+import { fetchOpenPeriods } from '../../../lib/learningPeriods'
+import { selectNearDueChildren, type NearDueChild } from '../../../lib/nearDuePeriods'
 import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
 import { IncompleteAttendanceCard } from './IncompleteAttendanceCard'
 import { UnfilledStudentAttendanceCard } from './UnfilledStudentAttendanceCard'
+import { NearDuePeriodsCard } from './NearDuePeriodsCard'
 
 type Counts = { total: number; active: number }
 
@@ -82,6 +85,7 @@ export function DashboardPage() {
   const [classroomBars, setClassroomBars] = useState<ClassroomBar[]>([])
   const [attendanceEntries, setAttendanceEntries] = useState<ClassroomTeacherAttendanceListEntry[]>([])
   const [attendanceGaps, setAttendanceGaps] = useState<ClassAttendanceGap[]>([])
+  const [nearDue, setNearDue] = useState<NearDueChild[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -91,8 +95,16 @@ export function DashboardPage() {
     // Classrooms only run Monday–Friday, but classroom_teachers itself carries no notion of
     // that — fetching the roster on a weekend would show every teacher as "incomplete" since
     // nobody clocks in then, so the fetch is skipped outright rather than fetched and hidden.
-    const [classroomsRes, teachersRes, childrenRes, groupsRes, enrollmentsRes, attendanceResult, gapsResult] =
-      await Promise.all([
+    const [
+      classroomsRes,
+      teachersRes,
+      childrenRes,
+      groupsRes,
+      enrollmentsRes,
+      attendanceResult,
+      gapsResult,
+      periodsResult,
+    ] = await Promise.all([
         // is_billable excludes internal work programs (cleaning duty, content creation) — this
         // tile and the enrollment bar chart below are both about real, fee-paying classrooms.
         supabase.from('classrooms').select('id, label, active').eq('is_billable', true).order('label'),
@@ -107,6 +119,9 @@ export function DashboardPage() {
         isWitaClassDay()
           ? fetchUnfilledClassAttendance(todayIsoDateInWita())
           : Promise.resolve({ ok: true as const, data: [] }),
+        // Not weekend-gated, unlike the two above: a quota runs out on the days it was spent, and
+        // a family still has to be chased about it on a Saturday.
+        fetchOpenPeriods(),
       ])
     setLoading(false)
 
@@ -119,6 +134,10 @@ export function DashboardPage() {
     // incomplete-attendance card empty, same severity as any other card having nothing to show.
     if (attendanceResult.ok) setAttendanceEntries(attendanceResult.data)
     if (gapsResult.ok) setAttendanceGaps(gapsResult.data)
+    // Filtered here rather than in the query: the threshold is a product rule, not a database
+    // one, and learning_period_status has no index that would make `days_remaining <= 5` cheaper
+    // than the renewal queue's existing full read.
+    if (periodsResult.ok) setNearDue(selectNearDueChildren(periodsResult.data))
 
     const classrooms = classroomsRes.data ?? []
     const teachers = teachersRes.data ?? []
@@ -180,6 +199,8 @@ export function DashboardPage() {
         date={todayIsoDateInWita()}
         isClassDay={isWitaClassDay()}
       />
+
+      <NearDuePeriodsCard students={nearDue} />
 
       <Paper variant="outlined" sx={{ borderRadius: 2, p: { xs: 2, sm: 3 } }}>
         <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
