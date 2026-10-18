@@ -46,12 +46,18 @@ import {
   fetchAttendanceForClassroomTeachers,
 } from '../../lib/classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceStatus } from '../../types/classroomTeacherAttendance'
-import { DAILY_REPORT_ENABLED } from '../../lib/featureFlags'
+import { DAILY_REPORT_ENABLED, SUBSTITUTE_TEACHER_ENABLED } from '../../lib/featureFlags'
+import { fetchTeachingGroupsForDate } from '../../lib/substitutions'
+import { SubstituteDeclareDialog } from './SubstituteDeclareDialog'
 
 type GroupWithRoster = {
   id: string
   classroom: ClassroomRow
   roster: { childId: string; childName: string }[]
+  /** True when this class is someone else's and she is covering it today. */
+  isSubstitute: boolean
+  /** The absent teacher, for the "Pengganti …" chip. Only set when isSubstitute. */
+  assignedTeacherName: string | null
 }
 
 /** Which class to prompt about continuing into, shown by the confirmation dialog below. */
@@ -104,6 +110,9 @@ export function TeacherRosterPage() {
   const [clockError, setClockError] = useState<string | null>(null)
   const [continueDialog, setContinueDialog] = useState<ContinueDialogState | null>(null)
   const [continuing, setContinuing] = useState(false)
+  const [declareOpen, setDeclareOpen] = useState(false)
+  /** Bumped after declaring coverage, to re-run the loader without reaching into its internals. */
+  const [reloadToken, setReloadToken] = useState(0)
   const now = useNow()
 
   useEffect(() => {
@@ -111,10 +120,36 @@ export function TeacherRosterPage() {
     let cancelled = false
     setLoading(true)
     void (async () => {
+      // Her own groups plus anything she is covering today, in one call — a covered class has to
+      // appear here or she has no way to reach its Laporan Harian.
+      const teachingResult = await fetchTeachingGroupsForDate(todayIsoDateInWita())
+      if (!teachingResult.ok) {
+        if (!cancelled) {
+          setError(teachingResult.error)
+          setLoading(false)
+        }
+        return
+      }
+
+      const teaching = SUBSTITUTE_TEACHER_ENABLED
+        ? teachingResult.data
+        : teachingResult.data.filter((group) => !group.isSubstitute)
+      const coverage = new Map(teaching.map((group) => [group.classroomTeacherId, group]))
+
+      if (coverage.size === 0) {
+        if (!cancelled) {
+          setGroups([])
+          setLoading(false)
+        }
+        return
+      }
+
+      // Selected by id rather than teacher_id, so a covered group comes along too; RLS admits her
+      // own assignments and the ones she substitutes (see 20261018010000).
       const { data: groupRows, error: gError } = await supabase
         .from('classroom_teachers')
         .select('id, classrooms(*)')
-        .eq('teacher_id', teacher.id)
+        .in('id', [...coverage.keys()])
       if (gError) {
         if (!cancelled) {
           setError(gError.message)
@@ -136,7 +171,13 @@ export function TeacherRosterPage() {
           const child = row.children as unknown as { full_name: string } | null
           return { childId: row.child_id, childName: child?.full_name ?? '—' }
         })
-        results.push({ id: group.id, classroom, roster })
+        results.push({
+          id: group.id,
+          classroom,
+          roster,
+          isSubstitute: coverage.get(group.id)?.isSubstitute ?? false,
+          assignedTeacherName: coverage.get(group.id)?.assignedTeacherName ?? null,
+        })
       }
       // By scheduled start time, not label — a teacher's day should read top-to-bottom the way
       // she actually works it, and that ordering applies the same whether the card is a real
@@ -158,7 +199,7 @@ export function TeacherRosterPage() {
     return () => {
       cancelled = true
     }
-  }, [teacher])
+  }, [teacher, reloadToken])
 
   /** Refetches just the one class's attendance row after a clock tap, rather than everything. */
   async function refreshAttendance(groupId: string) {
@@ -238,13 +279,19 @@ export function TeacherRosterPage() {
    * immediately followed by a 10:00-12:00 one. Drives whether tapping "Selesaikan Kelas" shows
    * the continue-or-stop dialog below — the teacher decides in the moment, nothing is timed or
    * automatic, see clockOutAndContinueClassroomTeacher for the server-side re-validation.
+   *
+   * Her OWN classes only: continuing into a class means clocking in to it, and a covered group's
+   * clock-in belongs to the teacher it is assigned to. Offering one here would book the absent
+   * teacher's attendance under the cover of a convenience button.
    */
   const chainLinks = buildContiguousChainLinks(
-    scheduledGroups.map((g) => ({
-      classroomTeacherId: g.id,
-      timeStart: g.classroom.time_start,
-      timeEnd: g.classroom.time_end,
-    })),
+    scheduledGroups
+      .filter((g) => !g.isSubstitute)
+      .map((g) => ({
+        classroomTeacherId: g.id,
+        timeStart: g.classroom.time_start,
+        timeEnd: g.classroom.time_end,
+      })),
   )
 
   /**
@@ -288,6 +335,17 @@ export function TeacherRosterPage() {
     const record = attendance.get(group.id)
     const isClocking = clockingId === group.id
     const isBillable = group.classroom.is_billable
+
+    // A covered class has no clock-in of its own here: the attendance row for that group belongs
+    // to the teacher it is assigned to, and crediting her minutes to it would pay the wrong
+    // person. Coverage pay is settled by admin from the Guru Pengganti list for now.
+    if (group.isSubstitute) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          Kelas pengganti · absen kelas tidak dicatat di sini
+        </Typography>
+      )
+    }
 
     if (group.classroom.is_flexi_hours) {
       // No schedule to gate against — always clickable, any time, any day. Never chains (that's
@@ -389,6 +447,16 @@ export function TeacherRosterPage() {
           <Typography variant="h6" sx={{ fontSize: '1.1rem', flexGrow: 1, minWidth: 0 }}>
             {classroom.label}
           </Typography>
+          {/* First, because whose class this is matters more than how far along it is — two groups
+              of the same classroom share a label, so the chip is the only thing telling them apart. */}
+          {group.isSubstitute ? (
+            <Chip
+              size="small"
+              color="info"
+              variant="outlined"
+              label={group.assignedTeacherName ? `Pengganti ${group.assignedTeacherName}` : 'Pengganti'}
+            />
+          ) : null}
           {statusLabel ? (
             <Chip
               size="small"
@@ -475,6 +543,14 @@ export function TeacherRosterPage() {
         </Alert>
       ) : null}
 
+      {/* Only on a class day: coverage is always for today, and declare_substitution refuses a
+          weekend for a scheduled class anyway. */}
+      {SUBSTITUTE_TEACHER_ENABLED && isClassDay ? (
+        <Button variant="outlined" size="small" sx={{ mb: 2 }} onClick={() => setDeclareOpen(true)}>
+          Gantikan Kelas
+        </Button>
+      ) : null}
+
       {groups.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
       ) : visibleGroups.length > 0 ? (
@@ -528,6 +604,20 @@ export function TeacherRosterPage() {
           </>
         ) : null}
       </Dialog>
+
+      <SubstituteDeclareDialog
+        open={declareOpen}
+        ownGroups={groups.map((g) => ({
+          classroomId: g.classroom.id,
+          timeStart: g.classroom.time_start,
+          timeEnd: g.classroom.time_end,
+        }))}
+        onClose={() => setDeclareOpen(false)}
+        onDeclared={() => {
+          setDeclareOpen(false)
+          setReloadToken((token) => token + 1)
+        }}
+      />
     </Box>
   )
 }

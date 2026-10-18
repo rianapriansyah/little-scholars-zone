@@ -15,7 +15,10 @@ import {
   type MonthlyAttendanceSummary,
 } from '../../../lib/teacherAttendanceReport'
 import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
+import { fetchSubstitutionsForDate } from '../../../lib/substitutions'
+import type { SubstitutionListEntry } from '../../../types/substitution'
 import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
+import { SubstitutionsSection } from './SubstitutionsSection'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
@@ -37,6 +40,7 @@ function rowSearchBlob(row: TeacherRow): string {
 export function TeachersAttendancePage() {
   const [sessionDate, setSessionDate] = useState(() => todayIsoDateInWita())
   const [entries, setEntries] = useState<ClassroomTeacherAttendanceListEntry[]>([])
+  const [substitutions, setSubstitutions] = useState<SubstitutionListEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 })
@@ -55,13 +59,19 @@ export function TeachersAttendancePage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const result = await fetchAttendanceRoster(sessionDate)
+    // Both for the same date, and both feed the dialog: a punch the admin is about to correct may
+    // belong to a day someone else covered.
+    const [result, substitutionsResult] = await Promise.all([
+      fetchAttendanceRoster(sessionDate),
+      fetchSubstitutionsForDate(sessionDate),
+    ])
     setLoading(false)
     if (!result.ok) {
       setError(result.error)
       return
     }
     setEntries(result.data)
+    if (substitutionsResult.ok) setSubstitutions(substitutionsResult.data)
   }, [sessionDate])
 
   useEffect(() => {
@@ -96,6 +106,11 @@ export function TeachersAttendancePage() {
   }, [confirmDownloadTeacher, sessionDate])
 
   const teacherRows = useMemo(() => groupAttendanceByTeacher(entries), [entries])
+  /** group id → who covered it, so a class the admin is about to correct says so. */
+  const coveredBy = useMemo(
+    () => new Map(substitutions.map((entry) => [entry.classroomTeacherId, entry.substituteTeacherName])),
+    [substitutions],
+  )
   const selectedTeacher = teacherRows.find((row) => row.teacherId === selectedTeacherId) ?? null
 
   const filteredRows = useMemo(
@@ -193,6 +208,16 @@ export function TeachersAttendancePage() {
           slotProps={{ inputLabel: { shrink: true } }}
         />
       </Box>
+
+      {/* Above the teacher list: coverage decides whose class a day's absensi and notes belong to,
+          so it reads before the punches rather than after them. */}
+      <SubstitutionsSection
+        sessionDate={sessionDate}
+        entries={entries}
+        substitutions={substitutions}
+        loading={loading}
+        onChanged={() => void load()}
+      />
 
       <DataGridSearchPanel
         keyword={keyword}
@@ -301,6 +326,7 @@ export function TeachersAttendancePage() {
         teacherName={selectedTeacher?.teacherName ?? ''}
         sessionDate={sessionDate}
         classes={selectedTeacher?.classes ?? []}
+        coveredBy={coveredBy}
         onClose={() => setDialogOpen(false)}
         onSaved={() => void load()}
       />

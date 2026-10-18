@@ -305,6 +305,12 @@ type Props = {
   teacherName: string
   sessionDate: string
   classes: ClassroomTeacherAttendanceListEntry[]
+  /**
+   * group id → the substitute who covered it on this date. Surfaced per class so an admin filling
+   * in a "missing" punch can see the class was taught by someone else, rather than recording this
+   * teacher as present on a day she was away.
+   */
+  coveredBy?: Map<string, string>
   onClose: () => void
   /** Fires after any class is saved, so the Kehadiran Guru list stays in sync. */
   onSaved: () => void
@@ -316,7 +322,15 @@ type Props = {
  * teacher teaches. Each starts collapsed; opening one reveals the same jam masuk/selesai/catatan
  * form the old single-class dialog had.
  */
-export function TeacherAttendanceDialog({ open, teacherName, sessionDate, classes, onClose, onSaved }: Props) {
+export function TeacherAttendanceDialog({
+  open,
+  teacherName,
+  sessionDate,
+  classes,
+  coveredBy,
+  onClose,
+  onSaved,
+}: Props) {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { borderRadius: 2 } } }}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, pr: 1.5 }}>
@@ -348,6 +362,12 @@ export function TeacherAttendanceDialog({ open, teacherName, sessionDate, classe
                 subtitle={`${entry.timeStart.slice(0, 5)}–${entry.timeEnd.slice(0, 5)}`}
                 chip={<StatusChips entry={entry} />}
               >
+                {coveredBy?.get(entry.classroomTeacherId) ? (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Kelas ini digantikan {coveredBy.get(entry.classroomTeacherId)} pada tanggal ini.
+                    Jam masuk/selesai di bawah tetap tercatat atas nama {teacherName}.
+                  </Alert>
+                ) : null}
                 <ClassAttendanceForm entry={entry} sessionDate={sessionDate} onSaved={onSaved} />
               </Section>
             ))
