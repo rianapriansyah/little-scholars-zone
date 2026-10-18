@@ -161,6 +161,75 @@ export type Database = {
           },
         ]
       }
+      children_daily_reports: {
+        Row: {
+          child_id: string
+          classroom_teacher_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          mood_arrival: string | null
+          mood_departure: string | null
+          mood_note: string | null
+          mood_note_parent: string | null
+          mood_studying: string | null
+          report_date: string
+          session_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          teacher_note: string | null
+        }
+        Insert: {
+          child_id: string
+          classroom_teacher_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mood_arrival?: string | null
+          mood_departure?: string | null
+          mood_note?: string | null
+          mood_note_parent?: string | null
+          mood_studying?: string | null
+          report_date?: string
+          session_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          teacher_note?: string | null
+        }
+        Update: {
+          child_id?: string
+          classroom_teacher_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mood_arrival?: string | null
+          mood_departure?: string | null
+          mood_note?: string | null
+          mood_note_parent?: string | null
+          mood_studying?: string | null
+          report_date?: string
+          session_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          teacher_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "children_daily_reports_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_daily_reports_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classroom_teachers: {
         Row: {
           classroom_id: string
@@ -240,6 +309,57 @@ export type Database = {
             columns: ["classroom_teacher_id"]
             isOneToOne: false
             referencedRelation: "classroom_teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classroom_teachers_substitutions: {
+        Row: {
+          classroom_teacher_id: string
+          counts_for_pay: boolean
+          created_at: string
+          created_by: string | null
+          created_by_role: string
+          id: string
+          reason: string | null
+          session_date: string
+          substitute_teacher_id: string
+        }
+        Insert: {
+          classroom_teacher_id: string
+          counts_for_pay: boolean
+          created_at?: string
+          created_by?: string | null
+          created_by_role: string
+          id?: string
+          reason?: string | null
+          session_date: string
+          substitute_teacher_id: string
+        }
+        Update: {
+          classroom_teacher_id?: string
+          counts_for_pay?: boolean
+          created_at?: string
+          created_by?: string | null
+          created_by_role?: string
+          id?: string
+          reason?: string | null
+          session_date?: string
+          substitute_teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_teachers_substitutions_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classroom_teachers_substitutions_substitute_teacher_id_fkey"
+            columns: ["substitute_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
         ]
@@ -348,72 +468,6 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "children_daily_reports"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      children_daily_reports: {
-        Row: {
-          child_id: string
-          classroom_teacher_id: string
-          created_at: string | null
-          created_by: string | null
-          id: string
-          mood_arrival: string | null
-          mood_departure: string | null
-          mood_note: string | null
-          mood_note_parent: string | null
-          mood_studying: string | null
-          report_date: string
-          session_id: string | null
-          submitted_at: string | null
-          teacher_note: string | null
-        }
-        Insert: {
-          child_id: string
-          classroom_teacher_id: string
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          mood_arrival?: string | null
-          mood_departure?: string | null
-          mood_note?: string | null
-          mood_note_parent?: string | null
-          mood_studying?: string | null
-          report_date?: string
-          session_id?: string | null
-          submitted_at?: string | null
-          teacher_note?: string | null
-        }
-        Update: {
-          child_id?: string
-          classroom_teacher_id?: string
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          mood_arrival?: string | null
-          mood_departure?: string | null
-          mood_note?: string | null
-          mood_note_parent?: string | null
-          mood_studying?: string | null
-          report_date?: string
-          session_id?: string | null
-          submitted_at?: string | null
-          teacher_note?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "children_daily_reports_child_id_fkey"
-            columns: ["child_id"]
-            isOneToOne: false
-            referencedRelation: "children"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "children_daily_reports_classroom_teacher_id_fkey"
-            columns: ["classroom_teacher_id"]
-            isOneToOne: false
-            referencedRelation: "classroom_teachers"
             referencedColumns: ["id"]
           },
         ]
@@ -891,27 +945,15 @@ export type Database = {
         }
         Returns: string
       }
-      can_record_attendance: {
-        Args: { p_classroom_id: string }
-        Returns: boolean
-      }
-      can_write_daily_report: {
-        Args: { p_classroom_teacher_id: string }
-        Returns: boolean
-      }
-      daily_report_for_attendance: {
-        Args: { p_child_id: string; p_classroom_id: string; p_report_date: string }
-        Returns: {
-          id: string
-          submitted_at: string | null
-          mood_arrival: string | null
-          mood_studying: string | null
-          mood_departure: string | null
-          teacher_note: string | null
-          teacher_full_name: string | null
-          teacher_call_name: string | null
-        }[]
-      }
+      can_record_attendance:
+        | { Args: { p_classroom_id: string }; Returns: boolean }
+        | { Args: { p_classroom_id: string; p_date: string }; Returns: boolean }
+      can_write_daily_report:
+        | { Args: { p_classroom_teacher_id: string }; Returns: boolean }
+        | {
+            Args: { p_classroom_teacher_id: string; p_report_date: string }
+            Returns: boolean
+          }
       clock_in_classroom_teacher: {
         Args: { p_classroom_teacher_id: string }
         Returns: string
@@ -931,12 +973,40 @@ export type Database = {
         Args: { p_children: Json; p_family_id: string }
         Returns: Json
       }
-      delete_classroom_teacher_assignment: {
-        Args: { p_classroom_teacher_id: string }
-        Returns: undefined
+      daily_report_for_attendance: {
+        Args: {
+          p_child_id: string
+          p_classroom_id: string
+          p_report_date: string
+        }
+        Returns: {
+          id: string
+          mood_arrival: string
+          mood_departure: string
+          mood_studying: string
+          submitted_at: string
+          teacher_call_name: string
+          teacher_full_name: string
+          teacher_note: string
+        }[]
+      }
+      declare_substitution: {
+        Args: { p_classroom_teacher_id: string; p_reason?: string }
+        Returns: string
+      }
+      default_counts_for_pay: {
+        Args: {
+          p_classroom_teacher_id: string
+          p_substitute_teacher_id: string
+        }
+        Returns: boolean
       }
       delete_child_attendance: {
         Args: { p_attendance_id: string }
+        Returns: undefined
+      }
+      delete_classroom_teacher_assignment: {
+        Args: { p_classroom_teacher_id: string }
         Returns: undefined
       }
       delete_learning_period: {
@@ -944,7 +1014,11 @@ export type Database = {
         Returns: string
       }
       enroll_child_in_classroom: {
-        Args: { p_child_id: string; p_classroom_teacher_id: string; p_started_at?: string }
+        Args: {
+          p_child_id: string
+          p_classroom_teacher_id: string
+          p_started_at?: string
+        }
         Returns: undefined
       }
       family_active_classroom_ids: {
@@ -961,6 +1035,14 @@ export type Database = {
         Returns: string[]
       }
       generate_registration_reference_code: { Args: never; Returns: string }
+      is_substitute_for: {
+        Args: { p_classroom_teacher_id: string; p_date: string }
+        Returns: boolean
+      }
+      is_substitute_for_classroom: {
+        Args: { p_classroom_id: string; p_date: string }
+        Returns: boolean
+      }
       list_active_programs: {
         Args: never
         Returns: {
@@ -1030,6 +1112,32 @@ export type Database = {
         Returns: string
       }
       submit_daily_report: { Args: { p_report_id: string }; Returns: string }
+      substitutable_classes: {
+        Args: never
+        Returns: {
+          classroom_id: string
+          classroom_teacher_id: string
+          covered_by_me: boolean
+          covered_by_other: boolean
+          label: string
+          student_count: number
+          teacher_call_name: string
+          teacher_clocked_in: boolean
+          teacher_full_name: string
+          teacher_id: string
+          time_end: string
+          time_start: string
+        }[]
+      }
+      substituted_child_ids: { Args: { p_auth_uid: string }; Returns: string[] }
+      substituted_classroom_ids: {
+        Args: { p_auth_uid: string }
+        Returns: string[]
+      }
+      substituted_classroom_teacher_ids: {
+        Args: { p_auth_uid: string }
+        Returns: string[]
+      }
       switch_classroom: {
         Args: {
           p_child_id: string
@@ -1053,7 +1161,15 @@ export type Database = {
         Returns: string[]
       }
       unenroll_child: {
-        Args: { p_child_id: string; p_classroom_teacher_id: string; p_end_reason?: string }
+        Args: {
+          p_child_id: string
+          p_classroom_teacher_id: string
+          p_end_reason?: string
+        }
+        Returns: undefined
+      }
+      withdraw_substitution: {
+        Args: { p_classroom_teacher_id: string }
         Returns: undefined
       }
     }
@@ -1074,12 +1190,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1103,11 +1219,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1128,11 +1244,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1153,11 +1269,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1170,11 +1286,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

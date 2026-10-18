@@ -25,6 +25,7 @@ import { RegistrationDetailPage } from './portals/admin/registrations/Registrati
 import { TeacherLayout } from './portals/teacher/TeacherLayout'
 import { TeacherRosterPage } from './portals/teacher/TeacherRosterPage'
 import { DailyReportPage } from './portals/teacher/DailyReportPage'
+import { SubstituteClassPage } from './portals/teacher/SubstituteClassPage'
 import { TeacherPeriodDetailPage } from './portals/teacher/TeacherPeriodDetailPage'
 import { MyAttendancePage } from './portals/teacher/MyAttendancePage'
 import { ParentLayout } from './portals/parent/ParentLayout'
@@ -72,6 +73,7 @@ export default function App() {
               <Route index element={<TeacherRosterPage />} />
               <Route path="my-attendance" element={<MyAttendancePage />} />
               <Route path="daily-report" element={<DailyReportPage />} />
+              <Route path="substitute" element={<SubstituteClassPage />} />
               <Route path="periods/:periodId" element={<TeacherPeriodDetailPage />} />
               <Route path="manage-account" element={<ManageAccountPage />} />
             </Route>
