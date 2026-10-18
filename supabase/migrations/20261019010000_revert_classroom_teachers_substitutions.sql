@@ -1,88 +1,25 @@
--- The two authorisation gates become date-aware, so a substitute can write a day's absensi and
--- Catatan Guru for the group she covered — and only for that day.
+-- Reverts the guru pengganti feature (20261018010000, 20261018020000, 20261018030000,
+-- 20261018040000) in full, at the owner's request: the approach is being rethought from scratch,
+-- so the half-built foundation comes out rather than sitting in the schema unused.
 --
--- Both gates are extended as OVERLOADS rather than by changing the existing signatures, because
--- adding a parameter to a function is not something CREATE OR REPLACE can do (it would create an
--- overload anyway, leaving the old body in place) and because every one of the five callers
--- already receives the date it needs to pass. The existing bodies are reused verbatim via a call
--- to the 1-argument version, so the "admin, or a teacher assigned to this classroom/group" rule
--- stays defined in exactly one place.
+-- Nothing is lost. Before this ran, the live project held 0 rows in
+-- classroom_teachers_substitutions and 0 children_daily_reports with submitted_by set, so no
+-- coverage record and no attribution has ever existed in production. Reports, attendance and
+-- enrolments are untouched by this file — the feature never moved any of them, which was the point
+-- of keying coverage to its own table in the first place.
 --
--- The 1-argument gates are KEPT, because the 2-argument ones delegate to them: that is what keeps
--- "admin, or a teacher assigned to this classroom/group" written down once instead of twice.
--- Keeping them is safe on its own terms — they are pure boolean predicates that grant nothing by
--- being callable, and they are strictly stricter than the new ones.
+-- Order matters here:
+--   1. restore the six function bodies FIRST, so nothing still calls the objects dropped below;
+--   2. drop the policies that reference the predicates and set helpers;
+--   3. drop the table (its own policies and trigger go with it);
+--   4. drop the functions, then the index, then the column.
 --
--- The live database was checked before writing this (20260930010000's header records that
--- save_daily_report_mood once existed there with no file in this repo, so the repo is not evidence
--- of what exists):
---
---   SELECT p.oid::regprocedure FROM pg_proc p
---    WHERE p.prosrc ILIKE '%can_write_daily_report%'
---       OR p.prosrc ILIKE '%can_record_attendance%';
---
--- It returned exactly the five functions this migration recreates and nothing else, so there is no
--- unrecorded caller left behind on the old gate.
---
--- The five bodies below are otherwise copied unchanged from their live definitions
--- (20260803010000, 20261001010000, 20261001020000, 20260930010000); each changes exactly one
--- line, the gate call. Everything else still applies to a substitute: the child must have been
--- enrolled in the group on that date, a submitted report stays locked to non-admins, and the
--- enforce_child_present trigger from 20261001010000 still demands a 'present' attendance row for
--- the same classroom and date — which is why the teacher UI saves Kehadiran before the report,
--- and why a substitute needs the attendance gate as well as the report gate.
+-- Everything is guarded with IF EXISTS so this file is safe to re-run and safe on a database that
+-- never had the feature applied. The restored bodies below are byte-identical to their definitions
+-- in 20260803010000, 20261001010000, 20261001020000, 20260930010000 and 20261002010000.
 
 -- ---------------------------------------------------------------------------
--- The gates
--- ---------------------------------------------------------------------------
-
-CREATE OR REPLACE FUNCTION public.can_record_attendance(p_classroom_id uuid, p_date date)
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
-  SELECT public.can_record_attendance(p_classroom_id)
-      OR public.is_substitute_for_classroom(p_classroom_id, p_date);
-$$;
-
-COMMENT ON FUNCTION public.can_record_attendance(uuid, date) IS
-  'Whether the caller may record student attendance for this classroom on this date: admin, a '
-  'teacher assigned to the classroom (any date), or the substitute covering a group in it on that '
-  'date. The date-aware form — prefer it over the 1-argument version, which is deprecated.';
-
-CREATE OR REPLACE FUNCTION public.can_write_daily_report(p_classroom_teacher_id uuid, p_report_date date)
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
-  SELECT public.can_write_daily_report(p_classroom_teacher_id)
-      OR public.is_substitute_for(p_classroom_teacher_id, p_report_date);
-$$;
-
-COMMENT ON FUNCTION public.can_write_daily_report(uuid, date) IS
-  'Whether the caller may write this group''s daily report for this date: admin, the group''s own '
-  'teacher (any date), or the substitute covering that group on that date. The date-aware form — '
-  'prefer it over the 1-argument version, which is deprecated.';
-
-GRANT EXECUTE ON FUNCTION public.can_record_attendance(uuid, date) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.can_write_daily_report(uuid, date) TO authenticated, service_role;
-
-COMMENT ON FUNCTION public.can_record_attendance(uuid) IS
-  'The assignment-only half of the rule: admin, or a teacher assigned to this classroom. Callers '
-  'should use can_record_attendance(uuid, date), which adds the day''s substitute and delegates '
-  'here for this part.';
-
-COMMENT ON FUNCTION public.can_write_daily_report(uuid) IS
-  'The assignment-only half of the rule: admin, or this group''s own teacher. Callers should use '
-  'can_write_daily_report(uuid, date), which adds the day''s substitute and delegates here for '
-  'this part.';
-
--- ---------------------------------------------------------------------------
--- The five callers
+-- 1. Restore the callers to the 1-argument gates
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.record_attendance(
@@ -103,7 +40,7 @@ DECLARE
   v_guaranteed smallint;
   v_consumed int;
 BEGIN
-  IF NOT public.can_record_attendance(p_classroom_id, p_date) THEN
+  IF NOT public.can_record_attendance(p_classroom_id) THEN
     RAISE EXCEPTION 'Not authorised to record attendance for this classroom';
   END IF;
 
@@ -196,7 +133,7 @@ DECLARE
   v_submitted_at timestamptz;
   v_is_admin boolean := (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin';
 BEGIN
-  IF NOT public.can_write_daily_report(p_classroom_teacher_id, p_report_date) THEN
+  IF NOT public.can_write_daily_report(p_classroom_teacher_id) THEN
     RAISE EXCEPTION 'Not authorised to write reports for this class';
   END IF;
 
@@ -267,7 +204,7 @@ DECLARE
   v_submitted_at timestamptz;
   v_is_admin boolean := (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin';
 BEGIN
-  IF NOT public.can_write_daily_report(p_classroom_teacher_id, p_report_date) THEN
+  IF NOT public.can_write_daily_report(p_classroom_teacher_id) THEN
     RAISE EXCEPTION 'Not authorised to write reports for this class';
   END IF;
 
@@ -322,7 +259,7 @@ DECLARE
   v_submitted_at timestamptz;
   v_is_admin boolean := (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin';
 BEGIN
-  IF NOT public.can_write_daily_report(p_classroom_teacher_id, p_report_date) THEN
+  IF NOT public.can_write_daily_report(p_classroom_teacher_id) THEN
     RAISE EXCEPTION 'Not authorised to write reports for this class';
   END IF;
 
@@ -389,8 +326,7 @@ BEGIN
 END;
 $$;
 
--- submit_daily_report resolves the group from the report row, so it has to read report_date out of
--- the same SELECT in order to have a date to authorise against.
+-- Back to the 20260930010000 body: no report_date lookup, and no submitted_by stamp.
 CREATE OR REPLACE FUNCTION public.submit_daily_report(p_report_id uuid)
 RETURNS timestamptz
 LANGUAGE plpgsql
@@ -399,11 +335,10 @@ SET search_path = public
 AS $$
 DECLARE
   v_classroom_teacher_id uuid;
-  v_report_date date;
   v_submitted_at timestamptz;
 BEGIN
-  SELECT classroom_teacher_id, report_date, submitted_at
-    INTO v_classroom_teacher_id, v_report_date, v_submitted_at
+  SELECT classroom_teacher_id, submitted_at
+    INTO v_classroom_teacher_id, v_submitted_at
     FROM public.children_daily_reports
     WHERE id = p_report_id;
 
@@ -411,7 +346,7 @@ BEGIN
     RAISE EXCEPTION 'Report not found';
   END IF;
 
-  IF NOT public.can_write_daily_report(v_classroom_teacher_id, v_report_date) THEN
+  IF NOT public.can_write_daily_report(v_classroom_teacher_id) THEN
     RAISE EXCEPTION 'Not authorised to submit reports for this class';
   END IF;
 
@@ -427,3 +362,117 @@ BEGIN
   RETURN v_submitted_at;
 END;
 $$;
+
+-- Back to the 20261002010000 body: the author is the group's assigned teacher again, and the
+-- access clause has no substitute branch.
+CREATE OR REPLACE FUNCTION public.daily_report_for_attendance(
+  p_child_id uuid,
+  p_classroom_id uuid,
+  p_report_date date
+)
+RETURNS TABLE (
+  id uuid,
+  submitted_at timestamptz,
+  mood_arrival text,
+  mood_studying text,
+  mood_departure text,
+  teacher_note text,
+  teacher_full_name text,
+  teacher_call_name text
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT
+    r.id,
+    r.submitted_at,
+    r.mood_arrival,
+    r.mood_studying,
+    r.mood_departure,
+    r.teacher_note,
+    t.full_name,
+    t.call_name
+  FROM public.children_daily_reports r
+  JOIN public.classroom_teachers ct ON ct.id = r.classroom_teacher_id
+  -- LEFT: a deleted teacher must not take the report down with them.
+  LEFT JOIN public.teachers t ON t.id = ct.teacher_id
+  WHERE r.child_id = p_child_id
+    AND ct.classroom_id = p_classroom_id
+    AND r.report_date = p_report_date
+    AND (
+      (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+      OR r.classroom_teacher_id IN (SELECT public.teacher_classroom_teacher_ids(auth.uid()))
+      OR (
+        r.submitted_at IS NOT NULL
+        AND r.child_id IN (SELECT public.family_children_ids(auth.uid()))
+      )
+    )
+  -- At most one row in practice (one report per child per group per day). Ordered and capped
+  -- anyway so a child moved between two groups of the same classroom mid-day cannot make the
+  -- caller choose arbitrarily — the sent one wins over a draft.
+  ORDER BY r.submitted_at DESC NULLS LAST, r.id
+  LIMIT 1;
+$$;
+
+COMMENT ON FUNCTION public.daily_report_for_attendance(uuid, uuid, date) IS
+  'The daily report belonging to one attendance day (child + classroom + date), joined through '
+  'classroom_teachers. SECURITY DEFINER with its own access clause mirroring '
+  'children_daily_reports'' RLS: admin sees all, a teacher their own groups, a parent their own '
+  'children and only once submitted. Exists because a parent cannot read either side of that '
+  'join — classroom_teachers only while the enrolment is current, teachers not at all.';
+
+-- ---------------------------------------------------------------------------
+-- 2. The substitute read policies on existing tables
+-- ---------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS teacher_select_substituted_child_attendances ON public.child_attendances;
+DROP POLICY IF EXISTS teacher_select_substituted_daily_reports ON public.children_daily_reports;
+DROP POLICY IF EXISTS teacher_select_substituted_classroom_teachers ON public.classroom_teachers;
+DROP POLICY IF EXISTS teacher_select_substituted_classrooms ON public.classrooms;
+DROP POLICY IF EXISTS teacher_select_substituted_children_classrooms ON public.children_classrooms;
+DROP POLICY IF EXISTS teacher_select_substituted_children ON public.children;
+DROP POLICY IF EXISTS teacher_select_substituted_learning_periods ON public.learning_periods;
+
+-- ---------------------------------------------------------------------------
+-- 3. The table, with its own policies and trigger
+-- ---------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS public.classroom_teachers_substitutions CASCADE;
+
+-- ---------------------------------------------------------------------------
+-- 4. Functions, index, column
+-- ---------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS public.declare_substitution(uuid, text);
+DROP FUNCTION IF EXISTS public.assign_substitution(uuid, uuid, date, boolean, text);
+DROP FUNCTION IF EXISTS public.cancel_substitution(uuid);
+DROP FUNCTION IF EXISTS public.substitutable_groups_today();
+DROP FUNCTION IF EXISTS public.my_teaching_groups_for_date(date);
+DROP FUNCTION IF EXISTS public.default_counts_for_pay(uuid, uuid);
+
+DROP FUNCTION IF EXISTS public.can_record_attendance(uuid, date);
+DROP FUNCTION IF EXISTS public.can_write_daily_report(uuid, date);
+
+DROP FUNCTION IF EXISTS public.substituted_child_ids(uuid);
+DROP FUNCTION IF EXISTS public.substituted_classroom_ids(uuid);
+DROP FUNCTION IF EXISTS public.substituted_classroom_teacher_ids(uuid);
+DROP FUNCTION IF EXISTS public.is_substitute_for_classroom(uuid, date);
+DROP FUNCTION IF EXISTS public.is_substitute_for(uuid, date);
+
+DROP FUNCTION IF EXISTS public.reject_self_substitution();
+
+-- Added by 20261018010000 purely for the substitute predicates. It also speeds up the three
+-- pre-existing teacher_* helpers, which all join teachers on auth_user_id, so if it is ever wanted
+-- back it should be added deliberately on its own merits rather than as a leftover.
+DROP INDEX IF EXISTS public.teachers_auth_user_id_idx;
+
+-- Safe: 0 rows had a value, and neither submit_daily_report nor daily_report_for_attendance
+-- references it any more after the restores above.
+ALTER TABLE public.children_daily_reports DROP COLUMN IF EXISTS submitted_by;
+
+-- Restore the 1-argument gates' own comments, which 20261018020000 rewrote to point at the
+-- 2-argument forms that no longer exist.
+COMMENT ON FUNCTION public.can_record_attendance(uuid) IS NULL;
+COMMENT ON FUNCTION public.can_write_daily_report(uuid) IS NULL;

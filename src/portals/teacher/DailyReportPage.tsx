@@ -16,11 +16,8 @@ import {
 } from '@mui/material'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
+import { supabase } from '../../lib/supabase'
 import { todayIsoDateInWita } from '../../lib/classStatus'
-import { SUBSTITUTE_TEACHER_ENABLED } from '../../lib/featureFlags'
-import { fetchTeachingGroupsForDate } from '../../lib/substitutions'
-import { teachingGroupLabel } from '../../lib/substitutionRules'
-import type { TeachingGroup } from '../../types/substitution'
 import {
   fetchClassRoster,
   fetchCurriculumItems,
@@ -34,13 +31,19 @@ import type { DailyReport } from '../../types/dailyReport'
 import { formatDate } from '../../lib/formatDate'
 import { DailyReportStudentDialog } from './DailyReportStudentDialog'
 
+type ClassOption = {
+  classroomTeacherId: string
+  /** The billed program. Attendance and learning periods key off this, not the group. */
+  classroomId: string
+  label: string
+  timeStart: string
+  timeEnd: string | null
+}
+
 /**
  * Everything the teacher fills in right after class: the roster summarises each child's day at
  * a glance, and tapping one opens their sheet, where attendance is set first and the report
  * second — the report only applies to a child who was actually present.
- *
- * The class list is per-date rather than loaded once, because a class she is covering as guru
- * pengganti belongs to one day only.
  */
 export function DailyReportPage() {
   const { user } = useAuth()
@@ -50,7 +53,7 @@ export function DailyReportPage() {
   const focusClassroomTeacherId = (location.state as { classroomTeacherId?: string } | null)
     ?.classroomTeacherId
 
-  const [classes, setClasses] = useState<TeachingGroup[]>([])
+  const [classes, setClasses] = useState<ClassOption[]>([])
   const [classroomTeacherId, setClassroomTeacherId] = useState('')
   const [reportDate, setReportDate] = useState(() => todayIsoDateInWita())
 
@@ -68,21 +71,22 @@ export function DailyReportPage() {
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Re-runs on reportDate: coverage is granted for a single day, so which classes this teacher is
-  // responsible for genuinely depends on the date picked.
   useEffect(() => {
     if (!teacher) return
     let cancelled = false
 
     void (async () => {
-      const [groupsResult, catalogResult] = await Promise.all([
-        fetchTeachingGroupsForDate(reportDate),
+      const [{ data: groupRows, error: gError }, catalogResult] = await Promise.all([
+        supabase
+          .from('classroom_teachers')
+          .select('id, classroom_id, classrooms(label, time_start, time_end)')
+          .eq('teacher_id', teacher.id),
         fetchCurriculumItems(),
       ])
       if (cancelled) return
 
-      if (!groupsResult.ok) {
-        setError(groupsResult.error)
+      if (gError) {
+        setError(gError.message)
         setLoading(false)
         return
       }
@@ -92,30 +96,39 @@ export function DailyReportPage() {
         return
       }
 
-      const options = SUBSTITUTE_TEACHER_ENABLED
-        ? groupsResult.data
-        : groupsResult.data.filter((option) => !option.isSubstitute)
+      const options: ClassOption[] = []
+      for (const row of groupRows ?? []) {
+        const classroom = row.classrooms as unknown as {
+          label: string
+          time_start: string
+          time_end: string | null
+        } | null
+        if (!classroom) continue
+        options.push({
+          classroomTeacherId: row.id,
+          classroomId: row.classroom_id,
+          label: classroom.label,
+          timeStart: classroom.time_start,
+          timeEnd: classroom.time_end,
+        })
+      }
+      options.sort((a, b) => a.label.localeCompare(b.label))
 
       setClasses(options)
       setCatalog(catalogResult.data)
       // Honour the class handed over from Kelas Saya, but only if this teacher really holds
       // it — a stale or hand-typed navigation state must not select a class they cannot see.
-      //
-      // The keep-current branch is also what stops a date change from silently leaving a class
-      // selected that is no longer in the list: a group covered on Tuesday is absent from
-      // Wednesday's options, and holding its id would load an empty roster with no explanation.
       const requested = options.find((o) => o.classroomTeacherId === focusClassroomTeacherId)
-      setClassroomTeacherId((current) => {
-        if (current && options.some((o) => o.classroomTeacherId === current)) return current
-        return requested?.classroomTeacherId || options[0]?.classroomTeacherId || ''
-      })
+      setClassroomTeacherId(
+        (current) => current || requested?.classroomTeacherId || options[0]?.classroomTeacherId || '',
+      )
       setLoading(false)
     })()
 
     return () => {
       cancelled = true
     }
-  }, [teacher, reportDate, focusClassroomTeacherId])
+  }, [teacher])
 
   const selectedClass = classes.find((c) => c.classroomTeacherId === classroomTeacherId)
   const classroomId = selectedClass?.classroomId ?? ''
@@ -201,7 +214,8 @@ export function DailyReportPage() {
           >
             {classes.map((option) => (
               <MenuItem key={option.classroomTeacherId} value={option.classroomTeacherId}>
-                {teachingGroupLabel(option)}
+                {option.label} · {option.timeStart.slice(0, 5)}
+                {option.timeEnd ? `–${option.timeEnd.slice(0, 5)}` : ''}
               </MenuItem>
             ))}
           </TextField>
@@ -219,16 +233,6 @@ export function DailyReportPage() {
           Hari libur atau kelas batal: cukup jangan isi absensi. Kuota tidak terpotong.
         </Typography>
       </Paper>
-
-      {/* Says out loud that this is someone else's class and that her name goes on the report —
-          she is about to write something a parent will read and attribute to her. */}
-      {selectedClass?.isSubstitute ? (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Anda mengisi kelas ini sebagai guru pengganti
-          {selectedClass.assignedTeacherName ? ` ${selectedClass.assignedTeacherName}` : ''} untuk{' '}
-          {formatDate(reportDate)}. Nama Anda yang akan tampil di laporan orang tua.
-        </Alert>
-      ) : null}
 
       {classes.length === 0 ? (
         <Typography color="text.secondary">Belum ada kelas yang ditetapkan.</Typography>
