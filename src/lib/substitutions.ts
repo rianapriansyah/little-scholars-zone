@@ -31,7 +31,7 @@ export async function fetchSubstitutableClasses(
       ? teacherDisplayName({ full_name: row.teacher_full_name, call_name: row.teacher_call_name ?? null })
       : '—',
     coveredByMe: row.covered_by_me,
-    coveredByOther: row.covered_by_other,
+    otherSubstituteCount: row.other_substitute_count,
     teacherClockedIn: row.teacher_clocked_in,
     studentCount: row.student_count,
   }))

@@ -337,7 +337,18 @@ export function SubstituteClassPage() {
 
         {active ? (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
-            Nama Anda yang akan tampil di laporan orang tua untuk {formatDate(reportDate)}.
+            Nama Anda yang akan tampil di laporan orang tua untuk setiap siswa yang Anda isi pada{' '}
+            {formatDate(reportDate)}.
+          </Typography>
+        ) : null}
+
+        {/* Several teachers sharing one absent colleague's children is the normal case, so this
+            says who else is in rather than standing in the way. Each of them fills the students
+            she actually taught, and each is credited for those. */}
+        {selected && selected.otherSubstituteCount > 0 ? (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Kelas ini juga digantikan {selected.otherSubstituteCount} guru lain. Isi siswa yang Anda
+            ajar saja — guru lain mengisi bagiannya sendiri.
           </Typography>
         ) : null}
       </Paper>

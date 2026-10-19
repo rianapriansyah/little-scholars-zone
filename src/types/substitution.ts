@@ -21,10 +21,14 @@ export type SubstitutableClass = {
   teacherId: string
   /** The absent teacher, already run through teacherDisplayName. */
   teacherName: string
-  /** She already declared this one today — the screen jumps straight to the students. */
+  /** She already declared this one for that date — the screen jumps straight to the students. */
   coveredByMe: boolean
-  /** Someone else got there first. */
-  coveredByOther: boolean
+  /**
+   * How many OTHER teachers are also covering this group that day. Not a blocker: an absent
+   * teacher's children are split between whoever is left, so several substitutes on one group is
+   * the normal case. Shown so a teacher knows she is not the only one in.
+   */
+  otherSubstituteCount: number
   /** The group's own teacher has clocked in, so this is not a coverage situation. */
   teacherClockedIn: boolean
   studentCount: number

@@ -11,10 +11,9 @@ import type { SubstitutableClass, SubstitutableClassroom } from '../types/substi
  */
 
 /** Why a group cannot be covered, or null when it can. One reason, in the order a teacher would ask. */
-export type SubstituteBlockReason = 'covered_by_other' | 'teacher_present' | 'overlaps_own_class'
+export type SubstituteBlockReason = 'teacher_present' | 'overlaps_own_class'
 
 export const SUBSTITUTE_BLOCK_LABELS: Record<SubstituteBlockReason, string> = {
-  covered_by_other: 'Sudah digantikan guru lain',
   teacher_present: 'Guru kelas ini sudah absen masuk',
   overlaps_own_class: 'Bentrok dengan jadwal Anda',
 }
@@ -77,17 +76,20 @@ export function timeRangesOverlap(
 
 /**
  * Why this group is not coverable, or null if it is. `ownSchedules` is everything she already
- * holds today — her own classes, and any coverage already taken — so one check catches both.
+ * holds that day — her own classes, and any coverage already taken — so one check catches both.
  *
  * Her own coverage of this very group is not a block: that is the "already declared" case, and the
  * screen takes her straight to the students instead.
+ *
+ * Another teacher covering the same group is not a block either. An absent teacher's children are
+ * distributed among those who are left, so two or three substitutes on one group is the ordinary
+ * case — otherSubstituteCount is shown to the teacher, not used to stop her.
  */
 export function substituteBlockReason(
   entry: SubstitutableClass,
   ownSchedules: { classroomId: string; timeStart: string; timeEnd: string | null }[],
 ): SubstituteBlockReason | null {
   if (entry.coveredByMe) return null
-  if (entry.coveredByOther) return 'covered_by_other'
   if (entry.teacherClockedIn) return 'teacher_present'
 
   const clashes = ownSchedules.some(

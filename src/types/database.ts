@@ -1122,8 +1122,8 @@ export type Database = {
           classroom_id: string
           classroom_teacher_id: string
           covered_by_me: boolean
-          covered_by_other: boolean
           label: string
+          other_substitute_count: number
           student_count: number
           teacher_call_name: string
           teacher_clocked_in: boolean

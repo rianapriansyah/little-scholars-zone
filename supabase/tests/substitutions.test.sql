@@ -23,7 +23,7 @@
 --     deterministic: that RPC reads today's WITA date itself and applies the Mon–Fri and
 --     "an hour before the class starts" rules, neither of which a fixed fixture date can satisfy on
 --     every day this suite might run. A flexi classroom skips both by design, leaving the rules the
---     script actually wants to pin: takeover, self-substitution and the clocked-in guard.
+--     script actually wants to pin: sharing a group, self-substitution and the clocked-in guard.
 
 BEGIN;
 
@@ -198,7 +198,7 @@ BEGIN
     SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000020'
       AND teacher_full_name = 'Sub Test Teacher A'
-      AND NOT covered_by_me AND NOT covered_by_other AND NOT teacher_clocked_in
+      AND NOT covered_by_me AND other_substitute_count = 0 AND NOT teacher_clocked_in
   ) THEN
     RAISE EXCEPTION 'FAIL: the offered group should name A and be flagged as uncovered';
   END IF;
@@ -258,7 +258,18 @@ BEGIN
     RAISE NOTICE 'PASS: self-substitution is refused';
   END;
 
-  -- One substitute per group per day.
+  -- A second substitute on the same group and day is allowed: the absent teacher's children are
+  -- distributed among those who are left, so each of them gets a row.
+  INSERT INTO public.classroom_teachers_substitutions (
+    classroom_teacher_id, substitute_teacher_id, session_date, counts_for_pay, created_by_role
+  ) VALUES (
+    '00000000-0000-4000-9000-000000000020',
+    '00000000-0000-4000-9000-000000000014',
+    '2026-08-03', true, 'admin'
+  );
+  RAISE NOTICE 'PASS: a group can have several substitutes on one day';
+
+  -- But the SAME teacher twice on the same group and day still cannot.
   BEGIN
     INSERT INTO public.classroom_teachers_substitutions (
       classroom_teacher_id, substitute_teacher_id, session_date, counts_for_pay, created_by_role
@@ -267,11 +278,18 @@ BEGIN
       '00000000-0000-4000-9000-000000000014',
       '2026-08-03', true, 'admin'
     );
-    RAISE EXCEPTION 'FAIL: two substitutes must not cover one group on one day';
+    RAISE EXCEPTION 'FAIL: one teacher must not have two rows for the same group and day';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
-    RAISE NOTICE 'PASS: one substitute per group per day';
+    RAISE NOTICE 'PASS: one row per teacher per group per day';
   END;
+
+  -- Clean up so the later date-scoping checks still measure what they mean to: C is used below as
+  -- the teacher with no access to this classroom.
+  DELETE FROM public.classroom_teachers_substitutions
+  WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000020'
+    AND substitute_teacher_id = '00000000-0000-4000-9000-000000000014'
+    AND session_date = '2026-08-03';
 END $$;
 
 RESET ROLE;
@@ -594,31 +612,53 @@ END $$;
 RESET ROLE;
 SET LOCAL request.jwt.claims = '';
 
--- C cannot take the class off B.
+-- C joins the same group: an absent teacher's children are split between whoever is left, so a
+-- second substitute is the ordinary case rather than a takeover.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000004","role":"authenticated","app_metadata":{"role":"teacher"}}';
 
 DO $$
 DECLARE
   v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
+  v_id uuid;
+  v_rows int;
 BEGIN
-  BEGIN
-    PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000023', v_date, NULL);
-    RAISE EXCEPTION 'FAIL: a second teacher must not take over existing coverage';
-  EXCEPTION WHEN OTHERS THEN
-    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
-    RAISE NOTICE 'PASS: coverage cannot be taken over by another teacher';
-  END;
+  v_id := public.declare_substitution('00000000-0000-4000-9000-000000000023', v_date, NULL);
+  IF v_id IS NULL THEN
+    RAISE EXCEPTION 'FAIL: a second teacher should be able to help cover the same group';
+  END IF;
+  RAISE NOTICE 'PASS: several teachers can cover one group on the same day';
 
-  -- And she sees it as taken, not as free.
+  -- C can only SELECT her own coverage row, so a raw count here would read 1 whether B's row
+  -- survived or not. other_substitute_count below is the assertion that actually proves it: it
+  -- comes from a SECURITY DEFINER function that can see every substitute on the group.
+  SELECT count(*) INTO v_rows FROM public.classroom_teachers_substitutions
+    WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023' AND session_date = v_date;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'FAIL: C should see exactly her own coverage row, got %', v_rows;
+  END IF;
+
+  -- C sees it as hers, and sees that one other teacher (B) is in too.
   IF NOT EXISTS (
     SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023'
-      AND covered_by_other AND NOT covered_by_me
+      AND covered_by_me AND other_substitute_count = 1
   ) THEN
-    RAISE EXCEPTION 'FAIL: C should see that group flagged covered_by_other';
+    RAISE EXCEPTION 'FAIL: C should see the group as hers with one other substitute';
   END IF;
-  RAISE NOTICE 'PASS: another teacher sees the group as already covered';
+  RAISE NOTICE 'PASS: the picker counts the other substitutes instead of blocking';
+
+  -- And she can write the children she took, same as B can write hers.
+  IF NOT public.can_write_daily_report('00000000-0000-4000-9000-000000000023', v_date) THEN
+    RAISE EXCEPTION 'FAIL: the second substitute should be able to write that day';
+  END IF;
+  RAISE NOTICE 'PASS: both substitutes can write the covered day';
+
+  -- Declaring again is still idempotent for her.
+  IF public.declare_substitution('00000000-0000-4000-9000-000000000023', v_date, NULL) <> v_id THEN
+    RAISE EXCEPTION 'FAIL: re-declaring must return C''s own existing record';
+  END IF;
+  RAISE NOTICE 'PASS: re-declaring is idempotent per teacher';
 END $$;
 
 RESET ROLE;
@@ -667,7 +707,8 @@ DO $$
 DECLARE
   v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
 BEGIN
-  -- C does not hold this coverage, so there is nothing of hers to withdraw and B's record stands.
+  -- C withdraws her own share. B helped cover the same group that day, and B's row must survive:
+  -- one teacher stepping back says nothing about the other.
   -- Verified below as admin: C cannot SELECT B's coverage row at all, so counting it from here
   -- would read 0 whether the delete happened or not.
   PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000023', v_date);
@@ -686,9 +727,9 @@ BEGIN
   SELECT count(*) INTO v_rows FROM public.classroom_teachers_substitutions
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023';
   IF v_rows <> 1 THEN
-    RAISE EXCEPTION 'FAIL: C must not be able to withdraw B''s coverage, % rows left', v_rows;
+    RAISE EXCEPTION 'FAIL: withdrawing C''s share must leave B''s row, % rows left', v_rows;
   END IF;
-  RAISE NOTICE 'PASS: a teacher cannot withdraw someone else''s coverage';
+  RAISE NOTICE 'PASS: a teacher withdraws only her own share, leaving the other substitute';
 END $$;
 
 RESET ROLE;

@@ -18,7 +18,7 @@ function entry(overrides: Partial<SubstitutableClass> = {}): SubstitutableClass 
     teacherId: 't-1',
     teacherName: 'Bu Rina',
     coveredByMe: false,
-    coveredByOther: false,
+    otherSubstituteCount: 0,
     teacherClockedIn: false,
     studentCount: 6,
     ...overrides,
@@ -101,8 +101,10 @@ describe('substituteBlockReason', () => {
     expect(substituteBlockReason(entry(), [{ classroomId: 'c-9', timeStart: '13:00:00', timeEnd: '15:00:00' }])).toBeNull()
   })
 
-  it('blocks a group someone else already covers', () => {
-    expect(substituteBlockReason(entry({ coveredByOther: true }), [])).toBe('covered_by_other')
+  it('does not block a group another teacher is also covering', () => {
+    // The absent teacher's children are split between whoever is left, so a second and third
+    // substitute on one group is the ordinary case, not a takeover.
+    expect(substituteBlockReason(entry({ otherSubstituteCount: 2 }), [])).toBeNull()
   })
 
   it('blocks a group whose own teacher has clocked in', () => {
@@ -117,7 +119,7 @@ describe('substituteBlockReason', () => {
 
   it('never blocks the group she is already covering', () => {
     // She declared it earlier today; the screen takes her to the students, it does not grey it out.
-    const mine = entry({ coveredByMe: true, coveredByOther: true, teacherClockedIn: true })
+    const mine = entry({ coveredByMe: true, otherSubstituteCount: 1, teacherClockedIn: true })
     expect(substituteBlockReason(mine, [{ classroomId: 'c-9', timeStart: '09:00:00', timeEnd: '11:00:00' }])).toBeNull()
   })
 
@@ -135,11 +137,11 @@ describe('substituteBlockReason', () => {
     ).toBeNull()
   })
 
-  it('prefers the covered-by-other reason over a clash, as the more specific answer', () => {
-    const reason = substituteBlockReason(entry({ coveredByOther: true }), [
+  it('still blocks a clash even when others are covering that group', () => {
+    const reason = substituteBlockReason(entry({ otherSubstituteCount: 1 }), [
       { classroomId: 'c-9', timeStart: '09:00:00', timeEnd: '11:00:00' },
     ])
-    expect(reason).toBe('covered_by_other')
+    expect(reason).toBe('overlaps_own_class')
   })
 })
 
