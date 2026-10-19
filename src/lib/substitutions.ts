@@ -11,9 +11,11 @@ import type { SubstitutableClass } from '../types/substitution'
  * See 20261019030000_substitute_class_rpcs.sql.
  */
 
-/** Every group the signed-in teacher could cover today, with today's state on each. */
-export async function fetchSubstitutableClasses(): Promise<Result<SubstitutableClass[]>> {
-  const { data, error } = await supabase.rpc('substitutable_classes')
+/** Every group the signed-in teacher could cover on `sessionDate`, with that date's state on each. */
+export async function fetchSubstitutableClasses(
+  sessionDate: string,
+): Promise<Result<SubstitutableClass[]>> {
+  const { data, error } = await supabase.rpc('substitutable_classes', { p_session_date: sessionDate })
   if (error) return { ok: false, error: error.message }
 
   const classes: SubstitutableClass[] = (data ?? []).map((row) => ({
@@ -38,15 +40,17 @@ export async function fetchSubstitutableClasses(): Promise<Result<SubstitutableC
 }
 
 /**
- * Takes over a group for today. The date is the server's, not ours — declare_substitution has no
- * date parameter, so coverage can never be backdated from here.
+ * Takes over a group for one date. Any date up to today; the server refuses a future one, because
+ * attendance draws down a child's paid quota and a class nobody has taught cannot be billed.
  */
 export async function declareSubstitution(params: {
   classroomTeacherId: string
+  sessionDate: string
   reason?: string | null
 }): Promise<Result<string>> {
   const { data, error } = await supabase.rpc('declare_substitution', {
     p_classroom_teacher_id: params.classroomTeacherId,
+    p_session_date: params.sessionDate,
     p_reason: params.reason?.trim() || undefined,
   })
   if (error) return { ok: false, error: error.message }
@@ -54,12 +58,16 @@ export async function declareSubstitution(params: {
 }
 
 /**
- * Gives today's coverage back — the way out of picking the wrong class. Refused server-side once a
- * report for that day has been submitted.
+ * Gives one date's coverage back — the way out of picking the wrong class. Refused server-side once
+ * a report for that date has been submitted.
  */
-export async function withdrawSubstitution(classroomTeacherId: string): Promise<Result<void>> {
+export async function withdrawSubstitution(params: {
+  classroomTeacherId: string
+  sessionDate: string
+}): Promise<Result<void>> {
   const { error } = await supabase.rpc('withdraw_substitution', {
-    p_classroom_teacher_id: classroomTeacherId,
+    p_classroom_teacher_id: params.classroomTeacherId,
+    p_session_date: params.sessionDate,
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data: undefined }

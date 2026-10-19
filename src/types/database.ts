@@ -991,7 +991,11 @@ export type Database = {
         }[]
       }
       declare_substitution: {
-        Args: { p_classroom_teacher_id: string; p_reason?: string }
+        Args: {
+          p_classroom_teacher_id: string
+          p_reason?: string
+          p_session_date: string
+        }
         Returns: string
       }
       default_counts_for_pay: {
@@ -1113,7 +1117,7 @@ export type Database = {
       }
       submit_daily_report: { Args: { p_report_id: string }; Returns: string }
       substitutable_classes: {
-        Args: never
+        Args: { p_session_date: string }
         Returns: {
           classroom_id: string
           classroom_teacher_id: string
@@ -1169,7 +1173,7 @@ export type Database = {
         Returns: undefined
       }
       withdraw_substitution: {
-        Args: { p_classroom_teacher_id: string }
+        Args: { p_classroom_teacher_id: string; p_session_date: string }
         Returns: undefined
       }
     }

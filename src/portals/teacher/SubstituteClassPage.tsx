@@ -55,8 +55,9 @@ import { DailyReportStudentDialog } from './DailyReportStudentDialog'
  * unlocks the writes; only then are the students listed, because until the record exists the
  * server would refuse every save.
  *
- * Today only, deliberately: declare_substitution takes no date, so there is no date picker here.
- * A class covered yesterday is finished business — correcting it is an admin job.
+ * Any date up to today: a class covered on Friday with no time left to write it up can be caught
+ * up on Monday. Future dates are not offered — attendance draws down a child's paid quota, so a
+ * class nobody has taught cannot be recorded, and the server refuses one anyway.
  */
 export function SubstituteClassPage() {
   const { user } = useAuth()
@@ -85,13 +86,15 @@ export function SubstituteClassPage() {
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const reportDate = todayIsoDateInWita()
+  /** Today in WITA, not the browser's — the same clock the server judges the date against. */
+  const today = todayIsoDateInWita()
+  const [reportDate, setReportDate] = useState(today)
 
   const load = useCallback(async () => {
     if (!teacher) return
     setLoading(true)
     const [classesResult, schedulesResult, catalogResult] = await Promise.all([
-      fetchSubstitutableClasses(),
+      fetchSubstitutableClasses(reportDate),
       fetchOwnSchedules(teacher.id),
       fetchCurriculumItems(),
     ])
@@ -105,7 +108,7 @@ export function SubstituteClassPage() {
     setClasses(classesResult.data)
     setOwnSchedules(schedulesResult.data)
     setCatalog(catalogResult.data)
-  }, [teacher])
+  }, [teacher, reportDate])
 
   useEffect(() => {
     void load()
@@ -122,8 +125,8 @@ export function SubstituteClassPage() {
   /** Coverage already exists for this group today, so the students are hers to fill in. */
   const active = selected?.coveredByMe === true
 
-  // Changing either dropdown invalidates the student list and whichever sheet is open: they belong
-  // to the group that was selected, not to this one.
+  // Changing a dropdown or the date invalidates the student list and whichever sheet is open: they
+  // belong to the group and day that were selected, not to these.
   useEffect(() => {
     setRoster([])
     setEnrolledCount(0)
@@ -131,7 +134,21 @@ export function SubstituteClassPage() {
     setPeriods(new Map())
     setSelectedChild(null)
     setOpenReport(null)
-  }, [classroomTeacherId])
+  }, [classroomTeacherId, reportDate])
+
+  // A group offered on one date need not be offered on another — a class can be inactive, or have
+  // had nobody enrolled then. Clearing a selection that fell out of the list keeps the dropdowns
+  // from displaying a value the data no longer contains.
+  useEffect(() => {
+    if (classroomId && !classes.some((entry) => entry.classroomId === classroomId)) {
+      setClassroomId('')
+      setClassroomTeacherId('')
+      return
+    }
+    if (classroomTeacherId && !classes.some((entry) => entry.classroomTeacherId === classroomTeacherId)) {
+      setClassroomTeacherId('')
+    }
+  }, [classes, classroomId, classroomTeacherId])
 
   // Only once coverage exists. Before that the roster is not readable anyway — the RLS policies
   // key off the coverage record — so there would be nothing to show.
@@ -164,7 +181,10 @@ export function SubstituteClassPage() {
     if (!selected) return
     setDeclaring(true)
     setError(null)
-    const result = await declareSubstitution({ classroomTeacherId: selected.classroomTeacherId })
+    const result = await declareSubstitution({
+      classroomTeacherId: selected.classroomTeacherId,
+      sessionDate: reportDate,
+    })
     setDeclaring(false)
     if (!result.ok) {
       setError(result.error)
@@ -178,7 +198,10 @@ export function SubstituteClassPage() {
     if (!selected) return
     setDeclaring(true)
     setError(null)
-    const result = await withdrawSubstitution(selected.classroomTeacherId)
+    const result = await withdrawSubstitution({
+      classroomTeacherId: selected.classroomTeacherId,
+      sessionDate: reportDate,
+    })
     setDeclaring(false)
     if (!result.ok) {
       setError(result.error)
@@ -215,7 +238,7 @@ export function SubstituteClassPage() {
         Gantikan Kelas
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Untuk hari ini, {formatDate(reportDate)}.
+        Mengisi absensi dan Catatan Guru untuk kelas guru lain yang Anda gantikan.
       </Typography>
 
       {error ? (
@@ -270,6 +293,21 @@ export function SubstituteClassPage() {
           </TextField>
         </Box>
 
+        {/* Below the two dropdowns, because it re-reads both: which groups need cover, and who
+            already covers them, are facts about the chosen day. Capped at today — a class that has
+            not happened cannot have been covered, and the server refuses one. */}
+        <TextField
+          size="small"
+          label="Tanggal"
+          type="date"
+          value={reportDate}
+          onChange={(e) => setReportDate(e.target.value)}
+          fullWidth
+          sx={{ mt: 1.5 }}
+          slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }}
+          helperText={reportDate === today ? undefined : 'Mengisi kelas untuk tanggal sebelumnya.'}
+        />
+
         {selected ? (
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
             {active ? (
@@ -299,14 +337,14 @@ export function SubstituteClassPage() {
 
         {active ? (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
-            Nama Anda yang akan tampil di laporan orang tua untuk hari ini.
+            Nama Anda yang akan tampil di laporan orang tua untuk {formatDate(reportDate)}.
           </Typography>
         ) : null}
       </Paper>
 
       {classrooms.length === 0 ? (
         <Typography color="text.secondary">
-          Tidak ada kelas guru lain yang bisa digantikan hari ini.
+          Tidak ada kelas guru lain yang bisa digantikan pada {formatDate(reportDate)}.
         </Typography>
       ) : !selected ? (
         <Typography color="text.secondary">Pilih kelas dan guru yang Anda gantikan.</Typography>

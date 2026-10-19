@@ -166,13 +166,14 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000003","r
 
 DO $$
 DECLARE
+  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
   v_rows int;
   v_students int;
 BEGIN
   -- Asserted by inclusion and exclusion rather than by a total: the function answers "what could I
   -- cover" across the whole centre, so it necessarily also returns the project's real classes.
   IF NOT EXISTS (
-    SELECT 1 FROM public.substitutable_classes()
+    SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000020'
   ) THEN
     RAISE EXCEPTION 'FAIL: A''s group should be offered to B';
@@ -181,20 +182,20 @@ BEGIN
   -- C's group is in a classroom of its own with nobody enrolled: an empty assignment, not a class
   -- that needs covering.
   IF EXISTS (
-    SELECT 1 FROM public.substitutable_classes()
+    SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000022'
   ) THEN
     RAISE EXCEPTION 'FAIL: a group with no enrolled children must not be offered';
   END IF;
 
-  SELECT student_count INTO v_students FROM public.substitutable_classes()
+  SELECT student_count INTO v_students FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000020';
   IF v_students <> 1 THEN
     RAISE EXCEPTION 'FAIL: the offered group should report 1 enrolled child, got %', v_students;
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM public.substitutable_classes()
+    SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000020'
       AND teacher_full_name = 'Sub Test Teacher A'
       AND NOT covered_by_me AND NOT covered_by_other AND NOT teacher_clocked_in
@@ -204,7 +205,7 @@ BEGIN
 
   -- Her own group is never something she stands in for.
   IF EXISTS (
-    SELECT 1 FROM public.substitutable_classes()
+    SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000021'
   ) THEN
     RAISE EXCEPTION 'FAIL: B must not be offered her own group';
@@ -523,11 +524,14 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000003","r
 
 DO $$
 DECLARE
+  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
   v_id uuid;
   v_again uuid;
   v_counts boolean;
+  v_last_monday date;
+  v_past_id uuid;
 BEGIN
-  v_id := public.declare_substitution('00000000-0000-4000-9000-000000000023', 'A tidak hadir');
+  v_id := public.declare_substitution('00000000-0000-4000-9000-000000000023', v_date, 'A tidak hadir');
   IF v_id IS NULL THEN
     RAISE EXCEPTION 'FAIL: B should be able to declare coverage of A''s flexi group today';
   END IF;
@@ -540,7 +544,7 @@ BEGIN
   RAISE NOTICE 'PASS: a teacher can declare coverage for today, with the pay rule applied';
 
   -- A second tap of the button is harmless.
-  v_again := public.declare_substitution('00000000-0000-4000-9000-000000000023', NULL);
+  v_again := public.declare_substitution('00000000-0000-4000-9000-000000000023', v_date, NULL);
   IF v_again <> v_id THEN
     RAISE EXCEPTION 'FAIL: re-declaring must return the same record, got % then %', v_id, v_again;
   END IF;
@@ -548,12 +552,43 @@ BEGIN
 
   -- And it now shows as hers in the picker.
   IF NOT EXISTS (
-    SELECT 1 FROM public.substitutable_classes()
+    SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023' AND covered_by_me
   ) THEN
     RAISE EXCEPTION 'FAIL: the declared group should come back flagged covered_by_me';
   END IF;
   RAISE NOTICE 'PASS: the declared group is flagged as hers';
+
+  -- A day that has not happened cannot have been covered. This is the one hard limit on the date
+  -- selector, because attendance draws down a child's paid quota.
+  BEGIN
+    PERFORM public.declare_substitution(
+      '00000000-0000-4000-9000-000000000023', v_date + 1, NULL);
+    RAISE EXCEPTION 'FAIL: a future date must be refused';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    RAISE NOTICE 'PASS: coverage cannot be declared for a future date';
+  END;
+
+  -- The catch-up this change exists for: a real scheduled class (not flexi) on a past weekday, so
+  -- both the Mon–Fri rule and the skipped clock-in window are exercised. date_trunc gives last
+  -- week's Monday, which is always in the past and always a weekday whenever this runs.
+  v_last_monday := (date_trunc('week', v_date - 7))::date;
+  v_past_id := public.declare_substitution(
+    '00000000-0000-4000-9000-000000000020', v_last_monday, 'Lupa diisi hari itu');
+  IF v_past_id IS NULL THEN
+    RAISE EXCEPTION 'FAIL: B should be able to catch up a past weekday she covered';
+  END IF;
+  RAISE NOTICE 'PASS: coverage can be declared for a past weekday, window not applied';
+
+  -- And that past day is now writable, while a day she does not cover still is not.
+  IF NOT public.can_write_daily_report('00000000-0000-4000-9000-000000000020', v_last_monday) THEN
+    RAISE EXCEPTION 'FAIL: the caught-up day should be writable';
+  END IF;
+  IF public.can_write_daily_report('00000000-0000-4000-9000-000000000020', v_last_monday - 1) THEN
+    RAISE EXCEPTION 'FAIL: the day before it must not be writable';
+  END IF;
+  RAISE NOTICE 'PASS: the catch-up grants exactly that one day';
 END $$;
 
 RESET ROLE;
@@ -564,9 +599,11 @@ SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000004","role":"authenticated","app_metadata":{"role":"teacher"}}';
 
 DO $$
+DECLARE
+  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
 BEGIN
   BEGIN
-    PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000023', NULL);
+    PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000023', v_date, NULL);
     RAISE EXCEPTION 'FAIL: a second teacher must not take over existing coverage';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
@@ -575,7 +612,7 @@ BEGIN
 
   -- And she sees it as taken, not as free.
   IF NOT EXISTS (
-    SELECT 1 FROM public.substitutable_classes()
+    SELECT 1 FROM public.substitutable_classes(v_date)
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023'
       AND covered_by_other AND NOT covered_by_me
   ) THEN
@@ -595,9 +632,11 @@ SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000003","role":"authenticated","app_metadata":{"role":"teacher"}}';
 
 DO $$
+DECLARE
+  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
 BEGIN
   BEGIN
-    PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000024', NULL);
+    PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000024', v_date, NULL);
     RAISE EXCEPTION 'FAIL: a class whose teacher has clocked in must not be coverable';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
@@ -606,7 +645,7 @@ BEGIN
 
   -- She cannot cover her own group either.
   BEGIN
-    PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000021', NULL);
+    PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000021', v_date, NULL);
     RAISE EXCEPTION 'FAIL: a teacher must not declare coverage of her own group';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
@@ -625,11 +664,13 @@ SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000004","role":"authenticated","app_metadata":{"role":"teacher"}}';
 
 DO $$
+DECLARE
+  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
 BEGIN
   -- C does not hold this coverage, so there is nothing of hers to withdraw and B's record stands.
   -- Verified below as admin: C cannot SELECT B's coverage row at all, so counting it from here
   -- would read 0 whether the delete happened or not.
-  PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000023');
+  PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000023', v_date);
 END $$;
 
 RESET ROLE;
@@ -658,6 +699,7 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000003","r
 
 DO $$
 DECLARE
+  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
   v_rows int;
 BEGIN
   -- Visible to her beforehand, so the 0 below means "deleted" rather than "never readable".
@@ -667,7 +709,7 @@ BEGIN
     RAISE EXCEPTION 'FAIL: B should be able to see her own coverage before withdrawing it, got %', v_rows;
   END IF;
 
-  PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000023');
+  PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000023', v_date);
 
   SELECT count(*) INTO v_rows FROM public.classroom_teachers_substitutions
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023';
@@ -680,7 +722,7 @@ BEGIN
   -- back. (It is not today's date, so this also shows withdraw only ever touches today — the
   -- DELETE below finds nothing for it either way, and the submitted-report guard fires first.)
   BEGIN
-    PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000020');
+    PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000020', v_date);
     -- No submitted report for TODAY on that group, so this is allowed and removes nothing.
     RAISE NOTICE 'PASS: withdrawing a group with no coverage today is a harmless no-op';
   EXCEPTION WHEN OTHERS THEN
