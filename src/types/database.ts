@@ -980,6 +980,7 @@ export type Database = {
           p_report_date: string
         }
         Returns: {
+          author_is_admin: boolean
           id: string
           mood_arrival: string
           mood_departure: string

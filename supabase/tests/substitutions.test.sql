@@ -534,6 +534,68 @@ RESET ROLE;
 SET LOCAL request.jwt.claims = '';
 
 -- ---------------------------------------------------------------------------
+-- Tambah Absen: an admin fills a day nobody recorded, and is credited as Admin rather than as the
+-- class's teacher.
+-- ---------------------------------------------------------------------------
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}';
+
+DO $$
+DECLARE
+  v_report_id uuid;
+BEGIN
+  -- No coverage record is needed: an admin passes both write gates on the role alone.
+  PERFORM public.record_attendance(
+    '00000000-0000-4000-9000-000000000016',
+    '00000000-0000-4000-9000-000000000018',
+    '2026-08-06',
+    'present',
+    NULL
+  );
+
+  v_report_id := public.save_daily_report_teacher_note(
+    '00000000-0000-4000-9000-000000000016',
+    '00000000-0000-4000-9000-000000000020',
+    '2026-08-06',
+    'Diisi menyusul dari Detail Periode Belajar.'
+  );
+  PERFORM public.submit_daily_report(v_report_id);
+  RAISE NOTICE 'PASS: an admin can record a missed day and send its report';
+END $$;
+
+RESET ROLE;
+SET LOCAL request.jwt.claims = '';
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000005","role":"authenticated","app_metadata":{"role":"parent"}}';
+
+DO $$
+DECLARE
+  v_admin boolean;
+  v_name text;
+BEGIN
+  SELECT author_is_admin, teacher_full_name INTO v_admin, v_name
+    FROM public.daily_report_for_attendance(
+      '00000000-0000-4000-9000-000000000016',
+      '00000000-0000-4000-9000-000000000018',
+      '2026-08-06');
+
+  IF NOT v_admin THEN
+    RAISE EXCEPTION 'FAIL: a report filled by an admin must be flagged as such';
+  END IF;
+  -- The name columns stay empty so the client cannot accidentally print a teacher's name beside
+  -- the admin label.
+  IF v_name IS NOT NULL THEN
+    RAISE EXCEPTION 'FAIL: an admin-written report must carry no teacher name, got %', v_name;
+  END IF;
+  RAISE NOTICE 'PASS: an admin-written report is credited to Admin, not to the class teacher';
+END $$;
+
+RESET ROLE;
+SET LOCAL request.jwt.claims = '';
+
+-- ---------------------------------------------------------------------------
 -- declare_substitution — the Gantikan Kelas button, on the flexi classrooms so today qualifies
 -- ---------------------------------------------------------------------------
 

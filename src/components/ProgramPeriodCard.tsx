@@ -13,6 +13,8 @@ type Props = {
   attendanceDetail?: boolean
   /** See LearningPeriodDetail — admin only, adds Hapus Absensi inside that dialog. */
   attendanceDelete?: boolean
+  /** Admin only: a Tambah Absen button on each period's Riwayat Absensi. */
+  attendanceAdd?: boolean
   /**
    * Per-period controls under each period's detail: admin puts the invoice and delete buttons
    * here. Omitted, the card is purely something to read — which is what the parent portal wants.
@@ -33,6 +35,7 @@ export function ProgramPeriodCard({
   defaultExpanded = false,
   attendanceDetail = false,
   attendanceDelete = false,
+  attendanceAdd = false,
   renderPeriodActions,
 }: Props) {
   return (
@@ -80,6 +83,7 @@ export function ProgramPeriodCard({
                   hideChildName
                   attendanceDetail={attendanceDetail}
                   attendanceDelete={attendanceDelete}
+                  attendanceAdd={attendanceAdd}
                 />
               </Box>
               {actions ? (

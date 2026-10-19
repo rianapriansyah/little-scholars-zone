@@ -197,6 +197,12 @@ export type DailyReportSummary = {
   teacherNote: string | null
   /** Who wrote it, as they are addressed on screen. null if the teacher row has gone. */
   teacherName: string | null
+  /**
+   * The report was filled from the admin side rather than by a teacher, so there is no name to
+   * show — the screen labels it instead. Set when whoever sent (or opened) it carries the admin
+   * role and has no teachers row.
+   */
+  authorIsAdmin: boolean
 }
 
 /**
@@ -240,6 +246,7 @@ export async function fetchDailyReportForAttendance(
       teacherName: row.teacher_full_name
         ? teacherDisplayName({ full_name: row.teacher_full_name, call_name: row.teacher_call_name })
         : null,
+      authorIsAdmin: row.author_is_admin ?? false,
     },
   }
 }
@@ -293,4 +300,34 @@ export async function submitDailyReport(reportId: string): Promise<Result<string
   const { data, error } = await supabase.rpc('submit_daily_report', { p_report_id: reportId })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
+}
+
+/**
+ * Which teaching group a child sat in, inside one classroom, on one date — the bridge between the
+ * two halves of a day. Attendance is keyed by programme (child, classroom, date) and the report by
+ * group (child, classroom_teacher, date), so a screen that starts from a learning period (which
+ * knows the classroom) has to resolve the group before it can open that child's sheet.
+ *
+ * Dated rather than "current", so filling in a day from weeks ago files the report against the
+ * group the child was actually in then. Returns null when they were in none, which is what the
+ * save RPCs would refuse anyway.
+ */
+export async function fetchClassroomTeacherForChild(params: {
+  childId: string
+  classroomId: string
+  date: string
+}): Promise<Result<string | null>> {
+  const { data, error } = await supabase
+    .from('children_classrooms')
+    .select('classroom_teacher_id, classroom_teachers!inner(classroom_id)')
+    .eq('child_id', params.childId)
+    .eq('classroom_teachers.classroom_id', params.classroomId)
+    .lte('started_at', params.date)
+    .or(`ended_at.is.null,ended_at.gte.${params.date}`)
+  if (error) return { ok: false, error: error.message }
+
+  // One active enrolment per (child, classroom) is enforced by trigger, and the date window makes
+  // closed ones unambiguous too, so more than one row would be a data problem rather than a choice
+  // to make here.
+  return { ok: true, data: data?.[0]?.classroom_teacher_id ?? null }
 }

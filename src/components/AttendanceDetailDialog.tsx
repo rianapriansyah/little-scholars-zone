@@ -259,7 +259,11 @@ export function AttendanceDetailDialog({
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
                   Diisi oleh
                 </Typography>
-                <Typography variant="body1">{report.teacherName ?? '—'}</Typography>
+                {/* Filled from Detail Periode Belajar rather than by the class's teacher — saying
+                    her name here would credit her with something she did not write. */}
+                <Typography variant="body1">
+                  {report.authorIsAdmin ? 'Admin' : (report.teacherName ?? '—')}
+                </Typography>
               </Box>
             </Panel>
 

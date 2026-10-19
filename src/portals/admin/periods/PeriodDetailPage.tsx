@@ -200,6 +200,7 @@ export function PeriodDetailPage() {
                   defaultExpanded={focusClassroomId ? group.classroomId === focusClassroomId : index === 0}
                   attendanceDetail
                   attendanceDelete
+                  attendanceAdd
                   renderPeriodActions={(period) => {
                     const status = payments.get(period.id) ?? null
                     return (

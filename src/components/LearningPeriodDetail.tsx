@@ -3,6 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import {
   Alert,
   Box,
+  Button,
   Chip,
   CircularProgress,
   Divider,
@@ -17,6 +18,7 @@ import { formatDate } from '../lib/formatDate'
 import { fetchPeriod, fetchPeriodAttendances } from '../lib/learningPeriods'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
+import { AddAttendanceDialog } from './AddAttendanceDialog'
 import { AttendanceDetailDialog } from './AttendanceDetailDialog'
 
 const STATUS_COLOR: Record<AttendanceStatus, 'success' | 'warning' | 'info'> = {
@@ -63,6 +65,11 @@ type Props = {
   attendanceDetail?: boolean
   /** Admin only: let a day that should never have been recorded be deleted from its dialog. */
   attendanceDelete?: boolean
+  /**
+   * Admin only: a Tambah Absen button on Riwayat Absensi, for filling a day nobody recorded at the
+   * time. What it writes is attributed to Admin, not to the class's teacher.
+   */
+  attendanceAdd?: boolean
 }
 
 /**
@@ -77,12 +84,14 @@ export function LearningPeriodDetail({
   hideChildName = false,
   attendanceDetail = false,
   attendanceDelete = false,
+  attendanceAdd = false,
 }: Props) {
   const [period, setPeriod] = useState<LearningPeriodListEntry | null>(null)
   const [attendances, setAttendances] = useState<ChildAttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [openAttendance, setOpenAttendance] = useState<ChildAttendanceRow | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -147,10 +156,17 @@ export function LearningPeriodDetail({
       ) : null}
 
       <Divider sx={{ mb: 1.5 }} />
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-        Riwayat Absensi ({attendances.length})
-        {attendanceDetail && attendances.length > 0 ? ' · klik satu tanggal untuk detailnya' : ''}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ flexGrow: 1, minWidth: 0 }}>
+          Riwayat Absensi ({attendances.length})
+          {attendanceDetail && attendances.length > 0 ? ' · klik satu tanggal untuk detailnya' : ''}
+        </Typography>
+        {attendanceAdd ? (
+          <Button size="small" variant="outlined" onClick={() => setAddOpen(true)}>
+            Tambah Absen
+          </Button>
+        ) : null}
+      </Box>
 
       {attendances.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
@@ -210,6 +226,19 @@ export function LearningPeriodDetail({
           // Reloads the period too, not just the list: deleting a day hands it back to the quota,
           // so Terpakai/Sisa and the Selesai chip above are all stale the moment it succeeds.
           onDeleted={() => void load()}
+        />
+      ) : null}
+
+      {attendanceAdd ? (
+        <AddAttendanceDialog
+          open={addOpen}
+          childId={period.childId}
+          childName={period.childName}
+          classroomId={period.classroomId}
+          onClose={() => setAddOpen(false)}
+          // Same reasoning as onDeleted: recording a day draws down the quota, so Terpakai/Sisa
+          // and the Selesai chip above are stale the moment it saves.
+          onSaved={() => void load()}
         />
       ) : null}
     </Box>
