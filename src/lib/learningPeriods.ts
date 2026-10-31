@@ -224,6 +224,89 @@ export async function deleteChildAttendance(attendanceId: string): Promise<Resul
   return { ok: true, data: undefined }
 }
 
+/**
+ * Admin-only edit of a period that already exists — the three things that can legitimately have
+ * been got wrong when it was sold: when it started, the rough end date shown to parents, and the
+ * quota.
+ *
+ * guaranteed_days is editable on purpose. The trigger that copies it from the classroom is BEFORE
+ * INSERT only, "so a bespoke deal can still be adjusted deliberately after the fact"
+ * (20260805020000_classrooms_price_and_guaranteed_days.sql).
+ *
+ * Which means the quota cannot be written on its own: it is the line the period closes at, so
+ * closed_at and actual_end_date have to be rewritten with it or the period keeps a closure that
+ * its own numbers no longer justify. Same rule delete_child_attendance applies when it hands a
+ * day back — above the line the period is open, exactly on it the period is full and closed on
+ * the last day that consumed a slot. Shrinking it below the days already used is refused rather
+ * than resolved, because that would leave days_remaining negative.
+ *
+ * period_no is editable too, and safely: child_attendances keys off (learning_period_id,
+ * child_id, classroom_id), none of which is the number, and payment_periods references the
+ * period's id. What it does change is precedence — record_attendance() files a genuinely new day
+ * against the lowest open period_no — so renumbering decides which block the next day is billed
+ * to. Its unique key is (child_id, classroom_id, period_no), so a number already taken in the
+ * same class is refused; there is no swap, and freeing the number first is the way round it.
+ *
+ * The child and the classroom stay fixed: those two are in the attendance FK, and the payment row
+ * was raised against them.
+ */
+export async function updateLearningPeriod(params: {
+  periodId: string
+  periodNo: number
+  startDate: string
+  projectedEndDate: string | null
+  guaranteedDays: number
+}): Promise<Result<void>> {
+  const current = await fetchPeriod(params.periodId)
+  if (!current.ok) return { ok: false, error: current.error }
+
+  if (params.guaranteedDays < current.data.daysConsumed) {
+    return {
+      ok: false,
+      error: `Kuota tidak boleh kurang dari hari yang sudah terpakai (${current.data.daysConsumed}).`,
+    }
+  }
+
+  let closedAt: string | null = null
+  let actualEndDate: string | null = null
+
+  if (params.guaranteedDays === current.data.daysConsumed) {
+    const attendances = await fetchPeriodAttendances(params.periodId)
+    if (!attendances.ok) return { ok: false, error: attendances.error }
+    // Exactly full, so the day that closes it is the last one to consume a slot. Sakit days are
+    // skipped for the same reason they never counted toward the quota.
+    const consumingDates = attendances.data
+      .filter((row) => row.status !== 'sick')
+      .map((row) => row.attendance_date)
+      .sort()
+    actualEndDate = consumingDates[consumingDates.length - 1] ?? null
+    closedAt = new Date().toISOString()
+  }
+
+  const { error } = await supabase
+    .from('learning_periods')
+    .update({
+      period_no: params.periodNo,
+      start_date: params.startDate,
+      projected_end_date: params.projectedEndDate,
+      guaranteed_days: params.guaranteedDays,
+      closed_at: closedAt,
+      actual_end_date: actualEndDate,
+    })
+    .eq('id', params.periodId)
+
+  if (error) {
+    return {
+      ok: false,
+      error:
+        error.code === '23505'
+          ? `Nomor periode ${params.periodNo} sudah dipakai periode lain di kelas ini.`
+          : error.message,
+    }
+  }
+  return { ok: true, data: undefined }
+}
+
 export async function fetchPeriod(periodId: string): Promise<Result<LearningPeriodListEntry>> {
   const { data, error } = await supabase
     .from('learning_period_status')

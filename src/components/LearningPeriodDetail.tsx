@@ -1,49 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Divider,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  Paper,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, Chip, CircularProgress, Divider, Typography } from '@mui/material'
 import { formatDate } from '../lib/formatDate'
 import { fetchPeriod, fetchPeriodAttendances } from '../lib/learningPeriods'
-import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../types/attendance'
-import type { AttendanceStatus, ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
+import type { ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
 import { AddAttendanceDialog } from './AddAttendanceDialog'
 import { AttendanceDetailDialog } from './AttendanceDetailDialog'
-
-const STATUS_COLOR: Record<AttendanceStatus, 'success' | 'warning' | 'info'> = {
-  present: 'success',
-  absent: 'warning',
-  sick: 'info',
-}
-
-function StatTile({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 1.5, flex: '1 1 120px', minWidth: 0 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-        {label}
-      </Typography>
-      <Typography variant="h6" sx={{ fontSize: '1.35rem', lineHeight: 1.2 }}>
-        {value}
-      </Typography>
-      {hint ? (
-        <Typography variant="caption" color="text.secondary">
-          {hint}
-        </Typography>
-      ) : null}
-    </Paper>
-  )
-}
+import { AttendanceHistoryList } from './AttendanceHistoryList'
+import { StatTile } from './StatTile'
 
 type Props = {
   periodId: string
@@ -77,7 +40,9 @@ type Props = {
  * learning_period_status view — nothing is counted client-side, so this cannot drift from
  * what the quota logic believes.
  *
- * Shared by the teacher and admin portals; each supplies its own breadcrumbs around it.
+ * Used by the teacher portal and, through ProgramPeriodCard, by the parent portal; each supplies
+ * its own breadcrumbs around it. The admin period screen has its own card — see
+ * LearningPeriodCard — because it leads with the period rather than the program.
  */
 export function LearningPeriodDetail({
   periodId,
@@ -168,52 +133,10 @@ export function LearningPeriodDetail({
         ) : null}
       </Box>
 
-      {attendances.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          Belum ada absensi tercatat pada periode ini.
-        </Typography>
-      ) : (
-        <Paper variant="outlined">
-          <List disablePadding>
-            {attendances.map((row, index) => {
-              const status = isAttendanceStatus(row.status) ? row.status : null
-              const divider = index < attendances.length - 1
-              const content = (
-                <>
-                  <ListItemText primary={formatDate(row.attendance_date)} secondary={row.note ?? undefined} />
-                  {status ? (
-                    <Chip
-                      size="small"
-                      variant="outlined"
-                      color={STATUS_COLOR[status]}
-                      label={ATTENDANCE_STATUS_LABELS[status]}
-                    />
-                  ) : (
-                    <Chip size="small" variant="outlined" label={row.status} />
-                  )}
-                </>
-              )
-
-              return attendanceDetail ? (
-                <ListItemButton
-                  key={row.id}
-                  divider={divider}
-                  onClick={() => setOpenAttendance(row)}
-                  sx={{ gap: 1 }}
-                  aria-label={`Detail absensi ${formatDate(row.attendance_date)}`}
-                >
-                  {content}
-                  <ChevronRightIcon sx={{ color: 'text.disabled' }} />
-                </ListItemButton>
-              ) : (
-                <ListItem key={row.id} divider={divider} sx={{ gap: 1 }}>
-                  {content}
-                </ListItem>
-              )
-            })}
-          </List>
-        </Paper>
-      )}
+      <AttendanceHistoryList
+        attendances={attendances}
+        onSelect={attendanceDetail ? (row) => setOpenAttendance(row) : undefined}
+      />
 
       {openAttendance ? (
         <AttendanceDetailDialog

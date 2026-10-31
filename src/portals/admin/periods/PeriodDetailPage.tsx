@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/DeleteOutline'
+import EditIcon from '@mui/icons-material/EditOutlined'
 import PaymentsIcon from '@mui/icons-material/PaymentsOutlined'
 import {
   Alert,
@@ -15,9 +16,10 @@ import {
   Typography,
 } from '@mui/material'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { EditLearningPeriodDialog } from '../../../components/EditLearningPeriodDialog'
+import { LearningPeriodCard } from '../../../components/LearningPeriodCard'
 import { LearningPeriodDialog } from '../../../components/LearningPeriodDialog'
 import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
-import { ProgramPeriodCard } from '../../../components/ProgramPeriodCard'
 import { fetchPeriodsForChild } from '../../../lib/learningPeriods'
 import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
 import { groupPeriodsByProgram, type ChildProgramGroup } from '../../../lib/periodGrouping'
@@ -29,12 +31,14 @@ import type { FamilyRow } from '../../../types/family'
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/payment'
 
 /**
- * One child's learning periods, grouped into a collapsible card per program — the same shape the
- * parent portal uses for their own children, so the two read alike.
+ * One child's learning periods, one collapsible card each, with the class and the day history
+ * inside the period it belongs to.
  *
  * Keyed by child rather than by period: the grid lists children now, and a child in two programs
- * needs both in one place to be compared. Per-period actions (invoice, delete) live inside each
- * card, where there is an unambiguous period to act on.
+ * needs both in one place to be compared. The cards are still ordered by program (running ones
+ * first, newest period first within each) so a renewal sits beside the period it renews, but the
+ * program is no longer a card of its own — every action here belongs to one period, not to the
+ * program, and leading with the program named the class twice on every card.
  */
 export function PeriodDetailPage() {
   const { childId } = useParams<{ childId: string }>()
@@ -52,6 +56,7 @@ export function PeriodDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [payTarget, setPayTarget] = useState<LearningPeriodListEntry | null>(null)
+  const [editTarget, setEditTarget] = useState<LearningPeriodListEntry | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<LearningPeriodListEntry | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -92,6 +97,21 @@ export function PeriodDetailPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  /**
+   * The cards, flattened out of their programs: grouping only supplies the order now — running
+   * programs first, newest period first within each — not a level of the layout.
+   */
+  const periods = useMemo(() => programs.flatMap((group) => group.periods), [programs])
+
+  /**
+   * Open exactly one card. A deep link from Detail Keluarga names a program, so open that
+   * program's newest period; otherwise the first, so a child with several periods does not open
+   * as a wall of detail.
+   */
+  const expandedPeriodId = focusClassroomId
+    ? (periods.find((period) => period.classroomId === focusClassroomId)?.id ?? periods[0]?.id)
+    : periods[0]?.id
 
   /**
    * Deletes the payment_periods row and the learning_periods row together (delete_learning_period
@@ -165,9 +185,9 @@ export function PeriodDetailPage() {
             }}
           >
             <Typography variant="body2" color="text.secondary">
-              {programs.length === 0
+              {periods.length === 0
                 ? 'Belum ada periode belajar.'
-                : `${programs.length === 1 ? '1 program' : `${programs.length} program`} · klik satu program untuk melihat kuota, riwayat absensi, dan pembayarannya.`}
+                : `${periods.length} periode · klik satu periode untuk melihat kelas, kuota, riwayat absen, dan pembayarannya.`}
             </Typography>
             {/* Disabled until the child row has loaded — the dialog needs it and the family for
                 the invoice it offers once the period is saved. */}
@@ -183,7 +203,7 @@ export function PeriodDetailPage() {
             </Button>
           </Box>
 
-          {programs.length === 0 ? (
+          {periods.length === 0 ? (
             <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography color="text.secondary">
                 Siswa ini belum memiliki periode belajar. Tambahkan satu untuk mulai mencatat absensi.
@@ -191,19 +211,18 @@ export function PeriodDetailPage() {
             </Paper>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {programs.map((group, index) => (
-                <ProgramPeriodCard
-                  key={group.classroomId}
-                  group={group}
-                  // Open the one that was deep-linked; otherwise only the first, so a child in
-                  // several programs does not open as a wall of detail.
-                  defaultExpanded={focusClassroomId ? group.classroomId === focusClassroomId : index === 0}
-                  attendanceDetail
-                  attendanceDelete
-                  attendanceAdd
-                  renderPeriodActions={(period) => {
-                    const status = payments.get(period.id) ?? null
-                    return (
+              {periods.map((period) => {
+                const status = payments.get(period.id) ?? null
+                return (
+                  <LearningPeriodCard
+                    key={period.id}
+                    period={period}
+                    defaultExpanded={period.id === expandedPeriodId}
+                    attendanceAdd
+                    attendanceDelete
+                    // Recording or deleting a day moves the quota this card reads from `period`.
+                    onAttendanceChanged={() => void load()}
+                    headerActions={
                       <>
                         <Chip
                           size="small"
@@ -220,6 +239,19 @@ export function PeriodDetailPage() {
                         >
                           Pembayaran
                         </Button>
+                      </>
+                    }
+                    manageActions={
+                      <>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<EditIcon />}
+                          onClick={() => setEditTarget(period)}
+                        >
+                          Edit
+                        </Button>
+                        <Box sx={{ flexGrow: 1 }} />
                         <Button
                           size="small"
                           variant="outlined"
@@ -230,10 +262,10 @@ export function PeriodDetailPage() {
                           Hapus
                         </Button>
                       </>
-                    )
-                  }}
-                />
-              ))}
+                    }
+                  />
+                )
+              })}
             </Box>
           )}
         </>
@@ -245,6 +277,15 @@ export function PeriodDetailPage() {
           child={child}
           family={family}
           onClose={() => setAddOpen(false)}
+          onSaved={() => void load()}
+        />
+      ) : null}
+
+      {editTarget ? (
+        <EditLearningPeriodDialog
+          open
+          period={editTarget}
+          onClose={() => setEditTarget(null)}
           onSaved={() => void load()}
         />
       ) : null}
