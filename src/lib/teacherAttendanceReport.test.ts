@@ -17,6 +17,7 @@ function fakeRow(
     notes: null,
     scheduledStart: `${overrides.sessionDate}T00:00:00Z`,
     scheduledEnd: `${overrides.sessionDate}T00:00:00Z`,
+    workSessionCount: 0,
     arrivalStatus: 'on_time',
     departureStatus: 'on_time',
     ...overrides,

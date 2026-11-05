@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FLEXI_WORK_ACTION_LABELS,
   buildContiguousChainLinks,
   findIncompleteTeacherAttendance,
+  flexiWorkAction,
   groupAttendanceByTeacher,
+  parseClassroomTeacherAttendanceStatus,
 } from './classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceListEntry, ClassroomTeacherAttendanceStatus } from '../types/classroomTeacherAttendance'
 
@@ -20,6 +23,7 @@ function status(overrides: Partial<ClassroomTeacherAttendanceStatus> = {}): Clas
     scheduledStart: '2026-07-14T02:00:00Z',
     scheduledEnd: '2026-07-14T04:00:00Z',
     minutesTaught: null,
+    workSessionCount: 0,
     arrivalStatus: 'missing',
     departureStatus: 'missing',
     ...overrides,
@@ -40,6 +44,75 @@ function entry(overrides: Partial<ClassroomTeacherAttendanceListEntry> = {}): Cl
     ...overrides,
   }
 }
+
+describe('flexiWorkAction', () => {
+  it('offers Mulai when nothing has been logged today', () => {
+    expect(flexiWorkAction(null)).toBe('start')
+    expect(flexiWorkAction(undefined)).toBe('start')
+    expect(flexiWorkAction(status())).toBe('start')
+  })
+
+  it('offers Selesai while a session is running', () => {
+    expect(flexiWorkAction(status({ clockedInAt: '2026-11-06T01:00:00Z' }))).toBe('finish')
+  })
+
+  it('offers Lanjutkan — not Mulai — once the day has a finished session', () => {
+    // The whole point of this change: finishing used to retire the button entirely, so an
+    // afternoon of content work after a morning one could not be logged at all.
+    const action = flexiWorkAction(
+      status({ clockedInAt: '2026-11-06T01:00:00Z', clockedOutAt: '2026-11-06T03:00:00Z' }),
+    )
+    expect(action).toBe('resume')
+    expect(FLEXI_WORK_ACTION_LABELS[action]).toBe('Lanjutkan')
+  })
+
+  it('returns to Selesai after resuming, so the cycle can repeat all day', () => {
+    // What clock_in_classroom_teacher leaves behind on a resume: the first session's start is
+    // still the day's jam masuk, and clocked_out_at is cleared because work is running again.
+    expect(flexiWorkAction(status({ clockedInAt: '2026-11-06T01:00:00Z', clockedOutAt: null }))).toBe('finish')
+  })
+
+  it('labels every state in Indonesian', () => {
+    expect(FLEXI_WORK_ACTION_LABELS).toEqual({ start: 'Mulai', finish: 'Selesai', resume: 'Lanjutkan' })
+  })
+})
+
+describe('parseClassroomTeacherAttendanceStatus', () => {
+  const row = {
+    id: 's1',
+    classroom_teacher_id: 'ct1',
+    session_date: '2026-11-06',
+    clocked_in_at: '2026-11-06T01:00:00Z',
+    clocked_in_source: 'teacher',
+    clocked_out_at: '2026-11-06T07:00:00Z',
+    clocked_out_source: 'teacher',
+    created_at: null,
+    edited_by: null,
+    notes: null,
+    scheduled_start: '2026-11-06T02:00:00Z',
+    scheduled_end: '2026-11-06T09:00:00Z',
+    minutes_taught: 240,
+    work_session_count: 2,
+    arrival_status: 'not_applicable',
+    departure_status: 'not_applicable',
+  }
+
+  it('carries the session count through', () => {
+    expect(parseClassroomTeacherAttendanceStatus(row)?.workSessionCount).toBe(2)
+  })
+
+  it('reads a missing session count as 0 rather than dropping the row', () => {
+    // Unlike the genuinely required columns, this one is 0 for every scheduled class, so a null
+    // must not be treated as a malformed row — that would hide the punch from the teacher's card.
+    const parsed = parseClassroomTeacherAttendanceStatus({ ...row, work_session_count: null })
+    expect(parsed).not.toBeNull()
+    expect(parsed?.workSessionCount).toBe(0)
+  })
+
+  it('still drops a row missing a genuinely required column', () => {
+    expect(parseClassroomTeacherAttendanceStatus({ ...row, session_date: null })).toBeNull()
+  })
+})
 
 describe('buildContiguousChainLinks', () => {
   it('links two classes with no gap between them', () => {

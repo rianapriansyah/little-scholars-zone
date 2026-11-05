@@ -86,8 +86,19 @@ export function formatHoursMinutes(totalMinutes: number): string {
   return minutes === 0 ? `${hours} jam` : `${hours} jam ${minutes} menit`
 }
 
-/** One line of human-readable context — never used for payroll math, just for reading the PDF. */
-function summarizeKeterangan(arrival: ArrivalStatus, departure: DepartureStatus): string {
+/**
+ * One line of human-readable context — never used for payroll math, just for reading the PDF.
+ *
+ * `workSessionCount` above 1 is what makes a flexi-hours row legible: its Jam Masuk and Jam
+ * Selesai are the day's first start and last finish, so 09:00–15:00 showing 240 menit looks like
+ * an arithmetic error until the line says the day was worked in two sessions with an unpaid break
+ * between them.
+ */
+function summarizeKeterangan(
+  arrival: ArrivalStatus,
+  departure: DepartureStatus,
+  workSessionCount = 0,
+): string {
   if (arrival === 'missing' && departure === 'missing') return 'Belum Absen'
   const notes: string[] = []
   if (arrival === 'late') notes.push('Telat')
@@ -95,6 +106,7 @@ function summarizeKeterangan(arrival: ArrivalStatus, departure: DepartureStatus)
   if (departure === 'early') notes.push('Pulang Cepat')
   if (departure === 'overtime') notes.push('Over Time')
   if (departure === 'missing') notes.push('Belum Absen Selesai')
+  if (workSessionCount > 1) notes.push(`${workSessionCount} sesi`)
   return notes.length > 0 ? notes.join(', ') : 'Tepat Waktu'
 }
 
@@ -284,7 +296,7 @@ export async function downloadTeacherAttendanceReport(params: {
         formatClockTime(status?.clockedInAt ?? null),
         formatClockTime(status?.clockedOutAt ?? null),
         status?.minutesTaught != null ? `${status.minutesTaught} menit` : '—',
-        summarizeKeterangan(arrival, departure),
+        summarizeKeterangan(arrival, departure, status?.workSessionCount ?? 0),
       ])
     }
     // The table's own footer row — bold, spanning the first four columns as a label so the

@@ -230,6 +230,38 @@ export type Database = {
           },
         ]
       }
+      classroom_teacher_work_sessions: {
+        Row: {
+          attendance_id: string
+          created_at: string
+          ended_at: string | null
+          id: string
+          started_at: string
+        }
+        Insert: {
+          attendance_id: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          started_at: string
+        }
+        Update: {
+          attendance_id?: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_teacher_work_sessions_attendance_id_fkey"
+            columns: ["attendance_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_teachers_attendances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classroom_teachers: {
         Row: {
           classroom_id: string
@@ -889,6 +921,7 @@ export type Database = {
           scheduled_end: string | null
           scheduled_start: string | null
           session_date: string | null
+          work_session_count: number | null
         }
         Relationships: [
           {

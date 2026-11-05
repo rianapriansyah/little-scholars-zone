@@ -51,9 +51,44 @@ export function parseClassroomTeacherAttendanceStatus(
     scheduledStart: scheduled_start,
     scheduledEnd: scheduled_end,
     minutesTaught: row.minutes_taught,
+    // Unlike the fields above, a missing work_session_count is not treated as a malformed row:
+    // it is 0 for every scheduled class by construction, and a row read from a database that
+    // predates the column should still render rather than vanish from the teacher's card.
+    workSessionCount: row.work_session_count ?? 0,
     arrivalStatus: arrival_status as ArrivalStatus,
     departureStatus: departure_status as DepartureStatus,
   }
+}
+
+/**
+ * Which button a flexi-hours work item (Pembuatan Konten) shows right now.
+ *
+ * Flexi work is not one block a day: a teacher starts, finishes, and can start again after a
+ * break, and each stretch is its own session (see classroom_teacher_work_sessions). So finishing
+ * never retires the button the way it does on a scheduled class — it only changes what the button
+ * offers next.
+ *
+ *   no row yet            → 'start'   Mulai
+ *   clocked in, not out   → 'finish'  Selesai      (a session is running)
+ *   clocked in and out    → 'resume'  Lanjutkan    (today has finished sessions; start another)
+ *
+ * 'resume' and 'start' both call clockInClassroomTeacher — the RPC decides whether that opens the
+ * day's first session or an extra one. They are distinguished here only so the teacher is not told
+ * "Mulai" about a day she has already worked.
+ */
+export type FlexiWorkAction = 'start' | 'finish' | 'resume'
+
+export function flexiWorkAction(
+  record: Pick<ClassroomTeacherAttendanceStatus, 'clockedInAt' | 'clockedOutAt'> | null | undefined,
+): FlexiWorkAction {
+  if (!record?.clockedInAt) return 'start'
+  return record.clockedOutAt ? 'resume' : 'finish'
+}
+
+export const FLEXI_WORK_ACTION_LABELS: Record<FlexiWorkAction, string> = {
+  start: 'Mulai',
+  finish: 'Selesai',
+  resume: 'Lanjutkan',
 }
 
 /**

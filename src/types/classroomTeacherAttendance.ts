@@ -73,7 +73,20 @@ export type ClassroomTeacherAttendanceStatus = {
   notes: string | null
   scheduledStart: string
   scheduledEnd: string
+  /**
+   * The day's paid minutes. On a flexi-hours day with several work sessions this is their SUM,
+   * not clockedOutAt − clockedInAt: a teacher who worked 09:00–11:00 and 13:00–15:00 has 240
+   * minutes, and the unworked break between them is excluded. null while nothing has been
+   * finished yet. See classroom_teacher_work_sessions.
+   */
   minutesTaught: number | null
+  /**
+   * How many Mulai→Selesai stretches make up the day. 0 for a scheduled class (its single
+   * clock-in/clock-out pair is the whole session), 1 for an ordinary flexi day, more once the
+   * teacher has pressed Lanjutkan. Only meaningful alongside minutesTaught — it is what explains
+   * a 240-minute day whose jam masuk and jam selesai are six hours apart.
+   */
+  workSessionCount: number
   arrivalStatus: ArrivalStatus
   departureStatus: DepartureStatus
 }

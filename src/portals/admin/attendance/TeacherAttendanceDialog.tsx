@@ -185,6 +185,17 @@ function ClassAttendanceForm({
           Jam masuk sebelum kelas dimulai dihitung mulai jam kelas — tersimpan sebagai {clampedTo}.
         </Alert>
       ) : null}
+      {/* This form holds one Jam Masuk / Jam Selesai pair, which cannot describe a day worked in
+          several sessions. Saving replaces them with the single pair below, so the admin is told
+          what they are about to overwrite rather than discovering the durasi changed afterwards.
+          See sync_flexi_work_sessions_from_attendance. */}
+      {(entry.status?.workSessionCount ?? 0) > 1 ? (
+        <Alert severity="warning">
+          Hari ini tercatat {entry.status?.workSessionCount} sesi kerja (total{' '}
+          {entry.status?.minutesTaught ?? '—'} menit). Menyimpan di sini akan menggabungkannya menjadi
+          satu sesi sesuai jam yang kamu isi, sehingga durasinya ikut berubah.
+        </Alert>
+      ) : null}
       {/* flex-start, not center: the Jam Masuk field carries a helper line below it, and centring
           the 40px clear button against the taller field would leave it floating low. */}
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>

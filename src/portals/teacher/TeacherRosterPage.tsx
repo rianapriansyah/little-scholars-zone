@@ -39,11 +39,13 @@ import {
 } from '../../lib/classStatus'
 import { teacherDisplayName } from '../../lib/teacherName'
 import {
+  FLEXI_WORK_ACTION_LABELS,
   buildContiguousChainLinks,
   clockInClassroomTeacher,
   clockOutAndContinueClassroomTeacher,
   clockOutClassroomTeacher,
   fetchAttendanceForClassroomTeachers,
+  flexiWorkAction,
 } from '../../lib/classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceStatus } from '../../types/classroomTeacherAttendance'
 import { DAILY_REPORT_ENABLED } from '../../lib/featureFlags'
@@ -280,7 +282,8 @@ export function TeacherRosterPage() {
   }
 
   /**
-   * Masuk Kelas → Selesaikan Kelas → a read-only summary, in that order. Lives outside the
+   * For a scheduled class: Masuk Kelas → Selesaikan Kelas → a read-only summary, in that order.
+   * For flexi-hours work there is no final state — see the branch below. Lives outside the
    * CardActionArea (rendered as a sibling below it, not nested inside) so tapping the button
    * never also triggers the card's navigate-to-Laporan-Harian click.
    */
@@ -292,24 +295,32 @@ export function TeacherRosterPage() {
     if (group.classroom.is_flexi_hours) {
       // No schedule to gate against — always clickable, any time, any day. Never chains (that's
       // a real-class concept), so this calls handleClockOut directly rather than handleFinishClick.
-      if (record?.clockedOutAt) {
-        return (
-          <Typography variant="body2" color="text.secondary">
-            Selesai · {record.minutesTaught ?? '—'} menit
+      //
+      // Unlike a scheduled class, finishing does not retire the button: flexi work comes in
+      // sessions, so a teacher who stops at 11:00 and picks the work up again at 13:00 taps
+      // Lanjutkan and logs a second one. What is already banked is shown beside the button so
+      // she can see the day accumulating rather than only its last stretch.
+      const action = flexiWorkAction(record)
+      const workedSoFar =
+        record?.minutesTaught != null ? (
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+            {record.minutesTaught} menit
+            {record.workSessionCount > 1 ? ` · ${record.workSessionCount} sesi` : ''}
           </Typography>
-        )
-      }
-      if (record?.clockedInAt) {
-        return (
-          <Button size="small" variant="outlined" disabled={isClocking} onClick={() => void handleClockOut(group.id)}>
-            {isClocking ? 'Menyimpan…' : 'Selesai'}
-          </Button>
-        )
-      }
+        ) : null
+
       return (
-        <Button size="small" variant="contained" disabled={isClocking} onClick={() => void handleClockIn(group.id)}>
-          {isClocking ? 'Menyimpan…' : 'Mulai'}
-        </Button>
+        <Box>
+          <Button
+            size="small"
+            variant={action === 'finish' ? 'outlined' : 'contained'}
+            disabled={isClocking}
+            onClick={() => void (action === 'finish' ? handleClockOut(group.id) : handleClockIn(group.id))}
+          >
+            {isClocking ? 'Menyimpan…' : FLEXI_WORK_ACTION_LABELS[action]}
+          </Button>
+          {workedSoFar}
+        </Box>
       )
     }
 
