@@ -22,14 +22,14 @@ function generatePassword(email: string): string {
   return `${base}${digits}`
 }
 
-/** Links teachers row (by email) to the Supabase Auth user so teachers can log in without a client-side claim RPC. */
+/** Links the employees row (by email) to the Supabase Auth user so teachers can log in without a client-side claim RPC. */
 async function linkTeacherAuthUser(
   adminClient: ReturnType<typeof createClient>,
   email: string,
   authUserId: string,
 ): Promise<void> {
   const { error } = await adminClient
-    .from('teachers')
+    .from('employees')
     .update({ auth_user_id: authUserId })
     .eq('email', email)
   if (error) {
@@ -112,16 +112,17 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Ensure a teachers row exists before creating the login.
+    // Ensure an employees row exists before creating the login. position_id is left to its
+    // database default (Pengajar): this function only ever creates teachers.
     // Using upsert with ignoreDuplicates=true so regenerating a password doesn't overwrite.
     const { error: upsertErr } = await adminClient
-      .from('teachers')
+      .from('employees')
       .upsert(
         { full_name: fullName!, email, contact_phone: phone, active: true },
         { onConflict: 'email', ignoreDuplicates: true },
       )
     if (upsertErr) {
-      console.error('Failed to upsert teachers:', upsertErr.message)
+      console.error('Failed to upsert employees:', upsertErr.message)
       return jsonResponse({ error: `Failed to save teacher record: ${upsertErr.message}` }, 500)
     }
 

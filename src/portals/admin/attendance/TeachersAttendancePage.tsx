@@ -20,9 +20,9 @@ import { TeacherAttendanceDialog } from './TeacherAttendanceDialog'
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
 /** One row per teacher — the raw classroom_teacher-level rows only ever show up inside the modal. */
-type TeacherRow = TeacherAttendanceGroup
+type EmployeeRow = TeacherAttendanceGroup
 
-function rowSearchBlob(row: TeacherRow): string {
+function rowSearchBlob(row: EmployeeRow): string {
   return `${row.teacherName} ${row.classes.map((c) => c.classroomLabel).join(' ')}`.toLowerCase()
 }
 
@@ -46,7 +46,7 @@ export function TeachersAttendancePage() {
   // the arrival/departure chips instead of showing the snapshot from when the dialog was opened.
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [confirmDownloadTeacher, setConfirmDownloadTeacher] = useState<TeacherRow | null>(null)
+  const [confirmDownloadTeacher, setConfirmDownloadTeacher] = useState<EmployeeRow | null>(null)
   const [downloadSummary, setDownloadSummary] = useState<MonthlyAttendanceSummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -104,7 +104,7 @@ export function TeachersAttendancePage() {
   )
 
   /** The calendar month containing the sessionDate picker above, not necessarily today's month. */
-  async function handleDownload(row: TeacherRow) {
+  async function handleDownload(row: EmployeeRow) {
     setDownloading(true)
     setDownloadError(null)
     const result = await downloadTeacherAttendanceReport({
@@ -120,7 +120,7 @@ export function TeachersAttendancePage() {
     if (!result.ok) setDownloadError(result.error)
   }
 
-  const columns: GridColDef<TeacherRow>[] = useMemo(
+  const columns: GridColDef<EmployeeRow>[] = useMemo(
     () => [
       {
         field: 'teacherName',
@@ -162,7 +162,7 @@ export function TeachersAttendancePage() {
     [],
   )
 
-  const handleCellClick = (params: GridCellParams<TeacherRow>) => {
+  const handleCellClick = (params: GridCellParams<EmployeeRow>) => {
     if (params.field === 'teacherName') {
       setConfirmDownloadTeacher(params.row)
       return

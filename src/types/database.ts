@@ -293,7 +293,7 @@ export type Database = {
             foreignKeyName: "classroom_teachers_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
-            referencedRelation: "teachers"
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
         ]
@@ -391,7 +391,7 @@ export type Database = {
             foreignKeyName: "classroom_teachers_substitutions_substitute_teacher_id_fkey"
             columns: ["substitute_teacher_id"]
             isOneToOne: false
-            referencedRelation: "teachers"
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
         ]
@@ -500,6 +500,80 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "children_daily_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_positions: {
+        Row: {
+          created_at: string
+          id: string
+          position: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          position: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          position?: string
+        }
+        Relationships: []
+      }
+      employees: {
+        Row: {
+          active: boolean
+          auth_user_id: string | null
+          call_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          education: string | null
+          email: string
+          end_working_at: string | null
+          full_name: string
+          id: string
+          photo_url: string | null
+          position_id: string
+          start_working_at: string
+        }
+        Insert: {
+          active?: boolean
+          auth_user_id?: string | null
+          call_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          education?: string | null
+          email: string
+          end_working_at?: string | null
+          full_name: string
+          id?: string
+          photo_url?: string | null
+          position_id?: string
+          start_working_at?: string
+        }
+        Update: {
+          active?: boolean
+          auth_user_id?: string | null
+          call_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          education?: string | null
+          email?: string
+          end_working_at?: string | null
+          full_name?: string
+          id?: string
+          photo_url?: string | null
+          position_id?: string
+          start_working_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "employee_positions"
             referencedColumns: ["id"]
           },
         ]
@@ -854,54 +928,6 @@ export type Database = {
           },
         ]
       }
-      teachers: {
-        Row: {
-          active: boolean
-          auth_user_id: string | null
-          call_name: string | null
-          contact_phone: string | null
-          created_at: string | null
-          education: string | null
-          email: string
-          end_working_at: string | null
-          full_name: string
-          id: string
-          photo_url: string | null
-          rate: number | null
-          start_working_at: string
-        }
-        Insert: {
-          active?: boolean
-          auth_user_id?: string | null
-          call_name?: string | null
-          contact_phone?: string | null
-          created_at?: string | null
-          education?: string | null
-          email: string
-          end_working_at?: string | null
-          full_name: string
-          id?: string
-          photo_url?: string | null
-          rate?: number | null
-          start_working_at?: string
-        }
-        Update: {
-          active?: boolean
-          auth_user_id?: string | null
-          call_name?: string | null
-          contact_phone?: string | null
-          created_at?: string | null
-          education?: string | null
-          email?: string
-          end_working_at?: string | null
-          full_name?: string
-          id?: string
-          photo_url?: string | null
-          rate?: number | null
-          start_working_at?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       classroom_teachers_attendance_status: {
@@ -1039,6 +1065,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      default_employee_position_id: { Args: never; Returns: string }
       delete_child_attendance: {
         Args: { p_attendance_id: string }
         Returns: undefined

@@ -36,7 +36,7 @@ VALUES
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-b000-000000000001', 'authenticated', 'authenticated', 'flexi-test-admin@example.test',   '{"role":"admin"}',   now(), now()),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-b000-000000000002', 'authenticated', 'authenticated', 'flexi-test-teacher@example.test', '{"role":"teacher"}', now(), now());
 
-INSERT INTO public.teachers (id, full_name, call_name, email, auth_user_id) VALUES
+INSERT INTO public.employees (id, full_name, call_name, email, auth_user_id) VALUES
   ('00000000-0000-4000-b000-000000000010', 'Flexi Test Teacher', 'Bu F', 'flexi-test-teacher@example.test', '00000000-0000-4000-b000-000000000002');
 
 -- The scheduled control runs 00:00–23:59 so that its own clock-in window ("from an hour before

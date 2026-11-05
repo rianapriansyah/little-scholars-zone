@@ -24,7 +24,7 @@ import {
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import type { ClassroomRow } from '../../../types/classroom'
-import type { TeacherRow } from '../../../types/teacher'
+import type { EmployeeRow } from '../../../types/employee'
 import type { ChildRow } from '../../../types/child'
 import { fetchChildIdsWithOpenPeriod } from '../../../lib/learningPeriods'
 import { enrollmentStartDefault } from '../../../lib/enrollmentStart'
@@ -45,7 +45,7 @@ type Props = {
 }
 
 export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
-  const [teachers, setTeachers] = useState<TeacherRow[]>([])
+  const [teachers, setTeachers] = useState<EmployeeRow[]>([])
   const [children, setChildren] = useState<ChildRow[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [activeEnrollments, setActiveEnrollments] = useState<Map<string, ActiveEnrollment>>(new Map())
@@ -71,7 +71,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const loadGroups = async (classroomId: string) => {
     const { data: groupRows } = await supabase
       .from('classroom_teachers')
-      .select('id, teacher_id, teachers(full_name)')
+      .select('id, teacher_id, employees(full_name)')
       .eq('classroom_id', classroomId)
       .order('created_at')
 
@@ -89,7 +89,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     const newGroups: Group[] = (groupRows ?? []).map((g) => ({
       id: g.id,
       teacherId: g.teacher_id,
-      teacherName: (g.teachers as unknown as { full_name: string } | null)?.full_name ?? '—',
+      teacherName: (g.employees as unknown as { full_name: string } | null)?.full_name ?? '—',
       roster: enrollmentRows
         .filter((r) => r.classroom_teacher_id === g.id)
         .map((r) => ({
@@ -109,16 +109,16 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const loadActiveEnrollments = async (classroomId: string) => {
     const { data } = await supabase
       .from('children_classrooms')
-      .select('id, child_id, classroom_teacher_id, classroom_teachers!inner(classroom_id, teachers(full_name))')
+      .select('id, child_id, classroom_teacher_id, classroom_teachers!inner(classroom_id, employees(full_name))')
       .eq('classroom_teachers.classroom_id', classroomId)
       .is('ended_at', null)
     const map = new Map<string, ActiveEnrollment>()
     for (const row of data ?? []) {
-      const ct = row.classroom_teachers as unknown as { teachers: { full_name: string } | null } | null
+      const ct = row.classroom_teachers as unknown as { employees: { full_name: string } | null } | null
       map.set(row.child_id, {
         enrollmentId: row.id,
         classroomTeacherId: row.classroom_teacher_id,
-        label: ct?.teachers?.full_name ?? '—',
+        label: ct?.employees?.full_name ?? '—',
       })
     }
     setActiveEnrollments(map)
@@ -166,7 +166,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     setAddStartDates({})
     setError(null)
 
-    void supabase.from('teachers').select('*').order('full_name').then(({ data }) => setTeachers(data ?? []))
+    void supabase.from('employees').select('*').order('full_name').then(({ data }) => setTeachers(data ?? []))
     void supabase.from('children').select('*').eq('active', true).order('full_name').then(({ data }) => setChildren(data ?? []))
     void loadGroups(classroom.id)
     void loadActiveEnrollments(classroom.id)

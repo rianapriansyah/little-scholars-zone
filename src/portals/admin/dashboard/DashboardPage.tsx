@@ -108,7 +108,7 @@ export function DashboardPage() {
         // is_billable excludes internal work programs (cleaning duty, content creation) — this
         // tile and the enrollment bar chart below are both about real, fee-paying classrooms.
         supabase.from('classrooms').select('id, label, active').eq('is_billable', true).order('label'),
-        supabase.from('teachers').select('id, active'),
+        supabase.from('employees').select('id, active'),
         supabase.from('children').select('id, active'),
         supabase.from('classroom_teachers').select('id, classroom_id'),
         supabase.from('children_classrooms').select('classroom_teacher_id').is('ended_at', null),

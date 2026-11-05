@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import type { TeacherRow } from '../types/teacher'
+import type { EmployeeRow } from '../types/employee'
 
 export function useTeacherProfile(authUserId: string | undefined) {
-  const [teacher, setTeacher] = useState<TeacherRow | null>(null)
+  const [teacher, setTeacher] = useState<EmployeeRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchNonce, setFetchNonce] = useState(0)
@@ -23,7 +23,7 @@ export function useTeacherProfile(authUserId: string | undefined) {
     let cancelled = false
     setLoading(true)
     void supabase
-      .from('teachers')
+      .from('employees')
       .select('*')
       .eq('auth_user_id', authUserId)
       .maybeSingle()

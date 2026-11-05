@@ -200,7 +200,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   const { data: groupRows, error: gError } = await supabase
     .from('classroom_teachers')
     .select(
-      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours, teacher_rate), teachers(full_name, call_name)',
+      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours, teacher_rate), employees(full_name, call_name)',
     )
   if (gError) return { ok: false, error: gError.message }
 
@@ -228,7 +228,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
           teacher_rate: number | null
         }
       | null
-    const teacher = group.teachers as unknown as { full_name: string; call_name: string | null } | null
+    const teacher = group.employees as unknown as { full_name: string; call_name: string | null } | null
     if (!classroom || !classroom.active) continue
 
     entries.push({

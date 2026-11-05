@@ -21,13 +21,13 @@ import { createTeacherAccount } from '../../../lib/createTeacherAccount'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DangerZone } from '../../../components/DangerZone'
-import type { TeacherRow } from '../../../types/teacher'
+import type { EmployeeRow } from '../../../types/employee'
 import { composeEducation, splitEducation } from '../../../lib/teacherEducation'
 import { uploadProfilePhoto } from '../../../lib/uploadProfilePhoto'
 
 type Props = {
   open: boolean
-  teacher: TeacherRow | null
+  teacher: EmployeeRow | null
   onClose: () => void
   onSaved: () => void
 }
@@ -153,14 +153,14 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
       photo_url: photoUrl,
       start_working_at: startWorkingAt || todayIsoDate(),
       end_working_at: endWorkingAt || null,
-      // teachers.rate is deliberately absent: it is superseded by classrooms.teacher_rate and
-      // kept only as a record of what each teacher was paid before the switch. Writing it here
-      // would erase that the first time anyone saved a teacher.
+      // No rate: pay is per class (classrooms.teacher_rate), and the old personal rate column was
+      // dropped when teachers became employees. position_id is left to its database default
+      // (Pengajar) — this dialog only ever creates teachers.
     }
 
     if (isEdit) {
       const { error: uErr } = await supabase
-        .from('teachers')
+        .from('employees')
         .update({ full_name: fullName.trim(), contact_phone: phone.trim() || null, ...extras })
         .eq('id', teacher.id)
       setSaving(false)
@@ -177,7 +177,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
         setError(result.message)
         return
       }
-      await supabase.from('teachers').update(extras).eq('email', email.trim().toLowerCase())
+      await supabase.from('employees').update(extras).eq('email', email.trim().toLowerCase())
       setSaving(false)
       setCredentials({ email: email.trim().toLowerCase(), password: result.password })
     }
@@ -210,7 +210,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
     if (!teacher) return
     setDeleting(true)
     setError(null)
-    const { error: dErr } = await supabase.from('teachers').delete().eq('id', teacher.id)
+    const { error: dErr } = await supabase.from('employees').delete().eq('id', teacher.id)
     setDeleting(false)
     setConfirmDeleteOpen(false)
     if (dErr) {

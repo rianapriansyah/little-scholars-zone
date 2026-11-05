@@ -198,7 +198,7 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
     supabase
       .from('classroom_teachers')
       .select(
-        'id, classroom_id, teacher_id, classrooms(label, time_start, time_end, active, is_billable), teachers(full_name, call_name, contact_phone)',
+        'id, classroom_id, teacher_id, classrooms(label, time_start, time_end, active, is_billable), employees(full_name, call_name, contact_phone)',
       ),
     supabase
       .from('children_classrooms')
@@ -222,7 +222,7 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
     const classroom = group.classrooms as unknown as
       | { label: string; time_start: string; time_end: string; active: boolean; is_billable: boolean }
       | null
-    const teacher = group.teachers as unknown as
+    const teacher = group.employees as unknown as
       | { full_name: string; call_name: string | null; contact_phone: string | null }
       | null
     if (!classroom || !classroom.active || !classroom.is_billable) continue

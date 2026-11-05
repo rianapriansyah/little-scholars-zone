@@ -109,7 +109,7 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
     const { data } = await supabase
       .from('children_classrooms')
       .select(
-        'id, classroom_teacher_id, started_at, ended_at, end_reason, classroom_teachers(classroom_id, classrooms(label), teachers(full_name, call_name))',
+        'id, classroom_teacher_id, started_at, ended_at, end_reason, classroom_teachers(classroom_id, classrooms(label), employees(full_name, call_name))',
       )
       .eq('child_id', id)
       .order('started_at', { ascending: false })
@@ -119,10 +119,10 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
           | {
               classroom_id: string
               classrooms: { label: string } | null
-              teachers: { full_name: string; call_name: string | null } | null
+              employees: { full_name: string; call_name: string | null } | null
             }
           | null
-        const teacherName = group?.teachers ? teacherDisplayName(group.teachers) : '—'
+        const teacherName = group?.employees ? teacherDisplayName(group.employees) : '—'
         return {
           id: row.id,
           groupId: row.classroom_teacher_id,
@@ -181,7 +181,7 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
 
     void supabase
       .from('classroom_teachers')
-      .select('id, classroom_id, classrooms(label, is_billable), teachers(full_name, call_name)')
+      .select('id, classroom_id, classrooms(label, is_billable), employees(full_name, call_name)')
       .then(({ data }) => {
         // Enrolling a child only ever makes sense into a real fee-paying program — never into
         // an internal work program (cleaning duty, content creation) that reuses the classroom
@@ -190,7 +190,7 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
           .filter((row) => (row.classrooms as unknown as { is_billable: boolean } | null)?.is_billable)
           .map((row) => {
             const classroom = row.classrooms as unknown as { label: string } | null
-            const teacher = row.teachers as unknown as { full_name: string; call_name: string | null } | null
+            const teacher = row.employees as unknown as { full_name: string; call_name: string | null } | null
             return {
               id: row.id,
               classroomId: row.classroom_id,

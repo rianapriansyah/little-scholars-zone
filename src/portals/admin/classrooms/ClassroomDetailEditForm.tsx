@@ -79,12 +79,12 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       if (classroom) {
         void supabase
           .from('classroom_teachers')
-          .select('id, teachers(full_name)')
+          .select('id, employees(full_name)')
           .eq('classroom_id', classroom.id)
           .then(({ data }) => {
             const groupIds = (data ?? []).map((row) => row.id)
             const names = (data ?? []).map(
-              (row) => (row.teachers as unknown as { full_name: string } | null)?.full_name ?? '—',
+              (row) => (row.employees as unknown as { full_name: string } | null)?.full_name ?? '—',
             )
             setTeacherNames(names)
 

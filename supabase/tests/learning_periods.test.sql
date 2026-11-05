@@ -26,7 +26,7 @@ VALUES
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-9000-000000000004', 'authenticated', 'authenticated', 'lp-parent-1@example.test',  '{"role":"parent"}',  now(), now()),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-9000-000000000005', 'authenticated', 'authenticated', 'lp-parent-2@example.test',  '{"role":"parent"}',  now(), now());
 
-INSERT INTO public.teachers (id, full_name, email, auth_user_id) VALUES
+INSERT INTO public.employees (id, full_name, email, auth_user_id) VALUES
   ('00000000-0000-4000-9000-000000000012', 'LP Teacher A', 'lp-teacher-a@example.test', '00000000-0000-4000-9000-000000000002'),
   ('00000000-0000-4000-9000-000000000013', 'LP Teacher B', 'lp-teacher-b@example.test', '00000000-0000-4000-9000-000000000003');
 

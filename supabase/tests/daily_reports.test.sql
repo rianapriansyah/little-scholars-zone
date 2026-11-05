@@ -28,7 +28,7 @@ VALUES
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'test-parent-1@example.test',  '{"role":"parent"}',  now(), now()),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'test-parent-2@example.test',  '{"role":"parent"}',  now(), now());
 
-INSERT INTO public.teachers (id, full_name, email, auth_user_id) VALUES
+INSERT INTO public.employees (id, full_name, email, auth_user_id) VALUES
   ('00000000-0000-4000-8000-000000000012', 'Test Teacher A', 'test-teacher-a@example.test', '00000000-0000-4000-8000-000000000002'),
   ('00000000-0000-4000-8000-000000000013', 'Test Teacher B', 'test-teacher-b@example.test', '00000000-0000-4000-8000-000000000003');
 
@@ -605,7 +605,7 @@ BEGIN
     RAISE EXCEPTION 'FAIL: parent should see own child''s SUBMITTED report, got % rows', v_rows;
   END IF;
 
-  -- The teachers table has no parent policy at all; the RPC is the only way they get the name.
+  -- The employees table has no parent policy at all; the RPC is the only way they get the name.
   SELECT teacher_full_name INTO v_teacher FROM public.daily_report_for_attendance(
     '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03');
   IF v_teacher IS DISTINCT FROM 'Test Teacher A' THEN

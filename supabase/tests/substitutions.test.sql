@@ -41,7 +41,7 @@ VALUES
 
 -- A is the absent teacher. B shares A's classroom (the owner's case 1: already in that room, so
 -- covering earns nothing extra). C is in a different classroom entirely (case 2: paid).
-INSERT INTO public.teachers (id, full_name, call_name, email, auth_user_id) VALUES
+INSERT INTO public.employees (id, full_name, call_name, email, auth_user_id) VALUES
   ('00000000-0000-4000-9000-000000000012', 'Sub Test Teacher A', 'Bu A', 'sub-test-teacher-a@example.test', '00000000-0000-4000-9000-000000000002'),
   ('00000000-0000-4000-9000-000000000013', 'Sub Test Teacher B', 'Bu B', 'sub-test-teacher-b@example.test', '00000000-0000-4000-9000-000000000003'),
   ('00000000-0000-4000-9000-000000000014', 'Sub Test Teacher C', 'Bu C', 'sub-test-teacher-c@example.test', '00000000-0000-4000-9000-000000000004');
@@ -212,8 +212,8 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: substitutable_classes offers the right group, with the absent teacher''s name';
 
-  -- She cannot read `teachers` directly, which is exactly why this RPC exists.
-  IF EXISTS (SELECT 1 FROM public.teachers WHERE id = '00000000-0000-4000-9000-000000000012') THEN
+  -- She cannot read `employees` directly, which is exactly why this RPC exists.
+  IF EXISTS (SELECT 1 FROM public.employees WHERE id = '00000000-0000-4000-9000-000000000012') THEN
     RAISE EXCEPTION 'FAIL: B should not be able to read A''s teacher row through RLS';
   END IF;
   RAISE NOTICE 'PASS: the absent teacher''s name is unreadable without the RPC';

@@ -4,26 +4,26 @@ import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { SendWhatsAppDialog } from '../../../components/SendWhatsAppDialog'
 import { supabase } from '../../../lib/supabase'
-import type { TeacherRow } from '../../../types/teacher'
+import type { EmployeeRow } from '../../../types/employee'
 import { TeacherDialog } from './TeacherDialog'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { teacherDisplayName } from '../../../lib/teacherName'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-function teacherSearchBlob(row: TeacherRow): string {
+function teacherSearchBlob(row: EmployeeRow): string {
   // Both names: the grid shows the call name, but searching the formal name must still find
   // the row — and vice versa.
   return `${row.call_name ?? ''} ${row.full_name} ${row.email} ${row.contact_phone ?? ''}`.toLowerCase()
 }
 
 export function TeachersPage() {
-  const [rows, setRows] = useState<TeacherRow[]>([])
+  const [rows, setRows] = useState<EmployeeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editTeacher, setEditTeacher] = useState<TeacherRow | null>(null)
-  const [waTeacher, setWaTeacher] = useState<TeacherRow | null>(null)
+  const [editTeacher, setEditTeacher] = useState<EmployeeRow | null>(null)
+  const [waTeacher, setWaTeacher] = useState<EmployeeRow | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
 
@@ -33,7 +33,7 @@ export function TeachersPage() {
     // Inactive teachers sink to the bottom of the grid rather than sorting alphabetically
     // alongside active ones; full_name is the secondary sort within each group.
     const { data, error: qError } = await supabase
-      .from('teachers')
+      .from('employees')
       .select('*')
       .order('active', { ascending: false })
       .order('full_name')
@@ -64,7 +64,7 @@ export function TeachersPage() {
     setPaginationModel((m) => ({ ...m, page: 0 }))
   }
 
-  const handleCellClick = (params: GridCellParams<TeacherRow>) => {
+  const handleCellClick = (params: GridCellParams<EmployeeRow>) => {
     if (params.field === 'contact_phone') {
       setWaTeacher(params.row)
       return
@@ -73,7 +73,7 @@ export function TeachersPage() {
     setDialogOpen(true)
   }
 
-  const columns: GridColDef<TeacherRow>[] = useMemo(
+  const columns: GridColDef<EmployeeRow>[] = useMemo(
     () => [
       {
         field: 'full_name',
