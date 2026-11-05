@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
+import { classroomDeleteErrorMessage } from '../../../lib/classroomDeleteError'
 import { digitsOnly, groupDigits } from '../../../lib/formatIdr'
 import type { ClassroomRow } from '../../../types/classroom'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
@@ -205,11 +206,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       setDeleting(false)
       setConfirmDeleteOpen(false)
       if (dErr) {
-        setError(
-          dErr.code === '23503'
-            ? 'Tidak dapat dihapus: kelas ini memiliki riwayat pendaftaran siswa. Nonaktifkan saja.'
-            : dErr.message,
-        )
+        setError(classroomDeleteErrorMessage(dErr))
         return
       }
       if (onDeleted) {
@@ -390,7 +387,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             <Box sx={{ mt: 3 }}>
               <DangerZone
                 title="Zona Terbatas"
-                description="Kelas ini akan dihapus permanen. Jika kelas ini memiliki riwayat pendaftaran siswa, hapus akan ditolak — nonaktifkan kelas sebagai gantinya."
+                description="Kelas ini akan dihapus permanen. Jika kelas ini masih dipakai — ada guru yang ditugaskan, riwayat pendaftaran siswa, periode belajar, atau formulir pendaftaran orang tua — hapus akan ditolak dan alasannya ditampilkan. Nonaktifkan kelas sebagai gantinya."
                 actionLabel="Hapus Data"
                 busyLabel="Menghapus…"
                 busy={deleting}
