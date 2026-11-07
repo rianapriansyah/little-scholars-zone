@@ -116,9 +116,13 @@ export function PeriodDetailPage() {
   /**
    * Deletes the payment_periods row and the learning_periods row together (delete_learning_period
    * does both server-side, in that order, in one transaction), then best-effort deletes the
-   * attached receipt from storage if there was one — see deletePaymentReceipt. Blocked by the
-   * database (error code '23503') when the period has recorded attendance, same convention as
-   * ClassroomDetailEditForm's delete: refused, not silently cascaded.
+   * attached receipt from storage if there was one — see deletePaymentReceipt, which only runs
+   * once the RPC has succeeded, so a refused delete keeps its receipt.
+   *
+   * Refused when the period has recorded attendance: the RPC says so in its own (Indonesian)
+   * message, and child_attendances_period_fkey backs it up at commit with '23503'. It used to
+   * cascade instead, which is how one child's attendance was erased — see
+   * 20261108020000_protect_attendance_from_period_delete.sql.
    */
   async function handleDelete() {
     if (!deleteTarget) return

@@ -209,6 +209,13 @@ export function DailyReportStudentDialog({
   const locked = submittedAt !== null
   const isPresent = savedStatus === 'present'
   const reportDisabled = busy || locked || !isPresent
+  /**
+   * A saved report — draft or sent — holds its day at Hadir: the database refuses any other
+   * status while the report exists (children_daily_reports_attendance_fkey, 20261108030000), so the
+   * selector is held too rather than letting the teacher pick something that will bounce. The
+   * attendance note stays editable. Only an admin can remove the report to free the day.
+   */
+  const statusHeld = !locked && reportId !== null && isPresent
 
   const attendanceDirty = draftStatus !== savedStatus || draftNote !== savedNote
   const moodDirty = !sameMoods(draftMoods, savedMoods)
@@ -492,11 +499,17 @@ export function DailyReportStudentDialog({
                     <AttendanceStatusSelector
                       value={draftStatus}
                       onChange={setDraftStatus}
-                      disabled={busy || locked}
+                      disabled={busy || locked || statusHeld}
                       ariaLabel={childName}
                     />
                   }
                 />
+                {statusHeld ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                    Laporan harian sudah dibuat untuk hari ini, jadi status tetap Hadir. Hubungi admin bila
+                    status perlu diubah.
+                  </Typography>
+                ) : null}
                 <Divider sx={{ my: 1.5 }} />
                 <Field
                   label="Catatan Kehadiran"

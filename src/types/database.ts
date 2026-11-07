@@ -54,6 +54,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "child_attendances_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "child_attendances_period_fkey"
             columns: ["learning_period_id", "child_id", "classroom_id"]
             isOneToOne: false
@@ -163,7 +170,10 @@ export type Database = {
       }
       children_daily_reports: {
         Row: {
+          attendance_status: string
+          child_attendance_id: string | null
           child_id: string
+          classroom_id: string | null
           classroom_teacher_id: string
           created_at: string | null
           created_by: string | null
@@ -180,7 +190,10 @@ export type Database = {
           teacher_note: string | null
         }
         Insert: {
+          attendance_status?: string
+          child_attendance_id?: string | null
           child_id: string
+          classroom_id?: string | null
           classroom_teacher_id: string
           created_at?: string | null
           created_by?: string | null
@@ -197,7 +210,10 @@ export type Database = {
           teacher_note?: string | null
         }
         Update: {
+          attendance_status?: string
+          child_attendance_id?: string | null
           child_id?: string
+          classroom_id?: string | null
           classroom_teacher_id?: string
           created_at?: string | null
           created_by?: string | null
@@ -215,6 +231,25 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "children_daily_reports_attendance_fkey"
+            columns: [
+              "child_attendance_id",
+              "child_id",
+              "classroom_id",
+              "report_date",
+              "attendance_status",
+            ]
+            isOneToOne: false
+            referencedRelation: "child_attendances"
+            referencedColumns: [
+              "id",
+              "child_id",
+              "classroom_id",
+              "attendance_date",
+              "status",
+            ]
+          },
+          {
             foreignKeyName: "children_daily_reports_child_id_fkey"
             columns: ["child_id"]
             isOneToOne: false
@@ -227,6 +262,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "classroom_teachers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_daily_reports_group_classroom_fkey"
+            columns: ["classroom_teacher_id", "classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_teachers"
+            referencedColumns: ["id", "classroom_id"]
           },
         ]
       }
@@ -253,6 +295,13 @@ export type Database = {
           started_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "classroom_teacher_work_sessions_attendance_id_fkey"
+            columns: ["attendance_id"]
+            isOneToOne: false
+            referencedRelation: "classroom_teachers_attendance_status"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "classroom_teacher_work_sessions_attendance_id_fkey"
             columns: ["attendance_id"]
@@ -1074,6 +1123,7 @@ export type Database = {
         Args: { p_classroom_teacher_id: string }
         Returns: undefined
       }
+      delete_daily_report: { Args: { p_report_id: string }; Returns: undefined }
       delete_learning_period: {
         Args: { p_learning_period_id: string }
         Returns: string
@@ -1131,6 +1181,10 @@ export type Database = {
       }
       mark_payment_period_paid: {
         Args: { p_note?: string; p_payment_period_id: string }
+        Returns: undefined
+      }
+      materialize_flexi_work_session: {
+        Args: { p_attendance_id: string }
         Returns: undefined
       }
       record_attendance: {

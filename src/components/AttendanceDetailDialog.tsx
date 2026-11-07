@@ -16,7 +16,7 @@ import {
   Typography,
 } from '@mui/material'
 import { ConfirmDialog } from './ConfirmDialog'
-import { fetchDailyReportForAttendance, type DailyReportSummary } from '../lib/dailyReport'
+import { deleteDailyReport, fetchDailyReportForAttendance, type DailyReportSummary } from '../lib/dailyReport'
 import { deleteChildAttendance } from '../lib/learningPeriods'
 import { formatDate, formatDateTime } from '../lib/formatDate'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../types/attendance'
@@ -52,8 +52,9 @@ type Props = {
   classroomId: string
   onClose: () => void
   /**
-   * Show Hapus Absensi. Admin only — this dialog is shared with the parent portal, so the action
-   * is opt-in rather than role-checked here. The database checks the role for real.
+   * Show Hapus Absensi and Hapus Laporan. Admin only — this dialog is shared with the parent
+   * portal, so the actions are opt-in rather than role-checked here. The database checks the role
+   * for real.
    */
   allowDelete?: boolean
   /** Called after a successful delete so the list behind the dialog can reload. */
@@ -69,6 +70,10 @@ type Props = {
  * tapped while browsing a period's history. Deleting a day that never happened is the exception
  * (allowDelete) — there was previously no way to take one back, and a day wrongly recorded still
  * costs the family one of its guaranteed days.
+ *
+ * A day with a daily report is held at Hadir by the database (20261108030000), so it can be
+ * neither deleted nor switched to Alfa/Sakit while the report exists. Hapus Laporan is the way out
+ * when such a day genuinely needs correcting: the report goes first, then the day can change.
  *
  * The report is fetched when the dialog opens rather than with the list: most rows are never
  * opened, and one query per row would be dozens for nothing.
@@ -87,6 +92,9 @@ export function AttendanceDetailDialog({
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmDeleteReport, setConfirmDeleteReport] = useState(false)
+  const [deletingReport, setDeletingReport] = useState(false)
+  const [reportDeleted, setReportDeleted] = useState(false)
 
   const status = isAttendanceStatus(attendance.status) ? attendance.status : null
   const isPresent = status === 'present'
@@ -97,6 +105,7 @@ export function AttendanceDetailDialog({
     setLoading(true)
     setError(null)
     setReport(null)
+    setReportDeleted(false)
 
     // A report can only exist for a child recorded present (enforce_child_present), so there is
     // nothing to look up for an alfa or sakit day.
@@ -134,6 +143,24 @@ export function AttendanceDetailDialog({
     }
     onDeleted?.()
     onClose()
+  }
+
+  // The dialog stays open: the day itself is unchanged, and the admin usually wants to go on and
+  // correct it next.
+  async function handleDeleteReport() {
+    if (!report) return
+    setDeletingReport(true)
+    setError(null)
+    const result = await deleteDailyReport(report.reportId)
+    setDeletingReport(false)
+    setConfirmDeleteReport(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    setReport(null)
+    setReportDeleted(true)
+    onDeleted?.()
   }
 
   return (
@@ -207,6 +234,8 @@ export function AttendanceDetailDialog({
           <Alert severity="info">
             Laporan harian hanya diisi untuk siswa yang hadir, jadi hari ini tidak memilikinya.
           </Alert>
+        ) : reportDeleted ? (
+          <Alert severity="success">Laporan harian dihapus. Absensi hari ini sekarang dapat diubah atau dihapus.</Alert>
         ) : !report ? (
           <Alert severity="info">Guru belum mengisi laporan harian untuk hari ini.</Alert>
         ) : (
@@ -279,9 +308,26 @@ export function AttendanceDetailDialog({
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'action.hover' }}>
         {allowDelete ? (
           <>
-            <Button color="error" startIcon={<DeleteIcon />} onClick={() => setConfirmDelete(true)} disabled={deleting}>
-              Hapus Absensi
-            </Button>
+            {/* A reported day is held at Hadir, so only the report can go first. */}
+            {report ? (
+              <Button
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setConfirmDeleteReport(true)}
+                disabled={deletingReport}
+              >
+                Hapus Laporan
+              </Button>
+            ) : (
+              <Button
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting || loading}
+              >
+                Hapus Absensi
+              </Button>
+            )}
             <Box sx={{ flexGrow: 1 }} />
           </>
         ) : null}
@@ -297,6 +343,17 @@ export function AttendanceDetailDialog({
         confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => void handleDelete()}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteReport}
+        title="Hapus Laporan"
+        description={`Hapus laporan harian ${formatDate(attendance.attendance_date)}${
+          report?.submittedAt ? ', yang sudah terkirim ke orang tua' : ''
+        }? Suasana hati dan Catatan Guru akan hilang dan tidak dapat dikembalikan. Absensi hari ini tetap tersimpan.`}
+        confirmLabel={deletingReport ? 'Menghapus…' : 'Hapus'}
+        onCancel={() => setConfirmDeleteReport(false)}
+        onConfirm={() => void handleDeleteReport()}
       />
     </Dialog>
   )

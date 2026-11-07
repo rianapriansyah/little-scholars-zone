@@ -213,7 +213,8 @@ export type DailyReportSummary = {
  * classroom_teacher, date), so joining them needs classroom_teachers and teachers — neither of
  * which a parent can read in full. The RPC does that join server-side and applies the same access
  * rules the table's own policies do, so a parent still only ever sees their own child's submitted
- * reports. See 20261002010000_daily_report_for_attendance.sql.
+ * reports. See 20261002010000_daily_report_for_attendance.sql. Since 20261108030000 the RPC
+ * follows the report's child_attendance_id link rather than re-matching those values.
  */
 export async function fetchDailyReportForAttendance(
   childId: string,
@@ -300,6 +301,17 @@ export async function submitDailyReport(reportId: string): Promise<Result<string
   const { data, error } = await supabase.rpc('submit_daily_report', { p_report_id: reportId })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
+}
+
+/**
+ * Admin only (delete_daily_report checks the role). Removes a report, sent or not, so its absensi
+ * day can be corrected: while a report exists the day is held at Hadir by
+ * children_daily_reports_attendance_fkey (20261108030000).
+ */
+export async function deleteDailyReport(reportId: string): Promise<Result<void>> {
+  const { error } = await supabase.rpc('delete_daily_report', { p_report_id: reportId })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: undefined }
 }
 
 /**
