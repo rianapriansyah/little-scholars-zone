@@ -702,7 +702,229 @@ BEGIN
   RAISE NOTICE 'PASS: admin reads every report through the RPC';
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- A report belongs to its absensi row (20261108030000_daily_report_belongs_to_attendance.sql)
+--
+-- children_daily_reports_attendance_fkey is DEFERRABLE INITIALLY DEFERRED and this script never
+-- commits, so every check that relies on it forces it with SET CONSTRAINTS ... IMMEDIATE.
+-- ---------------------------------------------------------------------------
+
 RESET ROLE;
+
+-- Every report written above was linked by the trigger to the absensi row it describes.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM public.children_daily_reports r
+      JOIN public.classroom_teachers ct ON ct.id = r.classroom_teacher_id
+      LEFT JOIN public.child_attendances a ON a.id = r.child_attendance_id
+     WHERE r.child_id IN ('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000017')
+       AND (a.id IS NULL
+            OR a.child_id <> r.child_id
+            OR a.attendance_date <> r.report_date
+            OR a.classroom_id <> ct.classroom_id
+            OR r.classroom_id <> ct.classroom_id
+            OR a.status <> 'present')
+  ) THEN
+    RAISE EXCEPTION 'FAIL: every saved report must link to its own present absensi row';
+  END IF;
+  RAISE NOTICE 'PASS: saving a report links it to its absensi row';
+END $$;
+
+-- A reported day cannot leave 'present'; an unreported day can.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000002","role":"authenticated","app_metadata":{"role":"teacher"}}';
+
+DO $$
+DECLARE
+  v_child uuid := '00000000-0000-4000-8000-000000000016';
+  v_room uuid := '00000000-0000-4000-8000-000000000018';
+BEGIN
+  BEGIN
+    PERFORM public.record_attendance(v_child, v_room, '2026-08-03', 'sick');
+    RAISE EXCEPTION 'FAIL: a day with a report must not be switched to sick';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%sudah punya laporan harian%' THEN
+      RAISE EXCEPTION 'FAIL: unexpected refusal from record_attendance: %', SQLERRM;
+    END IF;
+    RAISE NOTICE 'PASS: record_attendance refuses to move a reported day off present (%)', SQLERRM;
+  END;
+
+  -- Re-saving 'present' on a reported day is still a normal correction (e.g. the note).
+  PERFORM public.record_attendance(v_child, v_room, '2026-08-03', 'present', 'catatan baru');
+  SET CONSTRAINTS ALL IMMEDIATE;
+  SET CONSTRAINTS ALL DEFERRED;
+  RAISE NOTICE 'PASS: a reported day can still be re-saved as present';
+
+  -- 2026-08-04 was recorded absent and has no report, so it changes freely.
+  PERFORM public.record_attendance(v_child, v_room, '2026-08-04', 'sick');
+  SET CONSTRAINTS ALL IMMEDIATE;
+  SET CONSTRAINTS ALL DEFERRED;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.child_attendances
+     WHERE child_id = v_child AND classroom_id = v_room AND attendance_date = '2026-08-04' AND status = 'sick'
+  ) THEN
+    RAISE EXCEPTION 'FAIL: a day without a report should accept a status change';
+  END IF;
+  RAISE NOTICE 'PASS: a day without a report still changes status';
+END $$;
+
+RESET ROLE;
+
+-- The same rules hold for writes that bypass the RPCs: the FK itself refuses them.
+DO $$
+DECLARE
+  v_att uuid;
+BEGIN
+  SELECT id INTO v_att FROM public.child_attendances
+   WHERE child_id = '00000000-0000-4000-8000-000000000016'
+     AND classroom_id = '00000000-0000-4000-8000-000000000018'
+     AND attendance_date = '2026-08-03';
+
+  BEGIN
+    UPDATE public.child_attendances SET status = 'absent' WHERE id = v_att;
+    SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
+    RAISE EXCEPTION 'FAIL: a direct status change on a reported day must violate the FK';
+  EXCEPTION WHEN foreign_key_violation THEN
+    RAISE NOTICE 'PASS: the FK refuses a direct status change on a reported day';
+  END;
+  SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
+
+  BEGIN
+    UPDATE public.child_attendances SET attendance_date = '2026-08-05' WHERE id = v_att;
+    SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
+    RAISE EXCEPTION 'FAIL: re-dating a reported day must violate the FK';
+  EXCEPTION WHEN foreign_key_violation THEN
+    RAISE NOTICE 'PASS: the FK refuses re-dating a reported day';
+  END;
+  SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
+
+  BEGIN
+    DELETE FROM public.child_attendances WHERE id = v_att;
+    SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
+    RAISE EXCEPTION 'FAIL: deleting a reported day must violate the FK';
+  EXCEPTION WHEN foreign_key_violation THEN
+    RAISE NOTICE 'PASS: the FK refuses deleting a reported day';
+  END;
+  SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
+
+  -- With the trigger out of the way (it would re-derive everything), a report cannot be pointed
+  -- at a teaching group from a different class than its absensi.
+  -- The report keeps its group (Test Classroom) but claims Test Classroom 2; only
+  -- children_daily_reports_group_classroom_fkey (immediate) can refuse that here.
+  ALTER TABLE public.children_daily_reports DISABLE TRIGGER enforce_child_present;
+  BEGIN
+    UPDATE public.children_daily_reports
+       SET classroom_id = '00000000-0000-4000-8000-000000000030'
+     WHERE child_attendance_id = v_att;
+    RAISE EXCEPTION 'FAIL: a report whose group is in another class must be rejected';
+  EXCEPTION WHEN foreign_key_violation THEN
+    IF SQLERRM NOT LIKE '%children_daily_reports_group_classroom_fkey%' THEN
+      RAISE EXCEPTION 'FAIL: expected the group/classroom FK to refuse this, got: %', SQLERRM;
+    END IF;
+    RAISE NOTICE 'PASS: a report cannot sit on a group from another class';
+  END;
+  ALTER TABLE public.children_daily_reports ENABLE TRIGGER enforce_child_present;
+
+  -- A new report without the link is refused even with the trigger bypassed.
+  ALTER TABLE public.children_daily_reports DISABLE TRIGGER enforce_child_present;
+  BEGIN
+    INSERT INTO public.children_daily_reports (child_id, classroom_teacher_id, report_date)
+    VALUES ('00000000-0000-4000-8000-000000000017', '00000000-0000-4000-8000-00000000001a', '2026-08-10');
+    RAISE EXCEPTION 'FAIL: an unlinked report must violate children_daily_reports_linked_check';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'PASS: a report without its absensi link is refused';
+  END;
+  ALTER TABLE public.children_daily_reports ENABLE TRIGGER enforce_child_present;
+END $$;
+
+-- delete_child_attendance names the problem; delete_daily_report is admin only and frees the day.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000002","role":"authenticated","app_metadata":{"role":"teacher"}}';
+
+DO $$
+DECLARE
+  v_report uuid;
+BEGIN
+  SELECT r.id INTO v_report
+    FROM public.children_daily_reports r
+   WHERE r.child_id = '00000000-0000-4000-8000-000000000016'
+     AND r.classroom_teacher_id = '00000000-0000-4000-8000-000000000019'
+     AND r.report_date = '2026-08-03';
+
+  BEGIN
+    PERFORM public.delete_daily_report(v_report);
+    RAISE EXCEPTION 'FAIL: a teacher must not be able to delete a report';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    RAISE NOTICE 'PASS: delete_daily_report refuses a teacher (%)', SQLERRM;
+  END;
+END $$;
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}';
+
+DO $$
+DECLARE
+  v_child uuid := '00000000-0000-4000-8000-000000000016';
+  v_room uuid := '00000000-0000-4000-8000-000000000018';
+  v_att uuid;
+  v_report uuid;
+BEGIN
+  SELECT a.id, r.id INTO v_att, v_report
+    FROM public.child_attendances a
+    JOIN public.children_daily_reports r ON r.child_attendance_id = a.id
+   WHERE a.child_id = v_child AND a.classroom_id = v_room AND a.attendance_date = '2026-08-03';
+
+  BEGIN
+    PERFORM public.delete_child_attendance(v_att);
+    RAISE EXCEPTION 'FAIL: delete_child_attendance must refuse a reported day';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    RAISE NOTICE 'PASS: delete_child_attendance refuses a reported day (%)', SQLERRM;
+  END;
+
+  PERFORM public.delete_daily_report(v_report);
+  IF EXISTS (SELECT 1 FROM public.children_daily_reports WHERE id = v_report)
+     OR EXISTS (SELECT 1 FROM public.daily_report_items WHERE report_id = v_report)
+  THEN
+    RAISE EXCEPTION 'FAIL: delete_daily_report should remove the report and its entries';
+  END IF;
+
+  -- With the report gone the day is correctable again.
+  PERFORM public.record_attendance(v_child, v_room, '2026-08-03', 'sick');
+  SET CONSTRAINTS ALL IMMEDIATE;
+  SET CONSTRAINTS ALL DEFERRED;
+  RAISE NOTICE 'PASS: an admin can delete a report, after which its day can be corrected';
+END $$;
+
+RESET ROLE;
+
+-- Last, because it removes Child One's fixtures: deleting a family takes its reports, absensi and
+-- periods together — two cascades from children, with the deferred FKs satisfied at commit.
+DO $$
+DECLARE
+  v_child uuid := '00000000-0000-4000-8000-000000000016';
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.children_daily_reports WHERE child_id = v_child) THEN
+    RAISE EXCEPTION 'FAIL: fixture child should still have a report before the family delete';
+  END IF;
+
+  DELETE FROM public.families WHERE id = '00000000-0000-4000-8000-000000000014';
+  SET CONSTRAINTS ALL IMMEDIATE;
+  SET CONSTRAINTS ALL DEFERRED;
+
+  IF EXISTS (SELECT 1 FROM public.children_daily_reports WHERE child_id = v_child)
+     OR EXISTS (SELECT 1 FROM public.child_attendances WHERE child_id = v_child)
+     OR EXISTS (SELECT 1 FROM public.learning_periods WHERE child_id = v_child)
+  THEN
+    RAISE EXCEPTION 'FAIL: deleting a family must remove its reports, absensi and periods';
+  END IF;
+  RAISE NOTICE 'PASS: deleting a family with reports still works';
+END $$;
 
 DO $$ BEGIN RAISE NOTICE 'ALL DAILY REPORT TESTS PASSED'; END $$;
 

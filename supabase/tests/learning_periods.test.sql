@@ -246,6 +246,8 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000001","r
 DO $$
 BEGIN
   -- The composite FK: period 31 belongs to classroom Y, so it cannot carry a classroom X row.
+  -- The FK is deferred since 20261108020000, so the check is forced here rather than at a
+  -- COMMIT this script never reaches.
   BEGIN
     INSERT INTO public.child_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
     VALUES (
@@ -255,6 +257,7 @@ BEGIN
       '2026-10-05',
       'present'
     );
+    SET CONSTRAINTS public.child_attendances_period_fkey IMMEDIATE;
     RAISE EXCEPTION 'FAIL: attendance filed against a period from another classroom must be rejected';
   EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
@@ -446,7 +449,100 @@ BEGIN
   RAISE NOTICE 'PASS: unenroll_child only ends the named group''s enrollment';
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- A period with absensi cannot be deleted; a family still can
+-- (20261108020000_protect_attendance_from_period_delete.sql)
+--
+-- child_attendances_period_fkey is DEFERRABLE INITIALLY DEFERRED, so it would only fire at
+-- COMMIT — which this script never reaches. Each check below forces it with SET CONSTRAINTS
+-- ... IMMEDIATE, which runs the pending checks there and then.
+-- ---------------------------------------------------------------------------
+
 RESET ROLE;
+
+-- Period 0030 (Child One, classroom X) has absensi from the quota tests above. A fresh,
+-- never-attended period in X is the one an admin is allowed to delete.
+INSERT INTO public.learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
+  ('00000000-0000-4000-9000-000000000033', '00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000018', 9, '2026-12-01');
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}';
+
+DO $$
+DECLARE
+  v_used uuid := '00000000-0000-4000-9000-000000000030';
+  v_rows int;
+BEGIN
+  SELECT count(*) INTO v_rows FROM public.child_attendances WHERE learning_period_id = v_used;
+  IF v_rows = 0 THEN
+    RAISE EXCEPTION 'FAIL: fixture period 0030 should have absensi by now';
+  END IF;
+
+  -- The RPC refuses in words, before touching the payment row.
+  BEGIN
+    PERFORM public.delete_learning_period(v_used);
+    RAISE EXCEPTION 'FAIL: delete_learning_period must refuse a period with absensi';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%sudah memiliki absensi%' THEN
+      RAISE EXCEPTION 'FAIL: unexpected refusal from delete_learning_period: %', SQLERRM;
+    END IF;
+    RAISE NOTICE 'PASS: delete_learning_period refuses a period with absensi (%)', SQLERRM;
+  END;
+
+  -- A direct DELETE through the admin's RLS policy is refused by the FK itself. This is the
+  -- path that silently erased absensi while the FK was ON DELETE CASCADE.
+  BEGIN
+    DELETE FROM public.learning_periods WHERE id = v_used;
+    SET CONSTRAINTS public.child_attendances_period_fkey IMMEDIATE;
+    RAISE EXCEPTION 'FAIL: deleting a period with absensi must violate child_attendances_period_fkey';
+  EXCEPTION WHEN foreign_key_violation THEN
+    RAISE NOTICE 'PASS: a direct period delete with absensi is refused by the FK';
+  END;
+  SET CONSTRAINTS public.child_attendances_period_fkey DEFERRED;
+
+  SELECT count(*) INTO v_rows FROM public.child_attendances WHERE learning_period_id = v_used;
+  IF v_rows = 0 THEN
+    RAISE EXCEPTION 'FAIL: the refused delete must leave the absensi in place';
+  END IF;
+
+  -- An unused period still deletes, payment row and all.
+  PERFORM public.delete_learning_period('00000000-0000-4000-9000-000000000033');
+  SET CONSTRAINTS ALL IMMEDIATE;
+  SET CONSTRAINTS ALL DEFERRED;
+  IF EXISTS (SELECT 1 FROM public.learning_periods WHERE id = '00000000-0000-4000-9000-000000000033')
+     OR EXISTS (SELECT 1 FROM public.payment_periods WHERE learning_period_id = '00000000-0000-4000-9000-000000000033')
+  THEN
+    RAISE EXCEPTION 'FAIL: an unused period and its payment row should be deleted';
+  END IF;
+  RAISE NOTICE 'PASS: an unused period still deletes with its payment row';
+END $$;
+
+RESET ROLE;
+
+-- Deleting a family must still take everything with it: children → periods, absensi now
+-- through its own child FK, and the deferred period FK satisfied by commit time.
+DO $$
+DECLARE
+  v_family uuid := '00000000-0000-4000-9000-000000000015'; -- Child Two's family
+  v_child uuid := '00000000-0000-4000-9000-000000000017';
+BEGIN
+  INSERT INTO public.child_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
+  VALUES ('00000000-0000-4000-9000-000000000032', v_child, '00000000-0000-4000-9000-00000000001a', '2026-12-15', 'present')
+  ON CONFLICT ON CONSTRAINT child_attendances_child_classroom_date_key DO NOTHING;
+
+  DELETE FROM public.families WHERE id = v_family;
+  SET CONSTRAINTS ALL IMMEDIATE;
+  SET CONSTRAINTS ALL DEFERRED;
+
+  IF EXISTS (SELECT 1 FROM public.child_attendances WHERE child_id = v_child)
+     OR EXISTS (SELECT 1 FROM public.learning_periods WHERE child_id = v_child)
+     OR EXISTS (SELECT 1 FROM public.children WHERE id = v_child)
+  THEN
+    RAISE EXCEPTION 'FAIL: deleting a family must remove its children, periods and absensi';
+  END IF;
+  RAISE NOTICE 'PASS: deleting a family still removes its children, periods and absensi';
+END $$;
 
 SELECT 'ALL LEARNING PERIOD TESTS PASSED' AS result;
 
