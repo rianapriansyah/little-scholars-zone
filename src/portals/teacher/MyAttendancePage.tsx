@@ -22,7 +22,6 @@ import {
   fetchMonthlyAttendance,
   formatHoursMinutes,
   summarizeAttendanceByClass,
-  weekdaysInRange,
   type TeacherAttendanceReportClass,
 } from '../../lib/teacherAttendanceReport'
 
@@ -116,11 +115,10 @@ export function MyAttendancePage() {
       setError(attendanceResult.error)
       return
     }
-    // Same cell-by-cell calculation the PDF uses (see summarizeAttendanceByClass) rather than
-    // summing every fetched row directly — a stray non-weekday row must not inflate this either.
+    // Same calculation, over the same days, as the PDF — see summarizeAttendanceByClass.
     const { grandTotalMinutes, estimatedPay: pay } = summarizeAttendanceByClass(
       teacherClasses,
-      weekdaysInRange(start, end),
+      { start, end },
       attendanceResult.data,
     )
     setTotalMinutes(grandTotalMinutes)

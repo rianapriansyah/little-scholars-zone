@@ -35,20 +35,31 @@ export function currentMonthRange(referenceDate: string = todayIsoDateInWita()):
 }
 
 /**
- * Monday–Friday dates between `start` and `end` inclusive — classrooms only run those days (see
- * isWitaClassDay in classStatus.ts), so weekends never appear as report rows.
+ * THE list of days the attendance report covers: every date between `start` and `end`
+ * inclusive, weekends included. It is both the PDF's rows and what every total counts —
+ * summarizeAttendanceByClass derives its days from here and nowhere else, so a day that is
+ * printed is always a day that is counted. Weekends are marked (red) in the PDF, not dropped:
+ * flexi work and the odd Saturday class are real, paid time.
  */
-export function weekdaysInRange(start: string, end: string): string[] {
+export function reportDatesInRange(start: string, end: string): string[] {
   const dates: string[] = []
   let cursor = dayjs(start)
   const last = dayjs(end)
   while (cursor.isBefore(last) || cursor.isSame(last, 'day')) {
-    const day = cursor.day() // 0 = Sunday, 6 = Saturday
-    if (day >= 1 && day <= 5) dates.push(cursor.format('YYYY-MM-DD'))
+    dates.push(cursor.format('YYYY-MM-DD'))
     cursor = cursor.add(1, 'day')
   }
   return dates
 }
+
+/** Saturday or Sunday, for a YYYY-MM-DD date (a calendar date, so no time zone is involved). */
+export function isWeekendDate(date: string): boolean {
+  const day = dayjs(date).day() // 0 = Sunday, 6 = Saturday
+  return day === 0 || day === 6
+}
+
+/** Font colour for weekend rows in the PDF — the app's error red (MUI error.main, #d32f2f). */
+const WEEKEND_TEXT_COLOR: [number, number, number] = [211, 47, 47]
 
 /** classroom_teacher_id + session_date → attendance status, for every class in the date range. */
 export async function fetchMonthlyAttendance(
@@ -134,13 +145,14 @@ export type ClassMinutesTotal = TeacherAttendanceReportClass & {
  * MyAttendancePage summed raw attendance rows directly instead of going cell-by-cell like the
  * PDF does.
  *
- * Only counts a (class, date) cell when `date` is in `dates` — a stray attendance row that
- * doesn't land on one of those dates (e.g. a weekend test clock-in) is not a real class day and
- * must not silently inflate a total or an estimated payout.
+ * Takes the period, not a list of days: the days come from reportDatesInRange, the same list the
+ * PDF prints its rows from, so no caller can count a different set of days than another — which
+ * is how the totals once left out weekend rows that the PDF was showing. A row outside the period
+ * is ignored.
  */
 export function summarizeAttendanceByClass(
   classes: TeacherAttendanceReportClass[],
-  dates: string[],
+  period: { start: string; end: string },
   attendanceRows: ClassroomTeacherAttendanceStatus[],
 ): {
   classTotals: ClassMinutesTotal[]
@@ -159,6 +171,7 @@ export function summarizeAttendanceByClass(
     if (row.minutesTaught != null) minutesByKey.set(`${row.classroomTeacherId}|${row.sessionDate}`, row.minutesTaught)
   }
 
+  const dates = reportDatesInRange(period.start, period.end)
   const classTotals = classes.map((cls) => {
     let totalMinutes = 0
     for (const date of dates) {
@@ -211,10 +224,9 @@ export async function fetchMonthlyAttendanceSummary(params: {
   )
   if (!fetchResult.ok) return fetchResult
 
-  const dates = weekdaysInRange(start, end)
   const { grandTotalMinutes, estimatedPay, classesMissingRate } = summarizeAttendanceByClass(
     classes,
-    dates,
+    { start, end },
     fetchResult.data,
   )
 
@@ -230,10 +242,10 @@ const PAGE_BOTTOM_MARGIN = 16
  * header (business name, teacher, period), then one table per class the teacher teaches — a
  * teacher with 4 classes gets 4 tables, each with its own "Total Durasi Mengajar" row — and
  * finally one small summary table totalling every class's minutes for the month, plus (when a
- * rate is configured) an estimated-pay line. A day with no logged attendance still gets a row
+ * rate is configured) an estimated-pay line. A weekday with no logged attendance still gets a row
  * in its class's table — "Belum Absen" — same no-row-means-a-gap convention as the rest of this
  * feature, so a forgotten punch is visible in the printed report too, not silently skipped (and
- * doesn't count toward any total).
+ * doesn't count toward any total). Weekend rows are printed red, "Libur" when empty.
  */
 export async function downloadTeacherAttendanceReport(params: {
   teacherName: string
@@ -256,10 +268,12 @@ export async function downloadTeacherAttendanceReport(params: {
     byKey.set(`${row.classroomTeacherId}|${row.sessionDate}`, row)
   }
 
-  const dates = weekdaysInRange(start, end)
+  // The rows and the totals both come from reportDatesInRange (the totals via
+  // summarizeAttendanceByClass), so every printed day is a counted day.
+  const rowDates = reportDatesInRange(start, end)
   const { classTotals, grandTotalMinutes, estimatedPay, classesMissingRate } = summarizeAttendanceByClass(
     classes,
-    dates,
+    { start, end },
     fetchResult.data,
   )
   const totalMinutesByClass = new Map(classTotals.map((c) => [c.classroomTeacherId, c.totalMinutes]))
@@ -285,19 +299,24 @@ export async function downloadTeacherAttendanceReport(params: {
   for (const cls of classes) {
     const body: (string | { content: string; colSpan?: number; styles?: Record<string, unknown> })[][] = []
     let rowNo = 1
-    for (const date of dates) {
+    // Every day of the month, so the table reads as a calendar. Saturday and Sunday are printed in
+    // red; one with nothing logged says "Libur" rather than "Belum Absen", because no punch is
+    // expected on a day off — only a weekday gap is a forgotten one.
+    for (const date of rowDates) {
       const status = byKey.get(`${cls.classroomTeacherId}|${date}`) ?? null
       const arrival = status?.arrivalStatus ?? 'missing'
       const departure = status?.departureStatus ?? 'missing'
+      const weekend = isWeekendDate(date)
 
-      body.push([
+      const cells = [
         String(rowNo++),
         formatDate(date),
         formatClockTime(status?.clockedInAt ?? null),
         formatClockTime(status?.clockedOutAt ?? null),
         status?.minutesTaught != null ? `${status.minutesTaught} menit` : '—',
-        summarizeKeterangan(arrival, departure, status?.workSessionCount ?? 0),
-      ])
+        weekend && !status ? 'Libur' : summarizeKeterangan(arrival, departure, status?.workSessionCount ?? 0),
+      ]
+      body.push(weekend ? cells.map((content) => ({ content, styles: { textColor: WEEKEND_TEXT_COLOR } })) : cells)
     }
     // The table's own footer row — bold, spanning the first four columns as a label so the
     // total reads as a summary line, not just another day. Reads from the shared

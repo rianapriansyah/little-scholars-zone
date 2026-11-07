@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { currentMonthRange, formatHoursMinutes, summarizeAttendanceByClass, weekdaysInRange } from './teacherAttendanceReport'
+import {
+  currentMonthRange,
+  formatHoursMinutes,
+  isWeekendDate,
+  reportDatesInRange,
+  summarizeAttendanceByClass,
+} from './teacherAttendanceReport'
 import type { ClassroomTeacherAttendanceStatus } from '../types/classroomTeacherAttendance'
 
 /** Only classroomTeacherId/sessionDate/minutesTaught matter to summarizeAttendanceByClass;
@@ -48,24 +54,32 @@ describe('currentMonthRange', () => {
   })
 })
 
-describe('weekdaysInRange', () => {
-  it('excludes Saturday and Sunday', () => {
-    // 2026-08-01 is a Saturday, 2026-08-02 a Sunday (2026-08-03 is the Monday used elsewhere).
-    expect(weekdaysInRange('2026-08-01', '2026-08-07')).toEqual([
+describe('reportDatesInRange', () => {
+  it('includes every day, weekends too', () => {
+    // 2026-08-01 is a Saturday, 2026-08-02 a Sunday.
+    expect(reportDatesInRange('2026-08-01', '2026-08-04')).toEqual([
+      '2026-08-01',
+      '2026-08-02',
       '2026-08-03',
       '2026-08-04',
-      '2026-08-05',
-      '2026-08-06',
-      '2026-08-07',
     ])
   })
 
-  it('is inclusive of both endpoints when they are weekdays', () => {
-    expect(weekdaysInRange('2026-08-03', '2026-08-03')).toEqual(['2026-08-03'])
+  it('is inclusive of both endpoints', () => {
+    expect(reportDatesInRange('2026-08-03', '2026-08-03')).toEqual(['2026-08-03'])
   })
 
-  it('returns an empty list for a weekend-only range', () => {
-    expect(weekdaysInRange('2026-08-01', '2026-08-02')).toEqual([])
+  it('covers a whole month', () => {
+    expect(reportDatesInRange('2026-11-01', '2026-11-30')).toHaveLength(30)
+  })
+})
+
+describe('isWeekendDate', () => {
+  it('is true only for Saturday and Sunday', () => {
+    expect(isWeekendDate('2026-08-01')).toBe(true) // Saturday
+    expect(isWeekendDate('2026-08-02')).toBe(true) // Sunday
+    expect(isWeekendDate('2026-08-03')).toBe(false) // Monday
+    expect(isWeekendDate('2026-08-07')).toBe(false) // Friday
   })
 })
 
@@ -93,8 +107,11 @@ describe('summarizeAttendanceByClass', () => {
     { classroomTeacherId: 'b', classroomLabel: 'Kelas B', rate: 10000 },
   ]
 
-  it('sums minutes per class and grand total, counting only cells within `dates`', () => {
-    const dates = ['2026-08-03', '2026-08-04']
+  /** A single Monday — enough for the tests that are about money, not about which days count. */
+  const monday = { start: '2026-08-03', end: '2026-08-03' }
+
+  it('sums minutes per class and grand total over the period', () => {
+    const dates = { start: '2026-08-03', end: '2026-08-04' }
     const rows = [
       fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 45 }),
       fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-04', minutesTaught: 50 }),
@@ -116,7 +133,7 @@ describe('summarizeAttendanceByClass', () => {
       fakeRow({ classroomTeacherId: 'b', sessionDate: '2026-08-03', minutesTaught: 60 }),
     ]
 
-    const result = summarizeAttendanceByClass(classes, ['2026-08-03'], rows)
+    const result = summarizeAttendanceByClass(classes, monday, rows)
 
     // 1h at 8.000 + 1h at 10.000. Multiplying the 2h total by either rate would be wrong.
     expect(result.estimatedPay).toBe(18000)
@@ -133,7 +150,7 @@ describe('summarizeAttendanceByClass', () => {
       fakeRow({ classroomTeacherId: 'b', sessionDate: '2026-08-03', minutesTaught: 30 }),
     ]
 
-    const result = summarizeAttendanceByClass(mixed, ['2026-08-03'], rows)
+    const result = summarizeAttendanceByClass(mixed, monday, rows)
 
     expect(result.grandTotalMinutes).toBe(90)
     expect(result.estimatedPay).toBe(8000)
@@ -145,7 +162,7 @@ describe('summarizeAttendanceByClass', () => {
     const unrated = [{ classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: null }]
     const rows = [fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 60 })]
 
-    const result = summarizeAttendanceByClass(unrated, ['2026-08-03'], rows)
+    const result = summarizeAttendanceByClass(unrated, monday, rows)
 
     // null, not 0 — "belum diatur" is a different statement from "earned nothing".
     expect(result.estimatedPay).toBeNull()
@@ -159,35 +176,47 @@ describe('summarizeAttendanceByClass', () => {
     ]
     const rows = [fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 60 })]
 
-    const result = summarizeAttendanceByClass(mixed, ['2026-08-03'], rows)
+    const result = summarizeAttendanceByClass(mixed, monday, rows)
 
     expect(result.estimatedPay).toBe(8000)
     expect(result.classesMissingRate).toEqual([])
   })
 
-  it('ignores a row whose date is not in the weekday list — this is the bug that caused MyAttendancePage and the PDF to disagree', () => {
-    const dates = ['2026-08-03'] // Monday only; 2026-08-01 is a Saturday
+  it('counts Saturday and Sunday — the days the PDF prints in red are days it totals', () => {
+    // 2026-08-01 Saturday, 2026-08-02 Sunday, 2026-08-03 Monday.
     const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-01', minutesTaught: 60 }),
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-02', minutesTaught: 30 }),
       fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 45 }),
-      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-01', minutesTaught: 5 }),
     ]
 
-    const result = summarizeAttendanceByClass([classes[0]], dates, rows)
+    const result = summarizeAttendanceByClass([classes[0]], { start: '2026-08-01', end: '2026-08-03' }, rows)
+
+    expect(result.grandTotalMinutes).toBe(135)
+    expect(result.estimatedPay).toBe((135 / 60) * 8000)
+  })
+
+  it('ignores a row outside the period', () => {
+    const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 45 }),
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-07-31', minutesTaught: 5 }),
+    ]
+
+    const result = summarizeAttendanceByClass([classes[0]], monday, rows)
 
     expect(result.grandTotalMinutes).toBe(45)
   })
 
   it('treats a null minutesTaught as zero rather than NaN', () => {
-    const dates = ['2026-08-03']
     const rows = [fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: null })]
 
-    const result = summarizeAttendanceByClass([classes[0]], dates, rows)
+    const result = summarizeAttendanceByClass([classes[0]], monday, rows)
 
     expect(result.grandTotalMinutes).toBe(0)
   })
 
   it('gives a class with no attendance rows at all a total of zero', () => {
-    const result = summarizeAttendanceByClass(classes, ['2026-08-03'], [])
+    const result = summarizeAttendanceByClass(classes, monday, [])
     expect(result.classTotals).toEqual([
       { classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: 8000, totalMinutes: 0, pay: 0 },
       { classroomTeacherId: 'b', classroomLabel: 'Kelas B', rate: 10000, totalMinutes: 0, pay: 0 },
