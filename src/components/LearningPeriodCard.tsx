@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
   Accordion,
   AccordionDetails,
@@ -13,40 +13,48 @@ import {
   Divider,
   IconButton,
   Typography,
-} from '@mui/material'
-import { isNearingEnd } from '../lib/attendanceQuota'
-import { formatDate } from '../lib/formatDate'
-import { fetchPeriodAttendances } from '../lib/learningPeriods'
-import type { ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
-import { AddAttendanceDialog } from './AddAttendanceDialog'
-import { AttendanceDetailDialog } from './AttendanceDetailDialog'
-import { AttendanceHistoryList } from './AttendanceHistoryList'
-import { StatTile } from './StatTile'
+} from "@mui/material";
+import { isNearingEnd } from "../lib/attendanceQuota";
+import { formatDate } from "../lib/formatDate";
+import { fetchPeriodAttendances } from "../lib/learningPeriods";
+import type {
+  ChildAttendanceRow,
+  LearningPeriodListEntry,
+} from "../types/attendance";
+import { AddAttendanceDialog } from "./AddAttendanceDialog";
+import { AttendanceDetailDialog } from "./AttendanceDetailDialog";
+import { AttendanceHistoryList } from "./AttendanceHistoryList";
+import { StatTile } from "./StatTile";
 
 type Props = {
-  period: LearningPeriodListEntry
-  defaultExpanded?: boolean
+  period: LearningPeriodListEntry;
+  defaultExpanded?: boolean;
   /** Admin only: a Tambah Absen button on Riwayat Absen, for filling a day nobody recorded. */
-  attendanceAdd?: boolean
+  attendanceAdd?: boolean;
   /** Admin only: let a day that should never have been recorded be deleted from its dialog. */
-  attendanceDelete?: boolean
+  attendanceDelete?: boolean;
   /**
    * Controls in the band between the period summary and Kelas — where the payment status and its
    * button go. Up here because payment is a fact about the period itself, so it reads with the
    * summary rather than trailing the day history.
    */
-  headerActions?: ReactNode
+  headerActions?: ReactNode;
   /**
    * Controls on their own line under headerActions, separated from it — the ones that change or
    * remove the period itself rather than report on it.
    */
-  manageActions?: ReactNode
+  manageActions?: ReactNode;
   /**
    * Adding or deleting a day moves the quota, and `period` is owned by the screen above, so the
    * card cannot refresh Terpakai/Sisa itself. The parent reloads and hands back a fresh row.
    */
-  onAttendanceChanged?: () => void
-}
+  onAttendanceChanged?: () => void;
+  /**
+   * Drop the Kelas heading inside the card — for screens that already group the cards under
+   * their class, where repeating it on every period is noise.
+   */
+  hideClassroom?: boolean;
+};
 
 /**
  * One learning period, collapsible: the period leads, and the class it belongs to sits inside
@@ -67,35 +75,39 @@ export function LearningPeriodCard({
   headerActions,
   manageActions,
   onAttendanceChanged,
+  hideClassroom = false,
 }: Props) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
-  const [historyOpen, setHistoryOpen] = useState(true)
-  const [attendances, setAttendances] = useState<ChildAttendanceRow[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [openAttendance, setOpenAttendance] = useState<ChildAttendanceRow | null>(null)
-  const [addOpen, setAddOpen] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [historyOpen, setHistoryOpen] = useState(true);
+  const [attendances, setAttendances] = useState<ChildAttendanceRow[] | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [openAttendance, setOpenAttendance] =
+    useState<ChildAttendanceRow | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true)
-    const result = await fetchPeriodAttendances(period.id)
-    setLoading(false)
-    if (!result.ok) return setError(result.error)
-    setError(null)
-    setAttendances(result.data)
-  }, [period.id])
+    setLoading(true);
+    const result = await fetchPeriodAttendances(period.id);
+    setLoading(false);
+    if (!result.ok) return setError(result.error);
+    setError(null);
+    setAttendances(result.data);
+  }, [period.id]);
 
   // Only once the card is opened: a child with several periods would otherwise fire a query per
   // period on load, for lists nobody has asked to see yet.
   useEffect(() => {
-    if (expanded && attendances === null && !loading && !error) void load()
-  }, [expanded, attendances, loading, error, load])
+    if (expanded && attendances === null && !loading && !error) void load();
+  }, [expanded, attendances, loading, error, load]);
 
   /** Both the day list and the quota above it are stale after a write. */
   const reload = useCallback(() => {
-    void load()
-    onAttendanceChanged?.()
-  }, [load, onAttendanceChanged])
+    void load();
+    onAttendanceChanged?.();
+  }, [load, onAttendanceChanged]);
 
   return (
     <Accordion
@@ -103,25 +115,41 @@ export function LearningPeriodCard({
       onChange={(_event, value) => setExpanded(value)}
       disableGutters
       variant="outlined"
-      sx={{ '&:before': { display: 'none' }, borderRadius: 2, overflow: 'hidden' }}
+      sx={{
+        "&:before": { display: "none" },
+        borderRadius: 2,
+        overflow: "hidden",
+      }}
     >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { my: 1.5 } }}>
-        <Box sx={{ width: '100%', minWidth: 0, pr: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
-            <Typography sx={{ fontWeight: 700 }}>Periode {period.periodNo}</Typography>
+      <AccordionSummary
+        expandIcon={<ExpandMoreIcon />}
+        sx={{ "& .MuiAccordionSummary-content": { my: 1.5 } }}
+      >
+        <Box sx={{ width: "100%", minWidth: 0, pr: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 0.75,
+            }}
+          >
+            <Typography sx={{ fontWeight: 700 }}>
+              Periode {period.periodNo}
+            </Typography>
             <Chip
               size="small"
-              label={period.isActive ? 'Berjalan' : 'Selesai'}
-              color={period.isActive ? 'success' : 'default'}
-              variant={period.isActive ? 'filled' : 'outlined'}
+              label={period.isActive ? "Berjalan" : "Selesai"}
+              color={period.isActive ? "success" : "default"}
+              variant={period.isActive ? "filled" : "outlined"}
             />
             {/* Only while it is still running: days left on a closed period is noise. */}
             {period.isActive ? (
               <Chip
                 size="small"
                 label={`Sisa ${period.daysRemaining} hari`}
-                color={isNearingEnd(period) ? 'warning' : 'default'}
-                variant={isNearingEnd(period) ? 'filled' : 'outlined'}
+                color={isNearingEnd(period) ? "warning" : "default"}
+                variant={isNearingEnd(period) ? "filled" : "outlined"}
               />
             ) : null}
           </Box>
@@ -133,29 +161,69 @@ export function LearningPeriodCard({
 
       <AccordionDetails sx={{ pt: 0 }}>
         {headerActions ? (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>{headerActions}</Box>
+          <Box
+            sx={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            {headerActions}
+          </Box>
         ) : null}
 
         {manageActions ? (
           <>
             <Divider sx={{ my: 1.5 }} />
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>{manageActions}</Box>
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              {manageActions}
+            </Box>
           </>
         ) : null}
 
         {/* Closes off the summary — everything below belongs to the class, not to the period. */}
         <Divider sx={{ mt: 1.5, mb: 2 }} />
 
-        <Typography variant="overline" color="text.secondary" sx={{ display: 'block' }}>
-          Kelas
-        </Typography>
-        <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{period.classroomLabel}</Typography>
+        {hideClassroom ? null : (
+          <>
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              sx={{ display: "block" }}
+            >
+              Kelas
+            </Typography>
+            <Typography sx={{ fontWeight: 600, mb: 1.5 }}>
+              {period.classroomLabel}
+            </Typography>
+          </>
+        )}
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
           <StatTile label="Mulai" value={formatDate(period.startDate)} />
-          <StatTile label="Terpakai" value={`${period.daysConsumed}/${period.guaranteedDays}`} hint="Hadir + alfa" />
-          <StatTile label="Sisa" value={period.daysRemaining} hint="Hari dijamin" />
-          <StatTile label="Sakit" value={period.daysSick} hint="Tidak memotong" />
+          <StatTile
+            label="Terpakai"
+            value={`${period.daysConsumed}/${period.guaranteedDays}`}
+            hint="Hadir + alfa"
+          />
+          <StatTile
+            label="Sisa"
+            value={period.daysRemaining}
+            hint="Hari dijamin"
+          />
+          <StatTile
+            label="Sakit"
+            value={period.daysSick}
+            hint="Tidak memotong"
+          />
         </Box>
 
         {period.projectedEndDate || period.actualEndDate ? (
@@ -168,15 +236,26 @@ export function LearningPeriodCard({
 
         <Divider sx={{ my: 2 }} />
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            flexWrap: "wrap",
+          }}
+        >
           <IconButton
             size="small"
             onClick={() => setHistoryOpen((open) => !open)}
             aria-expanded={historyOpen}
-            aria-label={historyOpen ? 'Sembunyikan riwayat absen' : 'Tampilkan riwayat absen'}
+            aria-label={
+              historyOpen
+                ? "Sembunyikan riwayat absen"
+                : "Tampilkan riwayat absen"
+            }
             sx={{
-              transform: historyOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-              transition: (theme) => theme.transitions.create('transform'),
+              transform: historyOpen ? "rotate(0deg)" : "rotate(-90deg)",
+              transition: (theme) => theme.transitions.create("transform"),
             }}
           >
             <ExpandMoreIcon fontSize="small" />
@@ -185,12 +264,21 @@ export function LearningPeriodCard({
             variant="overline"
             color="text.secondary"
             onClick={() => setHistoryOpen((open) => !open)}
-            sx={{ flexGrow: 1, minWidth: 0, cursor: 'pointer', userSelect: 'none' }}
+            sx={{
+              flexGrow: 1,
+              minWidth: 0,
+              cursor: "pointer",
+              userSelect: "none",
+            }}
           >
-            Riwayat Absen{attendances ? ` (${attendances.length})` : ''}
+            Riwayat Absen{attendances ? ` (${attendances.length})` : ""}
           </Typography>
           {attendanceAdd ? (
-            <Button size="small" variant="outlined" onClick={() => setAddOpen(true)}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setAddOpen(true)}
+            >
               Tambah Absen
             </Button>
           ) : null}
@@ -207,11 +295,18 @@ export function LearningPeriodCard({
             ) : (
               <>
                 {attendances.length > 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
                     Klik satu tanggal untuk detailnya.
                   </Typography>
                 ) : null}
-                <AttendanceHistoryList attendances={attendances} onSelect={(row) => setOpenAttendance(row)} />
+                <AttendanceHistoryList
+                  attendances={attendances}
+                  onSelect={(row) => setOpenAttendance(row)}
+                />
               </>
             )}
           </Box>
@@ -241,5 +336,5 @@ export function LearningPeriodCard({
         />
       ) : null}
     </Accordion>
-  )
+  );
 }

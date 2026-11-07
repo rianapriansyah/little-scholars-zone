@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom'
-import AddIcon from '@mui/icons-material/Add'
-import DeleteIcon from '@mui/icons-material/DeleteOutline'
-import EditIcon from '@mui/icons-material/EditOutlined'
-import PaymentsIcon from '@mui/icons-material/PaymentsOutlined'
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Link as RouterLink,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/DeleteOutline";
+import EditIcon from "@mui/icons-material/EditOutlined";
+import PaymentsIcon from "@mui/icons-material/PaymentsOutlined";
 import {
   Alert,
   Box,
@@ -14,104 +18,126 @@ import {
   Link,
   Paper,
   Typography,
-} from '@mui/material'
-import { ConfirmDialog } from '../../../components/ConfirmDialog'
-import { EditLearningPeriodDialog } from '../../../components/EditLearningPeriodDialog'
-import { LearningPeriodCard } from '../../../components/LearningPeriodCard'
-import { LearningPeriodDialog } from '../../../components/LearningPeriodDialog'
-import { PaymentPeriodDialog } from '../../../components/PaymentPeriodDialog'
-import { fetchPeriodsForChild } from '../../../lib/learningPeriods'
-import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
-import { groupPeriodsByProgram, type ChildProgramGroup } from '../../../lib/periodGrouping'
-import { deletePaymentReceipt } from '../../../lib/receiptStorage'
-import { supabase } from '../../../lib/supabase'
-import type { LearningPeriodListEntry } from '../../../types/attendance'
-import type { ChildRow } from '../../../types/child'
-import type { FamilyRow } from '../../../types/family'
-import { PAYMENT_STATUS_LABELS, type PaymentStatus } from '../../../types/payment'
+} from "@mui/material";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
+import { EditLearningPeriodDialog } from "../../../components/EditLearningPeriodDialog";
+import { LearningPeriodCard } from "../../../components/LearningPeriodCard";
+import { LearningPeriodDialog } from "../../../components/LearningPeriodDialog";
+import { PaymentPeriodDialog } from "../../../components/PaymentPeriodDialog";
+import { fetchPeriodsForChild } from "../../../lib/learningPeriods";
+import { fetchPaymentPeriodsByLearningPeriodIds } from "../../../lib/paymentPeriods";
+import {
+  groupPeriodsByProgram,
+  type ChildProgramGroup,
+} from "../../../lib/periodGrouping";
+import { deletePaymentReceipt } from "../../../lib/receiptStorage";
+import { supabase } from "../../../lib/supabase";
+import type { LearningPeriodListEntry } from "../../../types/attendance";
+import type { ChildRow } from "../../../types/child";
+import type { FamilyRow } from "../../../types/family";
+import {
+  PAYMENT_STATUS_LABELS,
+  type PaymentStatus,
+} from "../../../types/payment";
 
 /**
- * One child's learning periods, one collapsible card each, with the class and the day history
- * inside the period it belongs to.
+ * One child's learning periods, grouped under one heading per class (running classes first),
+ * with a collapsible card per period beneath it, Periode 1, 2, 3 in order.
  *
- * Keyed by child rather than by period: the grid lists children now, and a child in two programs
- * needs both in one place to be compared. The cards are still ordered by program (running ones
- * first, newest period first within each) so a renewal sits beside the period it renews, but the
- * program is no longer a card of its own — every action here belongs to one period, not to the
- * program, and leading with the program named the class twice on every card.
+ * Grouped because period numbers restart per class: a flat list read "Periode 1, Periode 2,
+ * Periode 1, Periode 2, Periode 3" with the class buried inside each card. The heading names the
+ * class once, so the cards drop their own Kelas line (hideClassroom). Every action still belongs
+ * to one period, so the class heading is a label, not a card.
  */
 export function PeriodDetailPage() {
-  const { childId } = useParams<{ childId: string }>()
-  const [searchParams] = useSearchParams()
+  const { childId } = useParams<{ childId: string }>();
+  const [searchParams] = useSearchParams();
   /** Set by a deep link from Detail Keluarga, so that program opens rather than all of them. */
-  const focusClassroomId = searchParams.get('program')
+  const focusClassroomId = searchParams.get("program");
 
-  const [programs, setPrograms] = useState<ChildProgramGroup[]>([])
-  const [childName, setChildName] = useState('')
+  const [programs, setPrograms] = useState<ChildProgramGroup[]>([]);
+  const [childName, setChildName] = useState("");
   /** The child and their family, which Tambah Periode Belajar needs to raise the invoice. */
-  const [child, setChild] = useState<ChildRow | null>(null)
-  const [family, setFamily] = useState<FamilyRow | null>(null)
-  const [payments, setPayments] = useState<Map<string, PaymentStatus>>(new Map())
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [addOpen, setAddOpen] = useState(false)
-  const [payTarget, setPayTarget] = useState<LearningPeriodListEntry | null>(null)
-  const [editTarget, setEditTarget] = useState<LearningPeriodListEntry | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<LearningPeriodListEntry | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [child, setChild] = useState<ChildRow | null>(null);
+  const [family, setFamily] = useState<FamilyRow | null>(null);
+  const [payments, setPayments] = useState<Map<string, PaymentStatus>>(
+    new Map(),
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [payTarget, setPayTarget] = useState<LearningPeriodListEntry | null>(
+    null,
+  );
+  const [editTarget, setEditTarget] = useState<LearningPeriodListEntry | null>(
+    null,
+  );
+  const [deleteTarget, setDeleteTarget] =
+    useState<LearningPeriodListEntry | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
-    if (!childId) return
-    setLoading(true)
+    if (!childId) return;
+    setLoading(true);
     // The child row comes back alongside the periods rather than being derived from them: a child
     // with no period yet has no period to read a name off, and that is exactly when an admin is
     // here to add one. The embedded family is what the dialog needs to offer the invoice after.
     const [result, childRes] = await Promise.all([
       fetchPeriodsForChild(childId),
-      supabase.from('children').select('*, families(*)').eq('id', childId).maybeSingle(),
-    ])
+      supabase
+        .from("children")
+        .select("*, families(*)")
+        .eq("id", childId)
+        .maybeSingle(),
+    ]);
     if (!result.ok) {
-      setLoading(false)
-      setError(result.error)
-      return
+      setLoading(false);
+      setError(result.error);
+      return;
     }
 
-    const childRow = childRes.data as unknown as (ChildRow & { families: FamilyRow | null }) | null
-    setChild(childRow)
-    setFamily(childRow?.families ?? null)
+    const childRow = childRes.data as unknown as
+      (ChildRow & { families: FamilyRow | null }) | null;
+    setChild(childRow);
+    setFamily(childRow?.families ?? null);
 
     // Best-effort, same as the grid: a failed payment lookup still shows the periods.
-    const paymentsResult = await fetchPaymentPeriodsByLearningPeriodIds(result.data.map((p) => p.id))
-    const statusByPeriodId = new Map<string, PaymentStatus>()
+    const paymentsResult = await fetchPaymentPeriodsByLearningPeriodIds(
+      result.data.map((p) => p.id),
+    );
+    const statusByPeriodId = new Map<string, PaymentStatus>();
     if (paymentsResult.ok) {
-      for (const [periodId, payment] of paymentsResult.data) statusByPeriodId.set(periodId, payment.status)
+      for (const [periodId, payment] of paymentsResult.data)
+        statusByPeriodId.set(periodId, payment.status);
     }
 
-    setLoading(false)
-    setError(null)
-    setChildName(childRow?.full_name ?? result.data[0]?.childName ?? '')
-    setPayments(statusByPeriodId)
-    setPrograms(groupPeriodsByProgram(result.data))
-  }, [childId])
+    setLoading(false);
+    setError(null);
+    setChildName(childRow?.full_name ?? result.data[0]?.childName ?? "");
+    setPayments(statusByPeriodId);
+    setPrograms(groupPeriodsByProgram(result.data));
+  }, [childId]);
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load();
+  }, [load]);
 
-  /**
-   * The cards, flattened out of their programs: grouping only supplies the order now — running
-   * programs first, newest period first within each — not a level of the layout.
-   */
-  const periods = useMemo(() => programs.flatMap((group) => group.periods), [programs])
+  /** Every period across every class, for the count and the empty state. */
+  const periods = useMemo(
+    () => programs.flatMap((group) => group.periods),
+    [programs],
+  );
 
   /**
    * Open exactly one card. A deep link from Detail Keluarga names a program, so open that
-   * program's newest period; otherwise the first, so a child with several periods does not open
-   * as a wall of detail.
+   * program's newest period; otherwise the newest period of the first class (running classes sort
+   * first), so a child with several periods does not open as a wall of detail.
+   * `group.periods` is newest first, so [0] is the newest.
    */
-  const expandedPeriodId = focusClassroomId
-    ? (periods.find((period) => period.classroomId === focusClassroomId)?.id ?? periods[0]?.id)
-    : periods[0]?.id
+  const focusGroup =
+    programs.find((group) => group.classroomId === focusClassroomId) ??
+    programs[0];
+  const expandedPeriodId = focusGroup?.periods[0]?.id;
 
   /**
    * Deletes the payment_periods row and the learning_periods row together (delete_learning_period
@@ -125,38 +151,46 @@ export function PeriodDetailPage() {
    * 20261108020000_protect_attendance_from_period_delete.sql.
    */
   async function handleDelete() {
-    if (!deleteTarget) return
-    setDeleting(true)
-    setError(null)
-    const { data: receiptPath, error: rpcError } = await supabase.rpc('delete_learning_period', {
-      p_learning_period_id: deleteTarget.id,
-    })
-    setDeleting(false)
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setError(null);
+    const { data: receiptPath, error: rpcError } = await supabase.rpc(
+      "delete_learning_period",
+      {
+        p_learning_period_id: deleteTarget.id,
+      },
+    );
+    setDeleting(false);
     if (rpcError) {
       setError(
-        rpcError.code === '23503'
-          ? 'Tidak dapat dihapus: periode ini memiliki riwayat kehadiran tercatat.'
+        rpcError.code === "23503"
+          ? "Tidak dapat dihapus: periode ini memiliki riwayat kehadiran tercatat."
           : rpcError.message,
-      )
-      setDeleteTarget(null)
-      return
+      );
+      setDeleteTarget(null);
+      return;
     }
-    if (receiptPath) void deletePaymentReceipt(receiptPath)
-    setDeleteTarget(null)
-    await load()
+    if (receiptPath) void deletePaymentReceipt(receiptPath);
+    setDeleteTarget(null);
+    await load();
   }
 
   if (!childId) {
-    return <Alert severity="error">Siswa tidak valid.</Alert>
+    return <Alert severity="error">Siswa tidak valid.</Alert>;
   }
 
   return (
     <Box>
       <Breadcrumbs sx={{ mb: 1 }}>
-        <Link component={RouterLink} to="/admin/periods" underline="hover" color="inherit">
+        <Link
+          component={RouterLink}
+          to="/admin/periods"
+          underline="hover"
+          color="inherit"
+        >
           Periode Belajar
         </Link>
-        <Typography color="text.primary">{childName || 'Detail'}</Typography>
+        <Typography color="text.primary">{childName || "Detail"}</Typography>
       </Breadcrumbs>
 
       {error ? (
@@ -171,7 +205,10 @@ export function PeriodDetailPage() {
         </Box>
       ) : (
         <>
-          <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 0.5 }}>
+          <Typography
+            variant="h5"
+            sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" }, mb: 0.5 }}
+          >
             {childName}
           </Typography>
 
@@ -180,18 +217,18 @@ export function PeriodDetailPage() {
               admin back to Detail Keluarga for the one thing they came to do. */}
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
               gap: 2,
               mb: 2,
             }}
           >
             <Typography variant="body2" color="text.secondary">
               {periods.length === 0
-                ? 'Belum ada periode belajar.'
-                : `${periods.length} periode · klik satu periode untuk melihat kelas, kuota, riwayat absen, dan pembayarannya.`}
+                ? "Belum ada periode belajar."
+                : `${programs.length} kelas · ${periods.length} periode · klik satu periode untuk melihat kuota, riwayat absen, dan pembayarannya.`}
             </Typography>
             {/* Disabled until the child row has loaded — the dialog needs it and the family for
                 the invoice it offers once the period is saved. */}
@@ -210,66 +247,108 @@ export function PeriodDetailPage() {
           {periods.length === 0 ? (
             <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography color="text.secondary">
-                Siswa ini belum memiliki periode belajar. Tambahkan satu untuk mulai mencatat absensi.
+                Siswa ini belum memiliki periode belajar. Tambahkan satu untuk
+                mulai mencatat absensi.
               </Typography>
             </Paper>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {periods.map((period) => {
-                const status = payments.get(period.id) ?? null
-                return (
-                  <LearningPeriodCard
-                    key={period.id}
-                    period={period}
-                    defaultExpanded={period.id === expandedPeriodId}
-                    attendanceAdd
-                    attendanceDelete
-                    // Recording or deleting a day moves the quota this card reads from `period`.
-                    onAttendanceChanged={() => void load()}
-                    headerActions={
-                      <>
-                        <Chip
-                          size="small"
-                          label={status ? PAYMENT_STATUS_LABELS[status] : 'Belum ada tagihan'}
-                          color={status === 'paid' ? 'success' : 'warning'}
-                          variant={status === 'paid' ? 'filled' : 'outlined'}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {programs.map((group) => (
+                <Box key={group.classroomId} component="section">
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontSize: { xs: "1rem", sm: "1.125rem" },
+                      fontWeight: 700,
+                    }}
+                  >
+                    {group.classroomLabel}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
+                    {group.periods.length} periode
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 1.5,
+                      pl: { xs: 1, sm: 2 },
+                      borderLeft: 2,
+                      borderColor: "divider",
+                    }}
+                  >
+                    {/* Oldest first inside a class, so the periods read 1, 2, 3 down the page. */}
+                    {[...group.periods].reverse().map((period) => {
+                      const status = payments.get(period.id) ?? null;
+                      return (
+                        <LearningPeriodCard
+                          key={period.id}
+                          period={period}
+                          defaultExpanded={period.id === expandedPeriodId}
+                          hideClassroom
+                          attendanceAdd
+                          attendanceDelete
+                          // Recording or deleting a day moves the quota this card reads from `period`.
+                          onAttendanceChanged={() => void load()}
+                          headerActions={
+                            <>
+                              <Chip
+                                size="small"
+                                label={
+                                  status
+                                    ? PAYMENT_STATUS_LABELS[status]
+                                    : "Belum ada tagihan"
+                                }
+                                color={
+                                  status === "paid" ? "success" : "warning"
+                                }
+                                variant={
+                                  status === "paid" ? "filled" : "outlined"
+                                }
+                              />
+                              <Box sx={{ flexGrow: 1 }} />
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<PaymentsIcon />}
+                                onClick={() => setPayTarget(period)}
+                              >
+                                Pembayaran
+                              </Button>
+                            </>
+                          }
+                          manageActions={
+                            <>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<EditIcon />}
+                                onClick={() => setEditTarget(period)}
+                              >
+                                Edit
+                              </Button>
+                              <Box sx={{ flexGrow: 1 }} />
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                startIcon={<DeleteIcon />}
+                                onClick={() => setDeleteTarget(period)}
+                              >
+                                Hapus
+                              </Button>
+                            </>
+                          }
                         />
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<PaymentsIcon />}
-                          onClick={() => setPayTarget(period)}
-                        >
-                          Pembayaran
-                        </Button>
-                      </>
-                    }
-                    manageActions={
-                      <>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<EditIcon />}
-                          onClick={() => setEditTarget(period)}
-                        >
-                          Edit
-                        </Button>
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          startIcon={<DeleteIcon />}
-                          onClick={() => setDeleteTarget(period)}
-                        >
-                          Hapus
-                        </Button>
-                      </>
-                    }
-                  />
-                )
-              })}
+                      );
+                    })}
+                  </Box>
+                </Box>
+              ))}
             </Box>
           )}
         </>
@@ -310,11 +389,11 @@ export function PeriodDetailPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         title="Hapus Periode Belajar"
-        description={`Hapus periode #${deleteTarget?.periodNo} ${deleteTarget?.classroomLabel ?? ''} milik ${childName}? Data pembayaran dan bukti pembayaran yang terlampir (jika ada) akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.`}
-        confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+        description={`Hapus periode #${deleteTarget?.periodNo} ${deleteTarget?.classroomLabel ?? ""} milik ${childName}? Data pembayaran dan bukti pembayaran yang terlampir (jika ada) akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deleting ? "Menghapus…" : "Hapus"}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void handleDelete()}
       />
     </Box>
-  )
+  );
 }
