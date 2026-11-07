@@ -171,60 +171,45 @@ export type Database = {
       children_daily_reports: {
         Row: {
           attendance_status: string
-          child_attendance_id: string | null
+          child_attendance_id: string
           child_id: string
-          classroom_id: string | null
-          classroom_teacher_id: string
+          classroom_id: string
           created_at: string | null
           created_by: string | null
           id: string
           mood_arrival: string | null
           mood_departure: string | null
-          mood_note: string | null
-          mood_note_parent: string | null
           mood_studying: string | null
-          report_date: string
-          session_id: string | null
           submitted_at: string | null
           submitted_by: string | null
           teacher_note: string | null
         }
         Insert: {
           attendance_status?: string
-          child_attendance_id?: string | null
+          child_attendance_id: string
           child_id: string
-          classroom_id?: string | null
-          classroom_teacher_id: string
+          classroom_id: string
           created_at?: string | null
           created_by?: string | null
           id?: string
           mood_arrival?: string | null
           mood_departure?: string | null
-          mood_note?: string | null
-          mood_note_parent?: string | null
           mood_studying?: string | null
-          report_date?: string
-          session_id?: string | null
           submitted_at?: string | null
           submitted_by?: string | null
           teacher_note?: string | null
         }
         Update: {
           attendance_status?: string
-          child_attendance_id?: string | null
+          child_attendance_id?: string
           child_id?: string
-          classroom_id?: string | null
-          classroom_teacher_id?: string
+          classroom_id?: string
           created_at?: string | null
           created_by?: string | null
           id?: string
           mood_arrival?: string | null
           mood_departure?: string | null
-          mood_note?: string | null
-          mood_note_parent?: string | null
           mood_studying?: string | null
-          report_date?: string
-          session_id?: string | null
           submitted_at?: string | null
           submitted_by?: string | null
           teacher_note?: string | null
@@ -236,18 +221,11 @@ export type Database = {
               "child_attendance_id",
               "child_id",
               "classroom_id",
-              "report_date",
               "attendance_status",
             ]
             isOneToOne: false
             referencedRelation: "child_attendances"
-            referencedColumns: [
-              "id",
-              "child_id",
-              "classroom_id",
-              "attendance_date",
-              "status",
-            ]
+            referencedColumns: ["id", "child_id", "classroom_id", "status"]
           },
           {
             foreignKeyName: "children_daily_reports_child_id_fkey"
@@ -255,20 +233,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "children"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "children_daily_reports_classroom_teacher_id_fkey"
-            columns: ["classroom_teacher_id"]
-            isOneToOne: false
-            referencedRelation: "classroom_teachers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "children_daily_reports_group_classroom_fkey"
-            columns: ["classroom_teacher_id", "classroom_id"]
-            isOneToOne: false
-            referencedRelation: "classroom_teachers"
-            referencedColumns: ["id", "classroom_id"]
           },
         ]
       }
@@ -1081,6 +1045,10 @@ export type Database = {
         Args: { p_children: Json; p_family_id: string }
         Returns: Json
       }
+      daily_report_attendance_date: {
+        Args: { p_child_attendance_id: string }
+        Returns: string
+      }
       daily_report_for_attendance: {
         Args: {
           p_child_id: string
@@ -1097,6 +1065,41 @@ export type Database = {
           teacher_call_name: string
           teacher_full_name: string
           teacher_note: string
+        }[]
+      }
+      daily_report_for_slot: {
+        Args: {
+          p_child_id: string
+          p_classroom_teacher_id: string
+          p_report_date: string
+        }
+        Returns: {
+          id: string
+          mood_arrival: string
+          mood_departure: string
+          mood_studying: string
+          submitted_at: string
+          teacher_note: string
+        }[]
+      }
+      daily_report_group_id: {
+        Args: { p_child_attendance_id: string }
+        Returns: string
+      }
+      daily_report_slot_attendance_id: {
+        Args: {
+          p_child_id: string
+          p_classroom_teacher_id: string
+          p_report_date: string
+        }
+        Returns: string
+      }
+      daily_report_summaries: {
+        Args: { p_classroom_teacher_id: string; p_report_date: string }
+        Returns: {
+          child_id: string
+          id: string
+          submitted_at: string
         }[]
       }
       declare_substitution: {

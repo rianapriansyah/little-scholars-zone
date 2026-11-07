@@ -365,8 +365,16 @@ BEGIN
   -- A substitute has read access to the group, but RLS must not hand her a direct table write that
   -- skips the gate. This is the hole that widening the shared helpers would have opened.
   BEGIN
-    INSERT INTO public.children_daily_reports (child_id, classroom_teacher_id, report_date, teacher_note)
-    VALUES ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000020', '2026-08-04', 'Lewat tabel');
+    -- 2026-08-04's absensi row: a present day of the covered group, but not a covered date.
+    INSERT INTO public.children_daily_reports (child_id, child_attendance_id, teacher_note)
+    SELECT '00000000-0000-4000-9000-000000000016', a.id, 'Lewat tabel'
+      FROM public.child_attendances a
+     WHERE a.child_id = '00000000-0000-4000-9000-000000000016'
+       AND a.classroom_id = '00000000-0000-4000-9000-000000000018'
+       AND a.attendance_date = '2026-08-04';
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'FAIL: fixture absensi row for 2026-08-04 should be readable here';
+    END IF;
     RAISE EXCEPTION 'FAIL: a substitute must not be able to INSERT into children_daily_reports directly';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;

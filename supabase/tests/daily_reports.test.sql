@@ -119,8 +119,10 @@ BEGIN
     RAISE EXCEPTION 'FAIL: re-saving must reuse the same report row, got % then %', v_report_id, v_second_id;
   END IF;
 
-  SELECT count(*) INTO v_reports FROM public.children_daily_reports
-    WHERE child_id = '00000000-0000-4000-8000-000000000016' AND report_date = '2026-08-03';
+  SELECT count(*) INTO v_reports
+    FROM public.children_daily_reports r
+    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    WHERE a.child_id = '00000000-0000-4000-8000-000000000016' AND a.attendance_date = '2026-08-03';
   SELECT count(*) INTO v_items FROM public.daily_report_items WHERE report_id = v_report_id;
   IF v_reports <> 1 OR v_items <> 2 THEN
     RAISE EXCEPTION 'FAIL: re-saving is not idempotent (% reports, % entries)', v_reports, v_items;
@@ -259,10 +261,15 @@ BEGIN
     RAISE NOTICE 'PASS: day without attendance rejected (%)', SQLERRM;
   END;
 
-  -- The trigger, not just the RPCs: a direct write (teachers hold INSERT policies) is refused too.
+  -- The trigger, not just the RPCs: a direct write (teachers hold INSERT policies) pointing at the
+  -- absent 2026-08-04 row is refused too.
   BEGIN
-    INSERT INTO public.children_daily_reports (child_id, classroom_teacher_id, report_date)
-    VALUES ('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000019', '2026-08-04');
+    INSERT INTO public.children_daily_reports (child_id, child_attendance_id)
+    SELECT '00000000-0000-4000-8000-000000000016', a.id
+      FROM public.child_attendances a
+     WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
+       AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
+       AND a.attendance_date = '2026-08-04';
     RAISE EXCEPTION 'FAIL: a direct insert for an absent child must be rejected';
   EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
@@ -282,10 +289,12 @@ DECLARE
   v_second_id uuid;
   v_reports int;
 BEGIN
-  SELECT id INTO v_first_id FROM public.children_daily_reports
-    WHERE child_id = '00000000-0000-4000-8000-000000000016'
-      AND classroom_teacher_id = '00000000-0000-4000-8000-000000000019'
-      AND report_date = '2026-08-03';
+  SELECT r.id INTO v_first_id
+    FROM public.children_daily_reports r
+    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
+      AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
+      AND a.attendance_date = '2026-08-03';
 
   v_second_id := public.save_daily_report_mood(
     '00000000-0000-4000-8000-000000000016',
@@ -307,15 +316,18 @@ BEGIN
     RAISE EXCEPTION 'FAIL: a second program on the same day must get its own report, not reuse %', v_first_id;
   END IF;
 
-  SELECT count(*) INTO v_reports FROM public.children_daily_reports
-    WHERE child_id = '00000000-0000-4000-8000-000000000016' AND report_date = '2026-08-03';
+  SELECT count(*) INTO v_reports
+    FROM public.children_daily_reports r
+    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    WHERE a.child_id = '00000000-0000-4000-8000-000000000016' AND a.attendance_date = '2026-08-03';
   IF v_reports <> 2 THEN
     RAISE EXCEPTION 'FAIL: expected 2 reports for two programs on one day, got %', v_reports;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.children_daily_reports
-    WHERE id = v_first_id AND classroom_teacher_id = '00000000-0000-4000-8000-000000000019'
+    WHERE id = v_first_id
+      AND public.daily_report_group_id(child_attendance_id) = '00000000-0000-4000-8000-000000000019'
       AND mood_arrival IS NULL AND teacher_note IS NULL
   ) THEN
     RAISE EXCEPTION 'FAIL: saving the second program''s report changed the first one';
@@ -360,17 +372,14 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: mood and teacher note save independently, neither clobbers the other';
 
-  -- Each report matches exactly one attendance row.
+  -- Each report points at its own program's attendance row.
   IF (
-    SELECT count(*)
+    SELECT count(DISTINCT a.classroom_id)
     FROM public.children_daily_reports r
-    JOIN public.classroom_teachers ct ON ct.id = r.classroom_teacher_id
-    JOIN public.child_attendances a ON a.child_id = r.child_id
-                                   AND a.classroom_id = ct.classroom_id
-                                   AND a.attendance_date = r.report_date
+    JOIN public.child_attendances a ON a.id = r.child_attendance_id
     WHERE r.id IN (v_first_id, v_second_id)
   ) <> 2 THEN
-    RAISE EXCEPTION 'FAIL: each report should join to exactly one attendance row';
+    RAISE EXCEPTION 'FAIL: the two reports should point at the two programs'' attendance rows';
   END IF;
   RAISE NOTICE 'PASS: two programs on one day get two independent reports, each matching its attendance';
 END $$;
@@ -441,10 +450,12 @@ DECLARE
   v_first timestamptz;
   v_second timestamptz;
 BEGIN
-  SELECT id INTO v_report_id FROM public.children_daily_reports
-    WHERE child_id = '00000000-0000-4000-8000-000000000016'
-      AND classroom_teacher_id = '00000000-0000-4000-8000-000000000019'
-      AND report_date = '2026-08-03';
+  SELECT r.id INTO v_report_id
+    FROM public.children_daily_reports r
+    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
+      AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
+      AND a.attendance_date = '2026-08-03';
 
   v_first := public.submit_daily_report(v_report_id);
   IF v_first IS NULL THEN
@@ -703,7 +714,8 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- A report belongs to its absensi row (20261108030000_daily_report_belongs_to_attendance.sql)
+-- A report is identified by its absensi row (20261108030000_daily_report_belongs_to_attendance.sql,
+-- 20261108040000_daily_report_keyed_by_attendance.sql)
 --
 -- children_daily_reports_attendance_fkey is DEFERRABLE INITIALLY DEFERRED and this script never
 -- commits, so every check that relies on it forces it with SET CONSTRAINTS ... IMMEDIATE.
@@ -711,26 +723,90 @@ END $$;
 
 RESET ROLE;
 
--- Every report written above was linked by the trigger to the absensi row it describes.
+-- Every report written above points at the present absensi row of the slot it was saved for, and
+-- its group — derived from the child's placement on that date — is the group that saved it.
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1
       FROM public.children_daily_reports r
-      JOIN public.classroom_teachers ct ON ct.id = r.classroom_teacher_id
-      LEFT JOIN public.child_attendances a ON a.id = r.child_attendance_id
+      JOIN public.child_attendances a ON a.id = r.child_attendance_id
+      LEFT JOIN public.classroom_teachers ct ON ct.id = public.daily_report_group_id(r.child_attendance_id)
      WHERE r.child_id IN ('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000017')
-       AND (a.id IS NULL
-            OR a.child_id <> r.child_id
-            OR a.attendance_date <> r.report_date
-            OR a.classroom_id <> ct.classroom_id
-            OR r.classroom_id <> ct.classroom_id
+       AND (a.child_id <> r.child_id
+            OR a.classroom_id <> r.classroom_id
+            OR ct.classroom_id IS DISTINCT FROM a.classroom_id
             OR a.status <> 'present')
   ) THEN
-    RAISE EXCEPTION 'FAIL: every saved report must link to its own present absensi row';
+    RAISE EXCEPTION 'FAIL: every saved report must point at its own present absensi row, in its own group';
   END IF;
-  RAISE NOTICE 'PASS: saving a report links it to its absensi row';
+
+  IF public.daily_report_group_id((
+       SELECT a.id FROM public.child_attendances a
+        WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
+          AND a.classroom_id = '00000000-0000-4000-8000-000000000030'
+          AND a.attendance_date = '2026-08-03'
+     )) IS DISTINCT FROM '00000000-0000-4000-8000-000000000031' THEN
+    RAISE EXCEPTION 'FAIL: the second program''s report should belong to that program''s group';
+  END IF;
+  RAISE NOTICE 'PASS: saving a report links it to its absensi row and its group is derived from the placement';
 END $$;
+
+-- The read RPCs that replace the client's direct table reads: the group's teacher sees the group's
+-- reports; another teacher of the same class sees none of them.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000002","role":"authenticated","app_metadata":{"role":"teacher"}}';
+
+DO $$
+DECLARE
+  v_rows int;
+BEGIN
+  SELECT count(*) INTO v_rows
+    FROM public.daily_report_summaries('00000000-0000-4000-8000-000000000019', '2026-08-03');
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'FAIL: teacher A should see 1 report for her group on 08-03, got %', v_rows;
+  END IF;
+
+  SELECT count(*) INTO v_rows
+    FROM public.daily_report_for_slot('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000031', '2026-08-03');
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'FAIL: teacher A should read her afternoon group''s sheet, got % rows', v_rows;
+  END IF;
+
+  -- The afternoon report is not part of the morning group's roster, even though it is the same
+  -- child on the same day.
+  SELECT count(*) INTO v_rows
+    FROM public.daily_report_for_slot('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000019', '2026-08-03')
+   WHERE teacher_note = 'Catatan kelas sore';
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'FAIL: a slot must only return the report of its own program';
+  END IF;
+  RAISE NOTICE 'PASS: the group''s teacher reads its reports through daily_report_summaries / daily_report_for_slot';
+END $$;
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000003","role":"authenticated","app_metadata":{"role":"teacher"}}';
+
+DO $$
+DECLARE
+  v_rows int;
+BEGIN
+  -- Teacher B teaches group 001a in the same classroom, but not group 0019.
+  SELECT count(*) INTO v_rows
+    FROM public.daily_report_summaries('00000000-0000-4000-8000-000000000019', '2026-08-03');
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'FAIL: teacher B must not read teacher A''s group summaries, got %', v_rows;
+  END IF;
+  SELECT count(*) INTO v_rows
+    FROM public.daily_report_for_slot('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000019', '2026-08-03');
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'FAIL: teacher B must not read teacher A''s report sheet';
+  END IF;
+  RAISE NOTICE 'PASS: the read RPCs do not leak another teacher''s group';
+END $$;
+
+RESET ROLE;
 
 -- A reported day cannot leave 'present'; an unreported day can.
 SET LOCAL ROLE authenticated;
@@ -792,12 +868,28 @@ BEGIN
   END;
   SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
 
+  -- The report carries no date of its own any more: re-dating the absensi row simply moves the
+  -- report with it, because the absensi row is the only record of which day it was.
+  UPDATE public.child_attendances SET attendance_date = '2026-08-05' WHERE id = v_att;
+  SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
+  SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
+  IF public.daily_report_attendance_date(v_att) <> '2026-08-05' THEN
+    RAISE EXCEPTION 'FAIL: the report''s date should follow its absensi row';
+  END IF;
+  UPDATE public.child_attendances SET attendance_date = '2026-08-03' WHERE id = v_att;
+  RAISE NOTICE 'PASS: a report''s date is its absensi row''s date';
+
+  -- Moving the absensi row to another child would leave the report's child copy — and so the
+  -- parent who can read it — behind: refused by the report FK (only that one is forced here).
   BEGIN
-    UPDATE public.child_attendances SET attendance_date = '2026-08-05' WHERE id = v_att;
+    UPDATE public.child_attendances SET child_id = '00000000-0000-4000-8000-000000000017' WHERE id = v_att;
     SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
-    RAISE EXCEPTION 'FAIL: re-dating a reported day must violate the FK';
+    RAISE EXCEPTION 'FAIL: moving a reported day to another child must violate the FK';
   EXCEPTION WHEN foreign_key_violation THEN
-    RAISE NOTICE 'PASS: the FK refuses re-dating a reported day';
+    IF SQLERRM NOT LIKE '%children_daily_reports_attendance_fkey%' THEN
+      RAISE EXCEPTION 'FAIL: expected the report FK to refuse this, got: %', SQLERRM;
+    END IF;
+    RAISE NOTICE 'PASS: a reported day cannot be moved to another child';
   END;
   SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
 
@@ -810,31 +902,31 @@ BEGIN
   END;
   SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
 
-  -- With the trigger out of the way (it would re-derive everything), a report cannot be pointed
-  -- at a teaching group from a different class than its absensi.
-  -- The report keeps its group (Test Classroom) but claims Test Classroom 2; only
-  -- children_daily_reports_group_classroom_fkey (immediate) can refuse that here.
+  -- With the trigger out of the way (it would recopy everything from the absensi row), the
+  -- report's class copy still cannot disagree with its absensi row: the FK refuses it.
   ALTER TABLE public.children_daily_reports DISABLE TRIGGER enforce_child_present;
   BEGIN
     UPDATE public.children_daily_reports
        SET classroom_id = '00000000-0000-4000-8000-000000000030'
      WHERE child_attendance_id = v_att;
-    RAISE EXCEPTION 'FAIL: a report whose group is in another class must be rejected';
+    SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
+    RAISE EXCEPTION 'FAIL: a report claiming another class than its absensi must be rejected';
   EXCEPTION WHEN foreign_key_violation THEN
-    IF SQLERRM NOT LIKE '%children_daily_reports_group_classroom_fkey%' THEN
-      RAISE EXCEPTION 'FAIL: expected the group/classroom FK to refuse this, got: %', SQLERRM;
+    IF SQLERRM NOT LIKE '%children_daily_reports_attendance_fkey%' THEN
+      RAISE EXCEPTION 'FAIL: expected the absensi FK to refuse this, got: %', SQLERRM;
     END IF;
-    RAISE NOTICE 'PASS: a report cannot sit on a group from another class';
+    RAISE NOTICE 'PASS: a report''s copies cannot disagree with its absensi row';
   END;
+  SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
   ALTER TABLE public.children_daily_reports ENABLE TRIGGER enforce_child_present;
 
   -- A new report without the link is refused even with the trigger bypassed.
   ALTER TABLE public.children_daily_reports DISABLE TRIGGER enforce_child_present;
   BEGIN
-    INSERT INTO public.children_daily_reports (child_id, classroom_teacher_id, report_date)
-    VALUES ('00000000-0000-4000-8000-000000000017', '00000000-0000-4000-8000-00000000001a', '2026-08-10');
-    RAISE EXCEPTION 'FAIL: an unlinked report must violate children_daily_reports_linked_check';
-  EXCEPTION WHEN check_violation THEN
+    INSERT INTO public.children_daily_reports (child_id, classroom_id)
+    VALUES ('00000000-0000-4000-8000-000000000017', '00000000-0000-4000-8000-000000000018');
+    RAISE EXCEPTION 'FAIL: a report without child_attendance_id must be rejected';
+  EXCEPTION WHEN not_null_violation THEN
     RAISE NOTICE 'PASS: a report without its absensi link is refused';
   END;
   ALTER TABLE public.children_daily_reports ENABLE TRIGGER enforce_child_present;
@@ -850,9 +942,10 @@ DECLARE
 BEGIN
   SELECT r.id INTO v_report
     FROM public.children_daily_reports r
-   WHERE r.child_id = '00000000-0000-4000-8000-000000000016'
-     AND r.classroom_teacher_id = '00000000-0000-4000-8000-000000000019'
-     AND r.report_date = '2026-08-03';
+    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+   WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
+     AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
+     AND a.attendance_date = '2026-08-03';
 
   BEGIN
     PERFORM public.delete_daily_report(v_report);

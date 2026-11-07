@@ -6,6 +6,7 @@ import { teacherDisplayName } from './teacherName'
 import { isMood } from '../types/dailyReport'
 import type { DailyReport, DailyReportEntry, DailyReportMoods } from '../types/dailyReport'
 import { parseMasteryLevel, sortEntries, type RpcEntry } from './dailyReportEntries'
+import { DAILY_REPORT_MATERI_ENABLED } from './featureFlags'
 
 export type { Result } from './result'
 
@@ -64,16 +65,21 @@ export async function fetchClassRoster(classroomTeacherId: string): Promise<Resu
   return { ok: true, data: roster }
 }
 
-/** child_id → report id + submitted_at, for the draft/submitted badges on the roster. */
+/**
+ * child_id → report id + submitted_at, for the draft/submitted badges on the roster.
+ *
+ * Through the daily_report_summaries RPC: a report no longer stores its group or date
+ * (20261108040000) — both are read through its absensi row, the group from the child's placement on
+ * that date — so "this group's reports today" is a join the RPC does server-side.
+ */
 export async function fetchClassReportSummaries(
   classroomTeacherId: string,
   reportDate: string,
 ): Promise<Result<Map<string, ReportSummary>>> {
-  const { data, error } = await supabase
-    .from('children_daily_reports')
-    .select('id, child_id, submitted_at')
-    .eq('classroom_teacher_id', classroomTeacherId)
-    .eq('report_date', reportDate)
+  const { data, error } = await supabase.rpc('daily_report_summaries', {
+    p_classroom_teacher_id: classroomTeacherId,
+    p_report_date: reportDate,
+  })
   if (error) return { ok: false, error: error.message }
 
   const summaries = new Map<string, ReportSummary>()
@@ -95,28 +101,25 @@ const NO_MOODS: DailyReportMoods = { arrival: null, studying: null, departure: n
  * Returns an empty, unsaved DailyReport when no report exists yet, so callers never branch on
  * null.
  *
- * Filtered by classroom_teacher_id as well as child and date: a report is one per child per class
- * per day (children_daily_reports_child_class_date_key), so a child attending two programs on the
- * same day has two, and child + date alone would match both.
+ * The slot is (child, teaching group, date): a report is one per absensi row, so a child attending
+ * two programs on the same day has two, and the group is what tells them apart. The report itself
+ * stores neither group nor date (20261108040000), so the daily_report_for_slot RPC resolves the slot
+ * to its absensi row server-side, with the same access rules the table's teacher policies apply.
  */
 export async function fetchDailyReport(
   childId: string,
   classroomTeacherId: string,
   reportDate: string,
 ): Promise<Result<DailyReport>> {
-  // Kept as one string literal: Postgrest infers the embedded row types from the literal, and
-  // a concatenated expression degrades the result to GenericStringError.
-  const { data, error } = await supabase
-    .from('children_daily_reports')
-    .select(
-      'id, child_id, classroom_teacher_id, report_date, submitted_at, mood_arrival, mood_studying, mood_departure, teacher_note, daily_report_items(curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order))',
-    )
-    .eq('child_id', childId)
-    .eq('classroom_teacher_id', classroomTeacherId)
-    .eq('report_date', reportDate)
-    .maybeSingle()
+  const { data: rows, error } = await supabase.rpc('daily_report_for_slot', {
+    p_child_id: childId,
+    p_classroom_teacher_id: classroomTeacherId,
+    p_report_date: reportDate,
+  })
   if (error) return { ok: false, error: error.message }
 
+  // A table-returning function comes back as an array; one absensi row has at most one report.
+  const data = rows?.[0]
   if (!data) {
     return {
       ok: true,
@@ -133,7 +136,18 @@ export async function fetchDailyReport(
     }
   }
 
-  const itemRows = (data.daily_report_items ?? []) as unknown as EmbeddedItemRow[]
+  // Materi entries only while that section is switched on — otherwise the screen never shows them,
+  // and the table holds none.
+  let itemRows: EmbeddedItemRow[] = []
+  if (DAILY_REPORT_MATERI_ENABLED) {
+    const items = await supabase
+      .from('daily_report_items')
+      .select('curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order)')
+      .eq('report_id', data.id)
+    if (items.error) return { ok: false, error: items.error.message }
+    itemRows = (items.data ?? []) as unknown as EmbeddedItemRow[]
+  }
+
   const entries: DailyReportEntry[] = []
   for (const row of itemRows) {
     const masteryLevel = parseMasteryLevel(row.mastery_level)
@@ -152,9 +166,9 @@ export async function fetchDailyReport(
     ok: true,
     data: {
       reportId: data.id,
-      childId: data.child_id,
-      classroomTeacherId: data.classroom_teacher_id,
-      reportDate: data.report_date,
+      childId,
+      classroomTeacherId,
+      reportDate,
       submittedAt: data.submitted_at,
       entries: sortEntries(entries),
       moods: {
@@ -208,13 +222,11 @@ export type DailyReportSummary = {
 /**
  * The report that belongs to one attendance row, or null when there is none to show.
  *
- * Goes through the daily_report_for_attendance RPC rather than querying the table: attendance is
- * keyed by program (child, classroom, date) and the report by teaching group (child,
- * classroom_teacher, date), so joining them needs classroom_teachers and teachers — neither of
- * which a parent can read in full. The RPC does that join server-side and applies the same access
- * rules the table's own policies do, so a parent still only ever sees their own child's submitted
- * reports. See 20261002010000_daily_report_for_attendance.sql. Since 20261108030000 the RPC
- * follows the report's child_attendance_id link rather than re-matching those values.
+ * Goes through the daily_report_for_attendance RPC rather than querying the table: naming who wrote
+ * the report needs the teaching group and the employees table, neither of which a parent can read
+ * in full. The RPC follows the report's child_attendance_id link server-side and applies the same
+ * access rules the table's own policies do, so a parent still only ever sees their own child's
+ * submitted reports. See 20261002010000, 20261108030000 and 20261108040000.
  */
 export async function fetchDailyReportForAttendance(
   childId: string,
@@ -315,10 +327,10 @@ export async function deleteDailyReport(reportId: string): Promise<Result<void>>
 }
 
 /**
- * Which teaching group a child sat in, inside one classroom, on one date — the bridge between the
- * two halves of a day. Attendance is keyed by programme (child, classroom, date) and the report by
- * group (child, classroom_teacher, date), so a screen that starts from a learning period (which
- * knows the classroom) has to resolve the group before it can open that child's sheet.
+ * Which teaching group a child sat in, inside one classroom, on one date. A screen that starts from
+ * a learning period knows the classroom, but the report sheet is opened and saved per group (the
+ * save RPCs take a group and check the child was in it), so the group is resolved first. The same
+ * rule — the child's placement on that date — is what daily_report_group_id applies server-side.
  *
  * Dated rather than "current", so filling in a day from weeks ago files the report against the
  * group the child was actually in then. Returns null when they were in none, which is what the
