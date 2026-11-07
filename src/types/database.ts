@@ -1014,7 +1014,7 @@ export type Database = {
             Returns: boolean
           }
       clock_in_classroom_teacher: {
-        Args: { p_classroom_teacher_id: string }
+        Args: { p_at?: string; p_classroom_teacher_id: string }
         Returns: string
       }
       clock_out_and_continue_classroom_teacher: {
@@ -1025,7 +1025,7 @@ export type Database = {
         Returns: string
       }
       clock_out_classroom_teacher: {
-        Args: { p_classroom_teacher_id: string }
+        Args: { p_at?: string; p_classroom_teacher_id: string }
         Returns: string
       }
       create_children_with_first_periods: {

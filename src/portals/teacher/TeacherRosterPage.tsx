@@ -19,6 +19,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  TextField,
   Typography,
 } from '@mui/material'
 import { supabase } from '../../lib/supabase'
@@ -34,6 +35,8 @@ import {
   isClockOutWindowOpen,
   isWitaClassDay,
   todayIsoDateInWita,
+  witaWallClockTime,
+  witaWallClockToIso,
   type ClassStatusBorder,
   type ClockInWindowStatus,
 } from '../../lib/classStatus'
@@ -46,6 +49,8 @@ import {
   clockOutClassroomTeacher,
   fetchAttendanceForClassroomTeachers,
   flexiWorkAction,
+  validateFlexiPickedTime,
+  type FlexiWorkAction,
 } from '../../lib/classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceStatus } from '../../types/classroomTeacherAttendance'
 import { DAILY_REPORT_ENABLED } from '../../lib/featureFlags'
@@ -68,6 +73,21 @@ type ContinueDialogState = {
    * actually gets recorded on both classes if she continues, whatever time she taps.
    */
   boundary: string
+}
+
+/** The flexi time dialog: which work item, which of its three buttons was tapped, and the pick. */
+type FlexiTimeDialogState = {
+  groupId: string
+  label: string
+  action: FlexiWorkAction
+  /** HH:mm, WITA, today — what the time field holds. */
+  time: string
+}
+
+const FLEXI_TIME_DIALOG_TITLES: Record<FlexiWorkAction, string> = {
+  start: 'Mulai kerja',
+  resume: 'Lanjutkan kerja',
+  finish: 'Selesai kerja',
 }
 
 const STATUS_BORDER_COLOR: Record<ClassStatusBorder, string | undefined> = {
@@ -106,6 +126,9 @@ export function TeacherRosterPage() {
   const [clockError, setClockError] = useState<string | null>(null)
   const [continueDialog, setContinueDialog] = useState<ContinueDialogState | null>(null)
   const [continuing, setContinuing] = useState(false)
+  const [flexiDialog, setFlexiDialog] = useState<FlexiTimeDialogState | null>(null)
+  const [flexiDialogError, setFlexiDialogError] = useState<string | null>(null)
+  const [flexiSaving, setFlexiSaving] = useState(false)
   const now = useNow()
 
   useEffect(() => {
@@ -192,6 +215,58 @@ export function TeacherRosterPage() {
       setClockError(result.error)
       return
     }
+    await refreshAttendance(groupId)
+  }
+
+  /**
+   * Mulai / Lanjutkan / Selesai on a flexi work item: the tap only opens the time dialog, with the
+   * current minute filled in. Nothing is recorded until she presses OK there.
+   */
+  function openFlexiTimeDialog(group: GroupWithRoster, action: FlexiWorkAction) {
+    setFlexiDialogError(null)
+    setFlexiDialog({
+      groupId: group.id,
+      label: group.classroom.label,
+      action,
+      time: witaWallClockTime(new Date().toISOString()),
+    })
+  }
+
+  function closeFlexiTimeDialog() {
+    if (flexiSaving) return
+    setFlexiDialog(null)
+    setFlexiDialogError(null)
+  }
+
+  /**
+   * OK in the flexi time dialog. Errors — the local check or the server's refusal — stay inside
+   * the dialog so she can correct the time and try again without starting over.
+   */
+  async function handleFlexiTimeConfirm() {
+    if (!flexiDialog) return
+    const { groupId, action, time } = flexiDialog
+    const validationError = validateFlexiPickedTime(
+      action,
+      time,
+      attendance.get(groupId),
+      witaWallClockTime(new Date().toISOString()),
+    )
+    if (validationError) {
+      setFlexiDialogError(validationError)
+      return
+    }
+
+    const at = witaWallClockToIso(todayIsoDateInWita(), time)
+    setFlexiSaving(true)
+    setFlexiDialogError(null)
+    const result =
+      action === 'finish' ? await clockOutClassroomTeacher(groupId, at) : await clockInClassroomTeacher(groupId, at)
+    setFlexiSaving(false)
+    if (!result.ok) {
+      setFlexiDialogError(result.error)
+      return
+    }
+    setFlexiDialog(null)
     await refreshAttendance(groupId)
   }
 
@@ -294,7 +369,8 @@ export function TeacherRosterPage() {
 
     if (group.classroom.is_flexi_hours) {
       // No schedule to gate against — always clickable, any time, any day. Never chains (that's
-      // a real-class concept), so this calls handleClockOut directly rather than handleFinishClick.
+      // a real-class concept). The tap does not record anything by itself: it opens the time
+      // dialog, and the time she confirms there is what gets recorded.
       //
       // Unlike a scheduled class, finishing does not retire the button: flexi work comes in
       // sessions, so a teacher who stops at 11:00 and picks the work up again at 13:00 taps
@@ -314,10 +390,9 @@ export function TeacherRosterPage() {
           <Button
             size="small"
             variant={action === 'finish' ? 'outlined' : 'contained'}
-            disabled={isClocking}
-            onClick={() => void (action === 'finish' ? handleClockOut(group.id) : handleClockIn(group.id))}
+            onClick={() => openFlexiTimeDialog(group, action)}
           >
-            {isClocking ? 'Menyimpan…' : FLEXI_WORK_ACTION_LABELS[action]}
+            {FLEXI_WORK_ACTION_LABELS[action]}
           </Button>
           {workedSoFar}
         </Box>
@@ -534,6 +609,50 @@ export function TeacherRosterPage() {
                 onClick={() => void handleFinishOnly(continueDialog.fromId)}
               >
                 Selesaikan kelas
+              </Button>
+            </DialogActions>
+          </>
+        ) : null}
+      </Dialog>
+
+      <Dialog open={flexiDialog !== null} onClose={closeFlexiTimeDialog} fullWidth maxWidth="xs">
+        {flexiDialog ? (
+          <>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              {FLEXI_TIME_DIALOG_TITLES[flexiDialog.action]}
+              <IconButton onClick={closeFlexiTimeDialog} size="small" aria-label="Tutup" disabled={flexiSaving}>
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {flexiDialog.label} · hari ini
+              </Typography>
+              {flexiDialogError ? (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {flexiDialogError}
+                </Alert>
+              ) : null}
+              <TextField
+                label={flexiDialog.action === 'finish' ? 'Jam selesai' : 'Jam mulai'}
+                type="time"
+                value={flexiDialog.time}
+                onChange={(e) => {
+                  setFlexiDialog({ ...flexiDialog, time: e.target.value })
+                  setFlexiDialogError(null)
+                }}
+                fullWidth
+                autoFocus
+                disabled={flexiSaving}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button onClick={closeFlexiTimeDialog} disabled={flexiSaving}>
+                Batal
+              </Button>
+              <Button variant="contained" onClick={() => void handleFlexiTimeConfirm()} disabled={flexiSaving}>
+                {flexiSaving ? 'Menyimpan…' : 'OK'}
               </Button>
             </DialogActions>
           </>

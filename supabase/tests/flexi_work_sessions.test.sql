@@ -43,12 +43,14 @@ INSERT INTO public.employees (id, full_name, call_name, email, auth_user_id) VAL
 -- the start") is open whenever this suite runs — the point of it is the sessions behaviour, not
 -- the window, and a realistic 10:00–12:00 would make the script pass or fail by wall-clock time.
 INSERT INTO public.classrooms (id, label, time_start, time_end, price, is_billable, is_flexi_hours) VALUES
+  ('00000000-0000-4000-b000-000000000017', 'Flexi Test Picked',    '08:00', '17:00', 0, false, true),
   ('00000000-0000-4000-b000-000000000018', 'Flexi Test Programme', '08:00', '17:00', 0, false, true),
   ('00000000-0000-4000-b000-000000000019', 'Flexi Test Scheduled', '00:00', '23:59', 0, true,  false);
 
 INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-b000-000000000020', '00000000-0000-4000-b000-000000000018', '00000000-0000-4000-b000-000000000010'),
-  ('00000000-0000-4000-b000-000000000021', '00000000-0000-4000-b000-000000000019', '00000000-0000-4000-b000-000000000010');
+  ('00000000-0000-4000-b000-000000000021', '00000000-0000-4000-b000-000000000019', '00000000-0000-4000-b000-000000000010'),
+  ('00000000-0000-4000-b000-000000000022', '00000000-0000-4000-b000-000000000017', '00000000-0000-4000-b000-000000000010');
 
 -- Shorthands, so each assertion below reads as the thing it is checking rather than as a join.
 CREATE OR REPLACE FUNCTION pg_temp.attendance_id(p_group uuid) RETURNS uuid LANGUAGE sql STABLE AS $fn$
@@ -232,6 +234,115 @@ BEGIN
     END IF;
   END;
   RAISE NOTICE 'PASS: Masuk Kelas stays idempotent on a scheduled class';
+
+  -- An explicit time is a flexi-only thing: on a scheduled class it would sidestep the window and
+  -- the normalise-to-schedule rule, so it is refused outright.
+  BEGIN
+    PERFORM public.clock_out_classroom_teacher(v_group, now());
+    RAISE EXCEPTION 'FAIL: a picked time on a scheduled class must be refused';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT LIKE 'Waktu hanya bisa dipilih untuk jadwal fleksibel%' THEN RAISE; END IF;
+  END;
+  RAISE NOTICE 'PASS: a scheduled class refuses a picked time';
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Picked times (migration 20261107010000): Mulai / Selesai / Lanjutkan record the time the
+-- teacher chose in the dialog rather than the moment of the tap.
+--
+-- The times are fractions of how far into today (WITA) the suite runs, so they are always today
+-- and always in the past whatever the wall clock says — even a few minutes after midnight.
+-- ---------------------------------------------------------------------------
+
+DO $$
+DECLARE
+  v_group uuid := '00000000-0000-4000-b000-000000000022';
+  v_midnight timestamptz := ((now() AT TIME ZONE 'Asia/Makassar')::date)::timestamp AT TIME ZONE 'Asia/Makassar';
+  v_elapsed interval := now() - v_midnight;
+  v_t1 timestamptz := v_midnight + v_elapsed * 0.1;
+  v_t2 timestamptz := v_midnight + v_elapsed * 0.3;
+  v_t3 timestamptz := v_midnight + v_elapsed * 0.5;
+  v_t4 timestamptz := v_midnight + v_elapsed * 0.8;
+BEGIN
+  -- A start in the future is not a start.
+  BEGIN
+    PERFORM public.clock_in_classroom_teacher(v_group, now() + interval '10 minutes');
+    RAISE EXCEPTION 'FAIL: a future start must be refused';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT LIKE 'Waktu mulai tidak boleh melebihi waktu sekarang%' THEN RAISE; END IF;
+  END;
+  RAISE NOTICE 'PASS: Mulai refuses a time in the future';
+
+  -- Mulai at t1.
+  PERFORM public.clock_in_classroom_teacher(v_group, v_t1);
+  IF (SELECT clocked_in_at FROM public.classroom_teachers_attendances
+       WHERE id = pg_temp.attendance_id(v_group)) <> v_t1 THEN
+    RAISE EXCEPTION 'FAIL: Mulai must record the picked time as jam masuk';
+  END IF;
+  IF (SELECT started_at FROM public.classroom_teacher_work_sessions
+       WHERE attendance_id = pg_temp.attendance_id(v_group) AND ended_at IS NULL) <> v_t1 THEN
+    RAISE EXCEPTION 'FAIL: the running session must start at the picked time';
+  END IF;
+  RAISE NOTICE 'PASS: Mulai records the picked time';
+
+  -- Selesai before the session began.
+  BEGIN
+    PERFORM public.clock_out_classroom_teacher(v_group, v_t1 - interval '1 minute');
+    RAISE EXCEPTION 'FAIL: finishing before the start must be refused';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT LIKE 'Waktu selesai tidak boleh sebelum waktu mulai sesi ini%' THEN RAISE; END IF;
+  END;
+  RAISE NOTICE 'PASS: Selesai refuses a time before the session started';
+
+  -- Selesai at t2.
+  PERFORM public.clock_out_classroom_teacher(v_group, v_t2);
+  IF pg_temp.clocked_out_at(v_group) <> v_t2 OR pg_temp.open_sessions(v_group) <> 0 THEN
+    RAISE EXCEPTION 'FAIL: Selesai must close the session at the picked time';
+  END IF;
+  RAISE NOTICE 'PASS: Selesai records the picked time';
+
+  -- Lanjutkan inside the session that just finished.
+  BEGIN
+    PERFORM public.clock_in_classroom_teacher(v_group, v_t2 - interval '1 minute');
+    RAISE EXCEPTION 'FAIL: overlapping the previous session must be refused';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT LIKE 'Waktu mulai tidak boleh sebelum sesi sebelumnya selesai%' THEN RAISE; END IF;
+  END;
+  RAISE NOTICE 'PASS: Lanjutkan refuses a start inside the previous session';
+
+  -- Lanjutkan at t3: a second session, jam masuk still the first one's.
+  PERFORM public.clock_in_classroom_teacher(v_group, v_t3);
+  IF pg_temp.session_count(v_group) <> 2 OR pg_temp.open_sessions(v_group) <> 1 THEN
+    RAISE EXCEPTION 'FAIL: Lanjutkan at a picked time must open a second session';
+  END IF;
+  IF (SELECT clocked_in_at FROM public.classroom_teachers_attendances
+       WHERE id = pg_temp.attendance_id(v_group)) <> v_t1 THEN
+    RAISE EXCEPTION 'FAIL: Lanjutkan must not move the day''s jam masuk';
+  END IF;
+  RAISE NOTICE 'PASS: Lanjutkan opens a second session at the picked time';
+
+  -- Selesai in the future, and on another day.
+  BEGIN
+    PERFORM public.clock_out_classroom_teacher(v_group, now() + interval '10 minutes');
+    RAISE EXCEPTION 'FAIL: a future finish must be refused';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT LIKE 'Waktu selesai tidak boleh melebihi waktu sekarang%' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM public.clock_out_classroom_teacher(v_group, v_midnight - interval '1 hour');
+    RAISE EXCEPTION 'FAIL: a finish on another day must be refused';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT LIKE 'Waktu selesai harus hari ini%' THEN RAISE; END IF;
+  END;
+  RAISE NOTICE 'PASS: Selesai refuses the future and other days';
+
+  -- Selesai at t4: the day is the two picked stretches, not the span across them.
+  PERFORM public.clock_out_classroom_teacher(v_group, v_t4);
+  IF (SELECT sum(ended_at - started_at) FROM public.classroom_teacher_work_sessions
+       WHERE attendance_id = pg_temp.attendance_id(v_group)) <> (v_t2 - v_t1) + (v_t4 - v_t3) THEN
+    RAISE EXCEPTION 'FAIL: the sessions must be exactly the picked stretches';
+  END IF;
+  RAISE NOTICE 'PASS: the picked sessions add up to exactly the chosen stretches';
 END $$;
 
 RESET ROLE;

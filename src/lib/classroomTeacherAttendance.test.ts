@@ -6,6 +6,7 @@ import {
   flexiWorkAction,
   groupAttendanceByTeacher,
   parseClassroomTeacherAttendanceStatus,
+  validateFlexiPickedTime,
 } from './classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceListEntry, ClassroomTeacherAttendanceStatus } from '../types/classroomTeacherAttendance'
 
@@ -74,6 +75,43 @@ describe('flexiWorkAction', () => {
 
   it('labels every state in Indonesian', () => {
     expect(FLEXI_WORK_ACTION_LABELS).toEqual({ start: 'Mulai', finish: 'Selesai', resume: 'Lanjutkan' })
+  })
+})
+
+describe('validateFlexiPickedTime', () => {
+  // 01:00Z = 09:00 WITA, 03:00Z = 11:00 WITA.
+  const running = status({ clockedInAt: '2026-11-06T01:00:00Z', workSessionCount: 1 })
+  const finished = status({ clockedInAt: '2026-11-06T01:00:00Z', clockedOutAt: '2026-11-06T03:00:00Z', workSessionCount: 1 })
+
+  it('accepts a time earlier today, up to and including the current minute', () => {
+    expect(validateFlexiPickedTime('start', '08:30', null, '14:00')).toBeNull()
+    expect(validateFlexiPickedTime('start', '14:00', null, '14:00')).toBeNull()
+  })
+
+  it('refuses an empty pick and a time in the future', () => {
+    expect(validateFlexiPickedTime('start', '', null, '14:00')).toBe('Pilih jam terlebih dahulu.')
+    expect(validateFlexiPickedTime('start', '14:01', null, '14:00')).toBe('Jam tidak boleh melebihi waktu sekarang.')
+  })
+
+  it('keeps Lanjutkan from starting inside the session that already finished', () => {
+    expect(validateFlexiPickedTime('resume', '10:59', finished, '14:00')).toBe(
+      'Jam mulai tidak boleh sebelum sesi sebelumnya selesai (11:00).',
+    )
+    expect(validateFlexiPickedTime('resume', '11:00', finished, '14:00')).toBeNull()
+  })
+
+  it('keeps Selesai from landing before the running session began', () => {
+    expect(validateFlexiPickedTime('finish', '08:59', running, '14:00')).toBe(
+      'Jam selesai tidak boleh sebelum jam mulai (09:00).',
+    )
+    expect(validateFlexiPickedTime('finish', '09:00', running, '14:00')).toBeNull()
+  })
+
+  it('leaves Selesai on a later session to the server, which knows that session’s start', () => {
+    // clockedInAt is the day's FIRST start; the running second session began later and is not on
+    // the record, so 08:59 cannot be judged here.
+    const second = status({ clockedInAt: '2026-11-06T01:00:00Z', workSessionCount: 2 })
+    expect(validateFlexiPickedTime('finish', '08:59', second, '14:00')).toBeNull()
   })
 })
 

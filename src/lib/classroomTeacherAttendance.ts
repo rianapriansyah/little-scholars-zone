@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import type { Result } from './result'
 import { teacherDisplayName } from './teacherName'
-import { getTodaysClassEndInWita } from './classStatus'
+import { getTodaysClassEndInWita, witaWallClockTime } from './classStatus'
 import {
   ATTENDANCE_SOURCES,
   type AttendanceSource,
@@ -92,6 +92,39 @@ export const FLEXI_WORK_ACTION_LABELS: Record<FlexiWorkAction, string> = {
 }
 
 /**
+ * Checks the HH:mm (WITA, today) a teacher picked in the flexi time dialog before it is sent.
+ * Returns the message to show, or null when the time is fine.
+ *
+ * Mirrors what clock_in_classroom_teacher / clock_out_classroom_teacher enforce on a picked time,
+ * as far as the record on screen allows — the server stays the authority. In particular, Selesai
+ * on a later session can only be checked server-side: the record carries the day's FIRST start,
+ * not the running session's, so that bound is only known here while there is a single session.
+ *
+ * HH:mm strings compare correctly as plain strings within one day, which is all a pick can span.
+ */
+export function validateFlexiPickedTime(
+  action: FlexiWorkAction,
+  time: string,
+  record: Pick<ClassroomTeacherAttendanceStatus, 'clockedInAt' | 'clockedOutAt' | 'workSessionCount'> | null | undefined,
+  nowTime: string,
+): string | null {
+  if (!/^\d{2}:\d{2}$/.test(time)) return 'Pilih jam terlebih dahulu.'
+  if (time > nowTime) return 'Jam tidak boleh melebihi waktu sekarang.'
+
+  if (action === 'resume' && record?.clockedOutAt) {
+    const previousEnd = witaWallClockTime(record.clockedOutAt)
+    if (time < previousEnd) return `Jam mulai tidak boleh sebelum sesi sebelumnya selesai (${previousEnd}).`
+  }
+
+  if (action === 'finish' && record?.clockedInAt && record.workSessionCount <= 1) {
+    const sessionStart = witaWallClockTime(record.clockedInAt)
+    if (time < sessionStart) return `Jam selesai tidak boleh sebelum jam mulai (${sessionStart}).`
+  }
+
+  return null
+}
+
+/**
  * classroom_teacher_id → today's attendance status, for the teacher's own class cards. Only
  * classes that already have a row come back — no row means neither button has been tapped yet.
  */
@@ -116,19 +149,28 @@ export async function fetchAttendanceForClassroomTeachers(
   return { ok: true, data: byClassroomTeacher }
 }
 
-/** Masuk Kelas. The server re-checks the 5-minute window; a rejection surfaces as the error string. */
-export async function clockInClassroomTeacher(classroomTeacherId: string): Promise<Result<string>> {
+/**
+ * Masuk Kelas / Mulai / Lanjutkan. The server re-checks the 5-minute window; a rejection surfaces
+ * as the error string. `at` (ISO instant) is the time the teacher picked — flexi-hours items only;
+ * the server refuses it on a scheduled class. Omitted, the tap itself is the time.
+ */
+export async function clockInClassroomTeacher(classroomTeacherId: string, at?: string): Promise<Result<string>> {
   const { data, error } = await supabase.rpc('clock_in_classroom_teacher', {
     p_classroom_teacher_id: classroomTeacherId,
+    ...(at ? { p_at: at } : {}),
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
 }
 
-/** Selesaikan Kelas. The server re-checks that the end-minus-5-minute floor has been reached. */
-export async function clockOutClassroomTeacher(classroomTeacherId: string): Promise<Result<string>> {
+/**
+ * Selesaikan Kelas / Selesai. The server re-checks that the end-minus-5-minute floor has been
+ * reached. `at` works as in clockInClassroomTeacher.
+ */
+export async function clockOutClassroomTeacher(classroomTeacherId: string, at?: string): Promise<Result<string>> {
   const { data, error } = await supabase.rpc('clock_out_classroom_teacher', {
     p_classroom_teacher_id: classroomTeacherId,
+    ...(at ? { p_at: at } : {}),
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
