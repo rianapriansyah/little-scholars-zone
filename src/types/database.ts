@@ -1199,6 +1199,7 @@ export type Database = {
           p_child_id: string
           p_classroom_id: string
           p_date: string
+          p_learning_period_id?: string
           p_note?: string
           p_status: string
         }

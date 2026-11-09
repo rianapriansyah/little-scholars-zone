@@ -184,6 +184,10 @@ export async function fetchAttendanceByChild(
 /**
  * Records or corrects one child's attendance. Idempotent — re-submitting the same date
  * updates the row rather than consuming a second day. Returns the attendance row id.
+ *
+ * learningPeriodId is admin-only (Tambah Absen from a period's card): the day is filed on that
+ * period rather than the lowest-numbered open one, and moved there if the date was filed
+ * elsewhere. Teachers leave it out and get the automatic pick.
  */
 export async function recordAttendance(params: {
   childId: string
@@ -191,6 +195,7 @@ export async function recordAttendance(params: {
   attendanceDate: string
   status: AttendanceStatus
   note?: string | null
+  learningPeriodId?: string
 }): Promise<Result<string>> {
   const { data, error } = await supabase.rpc('record_attendance', {
     p_child_id: params.childId,
@@ -198,6 +203,7 @@ export async function recordAttendance(params: {
     p_date: params.attendanceDate,
     p_status: params.status,
     p_note: params.note?.trim() || undefined,
+    p_learning_period_id: params.learningPeriodId,
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }

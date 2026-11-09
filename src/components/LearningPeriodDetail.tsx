@@ -155,9 +155,7 @@ export function LearningPeriodDetail({
       {attendanceAdd ? (
         <AddAttendanceDialog
           open={addOpen}
-          childId={period.childId}
-          childName={period.childName}
-          classroomId={period.classroomId}
+          learningPeriod={period}
           onClose={() => setAddOpen(false)}
           // Same reasoning as onDeleted: recording a day draws down the quota, so Terpakai/Sisa
           // and the Selesai chip above are stale the moment it saves.

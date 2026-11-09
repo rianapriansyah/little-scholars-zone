@@ -19,7 +19,7 @@ import {
   fetchCurriculumItems,
   fetchDailyReport,
 } from '../lib/dailyReport'
-import { fetchAttendanceByChild, fetchPeriodsCoveringDate } from '../lib/learningPeriods'
+import { fetchAttendanceByChild } from '../lib/learningPeriods'
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
 import type { CurriculumItemRow } from '../types/curriculumItem'
 import type { DailyReport } from '../types/dailyReport'
@@ -35,27 +35,28 @@ import { DailyReportStudentDialog } from '../portals/teacher/DailyReportStudentD
  * teachers use, so there is one implementation of "fill a child's day" rather than an admin copy
  * of it.
  *
- * Nothing special is needed server-side: an admin already passes both write gates and can edit a
- * report after it was sent. What the admin writes is attributed to "Admin" rather than to the
- * class's teacher — see 20261019060000_daily_report_admin_author.sql.
+ * The day is filed on the period whose card Tambah Absen was pressed on, not on whichever open
+ * period record_attendance would pick (the lowest-numbered) — an older period nobody closed would
+ * otherwise swallow it. See 20261109020000_record_attendance_chosen_period.sql.
+ *
+ * Otherwise nothing special is needed server-side: an admin already passes both write gates and
+ * can edit a report after it was sent. What the admin writes is attributed to "Admin" rather than
+ * to the class's teacher — see 20261019060000_daily_report_admin_author.sql.
  */
 export function AddAttendanceDialog({
   open,
-  childId,
-  childName,
-  classroomId,
+  learningPeriod,
   onClose,
   onSaved,
 }: {
   open: boolean
-  childId: string
-  childName: string
-  /** The learning period's programme. The group is derived from it and the chosen date. */
-  classroomId: string
+  /** The period the day is filed on. Its child and programme decide the group for the date. */
+  learningPeriod: LearningPeriodListEntry
   onClose: () => void
   /** Fires after anything is saved, so the period's quota tiles and history reload. */
   onSaved: () => void
 }) {
+  const { childId, childName, classroomId } = learningPeriod
   const today = todayIsoDateInWita()
   const [date, setDate] = useState(today)
   const [loading, setLoading] = useState(false)
@@ -65,7 +66,6 @@ export function AddAttendanceDialog({
   const [classroomTeacherId, setClassroomTeacherId] = useState<string | null>(null)
   const [report, setReport] = useState<DailyReport | null>(null)
   const [attendance, setAttendance] = useState<ChildAttendanceRow | null>(null)
-  const [period, setPeriod] = useState<LearningPeriodListEntry | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -89,23 +89,20 @@ export function AddAttendanceDialog({
       return setError(`Siswa ini belum terdaftar di kelas tersebut pada ${formatDate(date)}.`)
     }
 
-    const [catalogResult, reportResult, attendanceResult, periodResult] = await Promise.all([
+    const [catalogResult, reportResult, attendanceResult] = await Promise.all([
       fetchCurriculumItems(),
       fetchDailyReport(childId, groupResult.data, date),
       fetchAttendanceByChild(classroomId, date),
-      fetchPeriodsCoveringDate(classroomId, date),
     ])
     setLoading(false)
 
     if (!catalogResult.ok) return setError(catalogResult.error)
     if (!reportResult.ok) return setError(reportResult.error)
     if (!attendanceResult.ok) return setError(attendanceResult.error)
-    if (!periodResult.ok) return setError(periodResult.error)
 
     setCatalog(catalogResult.data)
     setReport(reportResult.data)
     setAttendance(attendanceResult.data.get(childId) ?? null)
-    setPeriod(periodResult.data.get(childId) ?? null)
     setClassroomTeacherId(groupResult.data)
   }
 
@@ -121,7 +118,8 @@ export function AddAttendanceDialog({
         catalog={catalog}
         report={report}
         attendance={attendance}
-        period={period}
+        period={learningPeriod}
+        pinToPeriod
         onClose={() => {
           setClassroomTeacherId(null)
           setReport(null)
@@ -142,8 +140,9 @@ export function AddAttendanceDialog({
       </DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Pilih tanggal yang ingin diisi untuk {childName}. Absensi dan Catatan Guru diisi di
-          langkah berikutnya, dan tercatat atas nama Admin.
+          Pilih tanggal yang ingin diisi untuk {childName}. Absen dicatat di Periode{' '}
+          {learningPeriod.periodNo}. Absensi dan Catatan Guru diisi di langkah berikutnya, dan
+          tercatat atas nama Admin.
         </Typography>
 
         {error ? (

@@ -377,9 +377,7 @@ export function LearningPeriodCard({
       {attendanceAdd ? (
         <AddAttendanceDialog
           open={addOpen}
-          childId={period.childId}
-          childName={period.childName}
-          classroomId={period.classroomId}
+          learningPeriod={period}
           onClose={() => setAddOpen(false)}
           onSaved={reload}
         />

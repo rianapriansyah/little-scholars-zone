@@ -152,6 +152,11 @@ type Props = {
   report: DailyReport
   attendance: ChildAttendanceRow | null
   period: LearningPeriodListEntry | null
+  /**
+   * Admin only, from Tambah Absen on a period's card: file the day on `period` itself instead of
+   * letting record_attendance pick the lowest-numbered open one.
+   */
+  pinToPeriod?: boolean
   onClose: () => void
   /** Fires after any successful save, submit or attendance change so the roster stays in sync. */
   onChanged: () => void
@@ -179,6 +184,7 @@ export function DailyReportStudentDialog({
   report,
   attendance,
   period,
+  pinToPeriod = false,
   onClose,
   onChanged,
 }: Props) {
@@ -318,6 +324,7 @@ export function DailyReportStudentDialog({
         attendanceDate: report.reportDate,
         status: draftStatus,
         note: draftNote,
+        learningPeriodId: pinToPeriod ? period?.id : undefined,
       })
       if (!result.ok) {
         setError(result.error)
