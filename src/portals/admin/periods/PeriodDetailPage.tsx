@@ -5,6 +5,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import AddIcon from "@mui/icons-material/Add";
+import DoneIcon from "@mui/icons-material/TaskAlt";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import PaymentsIcon from "@mui/icons-material/PaymentsOutlined";
@@ -24,7 +25,10 @@ import { EditLearningPeriodDialog } from "../../../components/EditLearningPeriod
 import { LearningPeriodCard } from "../../../components/LearningPeriodCard";
 import { LearningPeriodDialog } from "../../../components/LearningPeriodDialog";
 import { PaymentPeriodDialog } from "../../../components/PaymentPeriodDialog";
-import { fetchPeriodsForChild } from "../../../lib/learningPeriods";
+import {
+  closeLearningPeriod,
+  fetchPeriodsForChild,
+} from "../../../lib/learningPeriods";
 import { fetchPaymentPeriodsByLearningPeriodIds } from "../../../lib/paymentPeriods";
 import {
   groupPeriodsByProgram,
@@ -75,6 +79,9 @@ export function PeriodDetailPage() {
   const [deleteTarget, setDeleteTarget] =
     useState<LearningPeriodListEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [finishTarget, setFinishTarget] =
+    useState<LearningPeriodListEntry | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
   const load = useCallback(async () => {
     if (!childId) return;
@@ -172,6 +179,21 @@ export function PeriodDetailPage() {
     }
     if (receiptPath) void deletePaymentReceipt(receiptPath);
     setDeleteTarget(null);
+    await load();
+  }
+
+  /** Tandai Selesai — closes the period by hand; Sisa keeps the days it was not used for. */
+  async function handleFinish() {
+    if (!finishTarget) return;
+    setFinishing(true);
+    setError(null);
+    const result = await closeLearningPeriod(finishTarget.id);
+    setFinishing(false);
+    setFinishTarget(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     await load();
   }
 
@@ -321,6 +343,21 @@ export function PeriodDetailPage() {
                               </Button>
                             </>
                           }
+                          // Only while it is still running: a closed period has nothing to finish.
+                          statusActions={
+                            period.isActive ? (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="success"
+                                fullWidth
+                                startIcon={<DoneIcon />}
+                                onClick={() => setFinishTarget(period)}
+                              >
+                                Tandai Selesai
+                              </Button>
+                            ) : undefined
+                          }
                           manageActions={
                             <>
                               <Button
@@ -328,14 +365,15 @@ export function PeriodDetailPage() {
                                 variant="outlined"
                                 startIcon={<EditIcon />}
                                 onClick={() => setEditTarget(period)}
+                                sx={{ flex: 1 }}
                               >
                                 Edit
                               </Button>
-                              <Box sx={{ flexGrow: 1 }} />
                               <Button
                                 size="small"
                                 variant="outlined"
                                 color="error"
+                                sx={{ flex: 1 }}
                                 startIcon={<DeleteIcon />}
                                 onClick={() => setDeleteTarget(period)}
                               >
@@ -393,6 +431,15 @@ export function PeriodDetailPage() {
         confirmLabel={deleting ? "Menghapus…" : "Hapus"}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void handleDelete()}
+      />
+
+      <ConfirmDialog
+        open={finishTarget !== null}
+        title="Tandai Periode Selesai"
+        description={`Tandai periode #${finishTarget?.periodNo} ${finishTarget?.classroomLabel ?? ""} milik ${childName} sebagai selesai? Sisa ${finishTarget?.daysRemaining ?? 0} hari tetap tercatat, tetapi absen baru tidak akan lagi masuk ke periode ini.`}
+        confirmLabel={finishing ? "Menyimpan…" : "Tandai Selesai"}
+        onCancel={() => setFinishTarget(null)}
+        onConfirm={() => void handleFinish()}
       />
     </Box>
   );

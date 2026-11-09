@@ -307,6 +307,35 @@ export async function updateLearningPeriod(params: {
   return { ok: true, data: undefined }
 }
 
+/**
+ * Admin-only, Tandai Selesai: closes a period by hand before its quota is used up — the child has
+ * stopped coming, or moved on to the next block early.
+ *
+ * Only closed_at and actual_end_date are written. guaranteed_days is left alone, so Sisa still
+ * shows the days the period was not used for rather than pretending they were consumed. The end
+ * date is the last day recorded against the period, or today when nothing was recorded.
+ *
+ * `closed_at IS NULL` keeps a second click — or a period the quota closed in the meantime — from
+ * overwriting the real closing date.
+ */
+export async function closeLearningPeriod(periodId: string): Promise<Result<void>> {
+  const attendances = await fetchPeriodAttendances(periodId)
+  if (!attendances.ok) return { ok: false, error: attendances.error }
+
+  // fetchPeriodAttendances is newest first.
+  const today = new Date()
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const actualEndDate = attendances.data[0]?.attendance_date ?? todayIso
+
+  const { error } = await supabase
+    .from('learning_periods')
+    .update({ closed_at: new Date().toISOString(), actual_end_date: actualEndDate })
+    .eq('id', periodId)
+    .is('closed_at', null)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: undefined }
+}
+
 export async function fetchPeriod(periodId: string): Promise<Result<LearningPeriodListEntry>> {
   const { data, error } = await supabase
     .from('learning_period_status')

@@ -40,8 +40,13 @@ type Props = {
    */
   headerActions?: ReactNode;
   /**
-   * Controls on their own line under headerActions, separated from it — the ones that change or
-   * remove the period itself rather than report on it.
+   * Controls on their own line under headerActions, separated from it — what moves the period
+   * along (Tandai Selesai), kept up with the summary it changes.
+   */
+  statusActions?: ReactNode;
+  /**
+   * Controls under the period figures, on their own line between dividers — the ones that change
+   * or remove the period itself, kept away from the summary so they are not hit by accident.
    */
   manageActions?: ReactNode;
   /**
@@ -73,6 +78,7 @@ export function LearningPeriodCard({
   attendanceAdd = false,
   attendanceDelete = false,
   headerActions,
+  statusActions,
   manageActions,
   onAttendanceChanged,
   hideClassroom = false,
@@ -173,7 +179,7 @@ export function LearningPeriodCard({
           </Box>
         ) : null}
 
-        {manageActions ? (
+        {statusActions ? (
           <>
             <Divider sx={{ my: 1.5 }} />
             <Box
@@ -184,7 +190,7 @@ export function LearningPeriodCard({
                 gap: 1,
               }}
             >
-              {manageActions}
+              {statusActions}
             </Box>
           </>
         ) : null}
@@ -232,6 +238,22 @@ export function LearningPeriodCard({
               ? `Selesai pada ${formatDate(period.actualEndDate)}.`
               : `Perkiraan selesai ${formatDate(period.projectedEndDate)} — perkiraan kasar, bukan patokan.`}
           </Typography>
+        ) : null}
+
+        {manageActions ? (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              {manageActions}
+            </Box>
+          </>
         ) : null}
 
         <Divider sx={{ my: 2 }} />
