@@ -231,6 +231,19 @@ export async function deleteChildAttendance(attendanceId: string): Promise<Resul
 }
 
 /**
+ * Admin-only, Hapus Absensi & Laporan: deletes a reported day and its daily report together, in
+ * one transaction, and hands the day back to the quota like deleteChildAttendance. Either both go
+ * or neither does.
+ */
+export async function deleteChildAttendanceWithReport(attendanceId: string): Promise<Result<void>> {
+  const { error } = await supabase.rpc('delete_child_attendance_with_report', {
+    p_attendance_id: attendanceId,
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: undefined }
+}
+
+/**
  * Admin-only, Pindahkan Absen. Re-points attendance days at another period of the same child and
  * class — for days that were filed against the wrong period before the right one existed.
  * Returns how many days actually moved.

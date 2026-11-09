@@ -17,7 +17,7 @@ import {
 } from '@mui/material'
 import { ConfirmDialog } from './ConfirmDialog'
 import { deleteDailyReport, fetchDailyReportForAttendance, type DailyReportSummary } from '../lib/dailyReport'
-import { deleteChildAttendance } from '../lib/learningPeriods'
+import { deleteChildAttendance, deleteChildAttendanceWithReport } from '../lib/learningPeriods'
 import { formatDate, formatDateTime } from '../lib/formatDate'
 import { ATTENDANCE_STATUS_LABELS, isAttendanceStatus } from '../types/attendance'
 import type { AttendanceStatus, ChildAttendanceRow } from '../types/attendance'
@@ -95,6 +95,8 @@ export function AttendanceDetailDialog({
   const [confirmDeleteReport, setConfirmDeleteReport] = useState(false)
   const [deletingReport, setDeletingReport] = useState(false)
   const [reportDeleted, setReportDeleted] = useState(false)
+  const [confirmDeleteBoth, setConfirmDeleteBoth] = useState(false)
+  const [deletingBoth, setDeletingBoth] = useState(false)
 
   const status = isAttendanceStatus(attendance.status) ? attendance.status : null
   const isPresent = status === 'present'
@@ -137,6 +139,21 @@ export function AttendanceDetailDialog({
     const result = await deleteChildAttendance(attendance.id)
     setDeleting(false)
     setConfirmDelete(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    onDeleted?.()
+    onClose()
+  }
+
+  /** Hapus Absensi & Laporan — both in one transaction, so neither is left without the other. */
+  async function handleDeleteBoth() {
+    setDeletingBoth(true)
+    setError(null)
+    const result = await deleteChildAttendanceWithReport(attendance.id)
+    setDeletingBoth(false)
+    setConfirmDeleteBoth(false)
     if (!result.ok) {
       setError(result.error)
       return
@@ -308,16 +325,26 @@ export function AttendanceDetailDialog({
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'action.hover' }}>
         {allowDelete ? (
           <>
-            {/* A reported day is held at Hadir, so only the report can go first. */}
+            {/* A reported day is held at Hadir: either the report goes alone (to correct the day
+                afterwards), or the day and its report go together. */}
             {report ? (
-              <Button
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={() => setConfirmDeleteReport(true)}
-                disabled={deletingReport}
-              >
-                Hapus Laporan
-              </Button>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                <Button
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={() => setConfirmDeleteBoth(true)}
+                  disabled={deletingBoth || deletingReport}
+                >
+                  Hapus Absensi & Laporan
+                </Button>
+                <Button
+                  color="error"
+                  onClick={() => setConfirmDeleteReport(true)}
+                  disabled={deletingBoth || deletingReport}
+                >
+                  Hapus Laporan saja
+                </Button>
+              </Box>
             ) : (
               <Button
                 color="error"
@@ -354,6 +381,17 @@ export function AttendanceDetailDialog({
         confirmLabel={deletingReport ? 'Menghapus…' : 'Hapus'}
         onCancel={() => setConfirmDeleteReport(false)}
         onConfirm={() => void handleDeleteReport()}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteBoth}
+        title="Hapus Absensi & Laporan"
+        description={`Hapus absensi ${formatDate(attendance.attendance_date)} beserta laporan hariannya${
+          report?.submittedAt ? ' (sudah terkirim ke orang tua)' : ''
+        }? Suasana hati dan Catatan Guru akan hilang, dan hari ini dikembalikan ke kuota periode belajar. Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel={deletingBoth ? 'Menghapus…' : 'Hapus'}
+        onCancel={() => setConfirmDeleteBoth(false)}
+        onConfirm={() => void handleDeleteBoth()}
       />
     </Dialog>
   )
