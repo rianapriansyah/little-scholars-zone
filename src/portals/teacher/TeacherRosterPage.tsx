@@ -22,6 +22,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { fetchChildIdsWithOpenPeriod } from '../../lib/learningPeriods'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
@@ -148,19 +149,42 @@ export function TeacherRosterPage() {
         return
       }
 
+      // A billable class only lists children who also hold an unfinished learning period in it
+      // (Berjalan or Belum Mulai). Enrolment alone outlives the period: a child whose periods are
+      // all Selesai stayed on this card while Laporan Harian — which needs a period — had no row
+      // for them. Fetched once per class, since a teacher can hold two groups of the same class.
+      // Non-billable work items (Piket Pagi) have no periods at all, so they are not filtered.
+      const openByClassroom = new Map<string, Set<string>>()
       const results: GroupWithRoster[] = []
       for (const group of groupRows ?? []) {
         const classroom = group.classrooms as unknown as ClassroomRow | null
         if (!classroom) continue
-        const { data: enrollmentRows } = await supabase
-          .from('children_classrooms')
-          .select('child_id, children(full_name)')
-          .eq('classroom_teacher_id', group.id)
-          .is('ended_at', null)
-        const roster = (enrollmentRows ?? []).map((row) => {
-          const child = row.children as unknown as { full_name: string } | null
-          return { childId: row.child_id, childName: child?.full_name ?? '—' }
-        })
+        const [{ data: enrollmentRows, error: eError }, openResult] = await Promise.all([
+          supabase
+            .from('children_classrooms')
+            .select('child_id, children(full_name)')
+            .eq('classroom_teacher_id', group.id)
+            .is('ended_at', null),
+          classroom.is_billable && !openByClassroom.has(classroom.id)
+            ? fetchChildIdsWithOpenPeriod(classroom.id)
+            : Promise.resolve(null),
+        ])
+        if (eError || (openResult && !openResult.ok)) {
+          if (!cancelled) {
+            setError(eError?.message ?? (openResult && !openResult.ok ? openResult.error : 'Gagal memuat siswa.'))
+            setLoading(false)
+          }
+          return
+        }
+        if (openResult?.ok) openByClassroom.set(classroom.id, openResult.data)
+        const openChildIds = classroom.is_billable ? openByClassroom.get(classroom.id) : undefined
+
+        const roster = (enrollmentRows ?? [])
+          .filter((row) => !openChildIds || openChildIds.has(row.child_id))
+          .map((row) => {
+            const child = row.children as unknown as { full_name: string } | null
+            return { childId: row.child_id, childName: child?.full_name ?? '—' }
+          })
         results.push({ id: group.id, classroom, roster })
       }
       // By scheduled start time, not label — a teacher's day should read top-to-bottom the way
