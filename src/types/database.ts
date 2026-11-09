@@ -18,7 +18,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      child_attendances: {
+      children_attendances: {
         Row: {
           attendance_date: string
           child_id: string
@@ -54,24 +54,24 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "child_attendances_child_id_fkey"
+            foreignKeyName: "children_attendances_child_id_fkey"
             columns: ["child_id"]
             isOneToOne: false
             referencedRelation: "children"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "child_attendances_period_fkey"
+            foreignKeyName: "children_attendances_period_fkey"
             columns: ["learning_period_id", "child_id", "classroom_id"]
             isOneToOne: false
             referencedRelation: "learning_period_status"
             referencedColumns: ["id", "child_id", "classroom_id"]
           },
           {
-            foreignKeyName: "child_attendances_period_fkey"
+            foreignKeyName: "children_attendances_period_fkey"
             columns: ["learning_period_id", "child_id", "classroom_id"]
             isOneToOne: false
-            referencedRelation: "learning_periods"
+            referencedRelation: "children_learning_periods"
             referencedColumns: ["id", "child_id", "classroom_id"]
           },
         ]
@@ -224,7 +224,7 @@ export type Database = {
               "attendance_status",
             ]
             isOneToOne: false
-            referencedRelation: "child_attendances"
+            referencedRelation: "children_attendances"
             referencedColumns: ["id", "child_id", "classroom_id", "status"]
           },
           {
@@ -639,7 +639,7 @@ export type Database = {
         }
         Relationships: []
       }
-      learning_periods: {
+      children_learning_periods: {
         Row: {
           actual_end_date: string | null
           child_id: string
@@ -684,14 +684,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "learning_periods_child_id_fkey"
+            foreignKeyName: "children_learning_periods_child_id_fkey"
             columns: ["child_id"]
             isOneToOne: false
             referencedRelation: "children"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "learning_periods_classroom_id_fkey"
+            foreignKeyName: "children_learning_periods_classroom_id_fkey"
             columns: ["classroom_id"]
             isOneToOne: false
             referencedRelation: "classrooms"
@@ -761,7 +761,7 @@ export type Database = {
             foreignKeyName: "payment_periods_learning_period_id_fkey"
             columns: ["learning_period_id"]
             isOneToOne: true
-            referencedRelation: "learning_periods"
+            referencedRelation: "children_learning_periods"
             referencedColumns: ["id"]
           },
           {
@@ -995,14 +995,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "learning_periods_child_id_fkey"
+            foreignKeyName: "children_learning_periods_child_id_fkey"
             columns: ["child_id"]
             isOneToOne: false
             referencedRelation: "children"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "learning_periods_classroom_id_fkey"
+            foreignKeyName: "children_learning_periods_classroom_id_fkey"
             columns: ["classroom_id"]
             isOneToOne: false
             referencedRelation: "classrooms"

@@ -6,10 +6,10 @@
  * refuses it with 23503 (foreign_key_violation) when any row still points at the classroom.
  * Four tables can do that, and none of them cascade:
  *
- *   children_classrooms     20260701120000_v1_core_tables.sql
- *   classroom_teachers      20260726030000_classroom_multi_teacher.sql
- *   learning_periods        20260803010000_learning_periods_attendance.sql
- *   registration_children   20260810010000_parent_registration.sql
+ *   children_classrooms        20260701120000_v1_core_tables.sql
+ *   classroom_teachers         20260726030000_classroom_multi_teacher.sql
+ *   children_learning_periods  20260803010000_learning_periods_attendance.sql (renamed 20261109050000)
+ *   registration_children      20260810010000_parent_registration.sql
  *
  * The old message blamed "riwayat pendaftaran siswa" for all four, which misled on the common
  * case: a classroom that only ever had a teacher assigned (classroom_teachers) and no student at
@@ -35,7 +35,7 @@ const BLOCKER_MESSAGES: Record<string, string> = {
     'Tidak dapat dihapus: kelas ini memiliki riwayat pendaftaran siswa. Nonaktifkan saja.',
   classroom_teachers:
     'Tidak dapat dihapus: kelas ini masih memiliki guru yang ditugaskan. Lepaskan penugasan gurunya dulu, atau nonaktifkan kelas saja.',
-  learning_periods:
+  children_learning_periods:
     'Tidak dapat dihapus: kelas ini memiliki periode belajar tercatat. Nonaktifkan saja.',
   registration_children:
     'Tidak dapat dihapus: kelas ini dipakai pada formulir pendaftaran orang tua. Nonaktifkan saja.',

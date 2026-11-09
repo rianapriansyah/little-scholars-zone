@@ -194,13 +194,13 @@ export function PeriodDetailPage() {
   const expandedPeriodId = focusGroup?.periods[0]?.id;
 
   /**
-   * Deletes the payment_periods row and the learning_periods row together (delete_learning_period
+   * Deletes the payment_periods row and the children_learning_periods row together (delete_learning_period
    * does both server-side, in that order, in one transaction), then best-effort deletes the
    * attached receipt from storage if there was one — see deletePaymentReceipt, which only runs
    * once the RPC has succeeded, so a refused delete keeps its receipt.
    *
    * Refused when the period has recorded attendance: the RPC says so in its own (Indonesian)
-   * message, and child_attendances_period_fkey backs it up at commit with '23503'. It used to
+   * message, and children_attendances_period_fkey backs it up at commit with '23503'. It used to
    * cascade instead, which is how one child's attendance was erased — see
    * 20261108020000_protect_attendance_from_period_delete.sql.
    */

@@ -140,7 +140,7 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
   /** One slot per program the child was sold — several periods in the same program are one slot. */
   const loadPrograms = useCallback(async (id: string) => {
     const { data, error: qErr } = await supabase
-      .from('learning_periods')
+      .from('children_learning_periods')
       .select('classroom_id, classrooms(label)')
       .eq('child_id', id)
     if (qErr) {

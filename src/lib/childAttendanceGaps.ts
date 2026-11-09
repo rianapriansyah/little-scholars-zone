@@ -10,7 +10,7 @@ import { getTodaysClassEndInWita } from './classStatus'
  */
 export type ClassRosterRow = {
   classroomTeacherId: string
-  /** The billed program. child_attendances keys off this, not off the teaching group. */
+  /** The billed program. children_attendances keys off this, not off the teaching group. */
   classroomId: string
   classroomLabel: string
   teacherId: string
@@ -25,7 +25,7 @@ export type ClassRosterRow = {
   startedAt: string
   /** A learning period covers the date, so record_attendance would accept the day. */
   hasCoveringPeriod: boolean
-  /** A child_attendances row already exists for (child, classroom, date). */
+  /** A children_attendances row already exists for (child, classroom, date). */
   isFilled: boolean
 }
 
@@ -167,7 +167,7 @@ export function selectEndedClassAttendanceGaps(
   })
 }
 
-/** child_id + classroom_id, the pair child_attendances and learning periods are both keyed by. */
+/** child_id + classroom_id, the pair children_attendances and learning periods are both keyed by. */
 function childClassroomKey(childId: string, classroomId: string): string {
   return `${childId}|${classroomId}`
 }
@@ -211,7 +211,7 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
       .select('child_id, classroom_id')
       .lte('start_date', date)
       .or(`actual_end_date.is.null,actual_end_date.gte.${date}`),
-    supabase.from('child_attendances').select('child_id, classroom_id').eq('attendance_date', date),
+    supabase.from('children_attendances').select('child_id, classroom_id').eq('attendance_date', date),
   ])
 
   const error = groupsRes.error ?? enrollmentsRes.error ?? periodsRes.error ?? attendancesRes.error

@@ -159,7 +159,7 @@ export async function fetchPeriodsCoveringDate(
  */
 export async function fetchChildIdsWithOpenPeriod(classroomId: string): Promise<Result<Set<string>>> {
   const { data, error } = await supabase
-    .from('learning_periods')
+    .from('children_learning_periods')
     .select('child_id')
     .eq('classroom_id', classroomId)
     .is('closed_at', null)
@@ -173,7 +173,7 @@ export async function fetchAttendanceByChild(
   attendanceDate: string,
 ): Promise<Result<Map<string, ChildAttendanceRow>>> {
   const { data, error } = await supabase
-    .from('child_attendances')
+    .from('children_attendances')
     .select('*')
     .eq('classroom_id', classroomId)
     .eq('attendance_date', attendanceDate)
@@ -282,7 +282,7 @@ export async function moveChildAttendances(
  * the last day that consumed a slot. Shrinking it below the days already used is refused rather
  * than resolved, because that would leave days_remaining negative.
  *
- * period_no is editable too, and safely: child_attendances keys off (learning_period_id,
+ * period_no is editable too, and safely: children_attendances keys off (learning_period_id,
  * child_id, classroom_id), none of which is the number, and payment_periods references the
  * period's id. What it does change is precedence — record_attendance() files a genuinely new day
  * against the lowest open period_no — so renumbering decides which block the next day is billed
@@ -326,7 +326,7 @@ export async function updateLearningPeriod(params: {
   }
 
   const { error } = await supabase
-    .from('learning_periods')
+    .from('children_learning_periods')
     .update({
       period_no: params.periodNo,
       start_date: params.startDate,
@@ -370,7 +370,7 @@ export async function closeLearningPeriod(periodId: string): Promise<Result<void
   const actualEndDate = attendances.data[0]?.attendance_date ?? todayIso
 
   const { error } = await supabase
-    .from('learning_periods')
+    .from('children_learning_periods')
     .update({ closed_at: new Date().toISOString(), actual_end_date: actualEndDate })
     .eq('id', periodId)
     .is('closed_at', null)
@@ -394,7 +394,7 @@ export async function fetchPeriod(periodId: string): Promise<Result<LearningPeri
 
 export async function fetchPeriodAttendances(periodId: string): Promise<Result<ChildAttendanceRow[]>> {
   const { data, error } = await supabase
-    .from('child_attendances')
+    .from('children_attendances')
     .select('*')
     .eq('learning_period_id', periodId)
     .order('attendance_date', { ascending: false })
@@ -489,7 +489,7 @@ export async function createLearningPeriod(params: {
   projectedEndDate?: string | null
 }): Promise<Result<string>> {
   const { data: existing, error: qError } = await supabase
-    .from('learning_periods')
+    .from('children_learning_periods')
     .select('period_no')
     .eq('child_id', params.childId)
     .eq('classroom_id', params.classroomId)
@@ -500,7 +500,7 @@ export async function createLearningPeriod(params: {
   const nextPeriodNo = (existing?.[0]?.period_no ?? 0) + 1
 
   const { data, error } = await supabase
-    .from('learning_periods')
+    .from('children_learning_periods')
     .insert({
       child_id: params.childId,
       classroom_id: params.classroomId,

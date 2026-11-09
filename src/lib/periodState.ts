@@ -1,7 +1,7 @@
 import type { LearningPeriodStatus } from '../types/attendance'
 
 /**
- * Where a learning period is in its life, read off the stored learning_periods.is_active flag
+ * Where a learning period is in its life, read off the stored children_learning_periods.is_active flag
  * (20261109040000_learning_period_is_active.sql) and closed_at:
  *
  *   - active      Berjalan     — a day is recorded on it and it is not finished

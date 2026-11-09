@@ -72,12 +72,12 @@ INSERT INTO public.children_classrooms (child_id, classroom_teacher_id, started_
   ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000023', '2026-01-01'),
   ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000024', '2026-01-01');
 
-INSERT INTO public.learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
+INSERT INTO public.children_learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
   ('00000000-0000-4000-9000-000000000030', '00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000018', 1, '2026-01-01');
 
 -- 2026-08-03 is the covered day, 2026-08-04 the uncovered control. A report needs a 'present' row
 -- for the same classroom and date (enforce_child_present), so both days get one.
-INSERT INTO public.child_attendances (learning_period_id, child_id, classroom_id, attendance_date, status) VALUES
+INSERT INTO public.children_attendances (learning_period_id, child_id, classroom_id, attendance_date, status) VALUES
   ('00000000-0000-4000-9000-000000000030', '00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000018', '2026-08-03', 'present'),
   ('00000000-0000-4000-9000-000000000030', '00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000018', '2026-08-04', 'present');
 
@@ -368,7 +368,7 @@ BEGIN
     -- 2026-08-04's absensi row: a present day of the covered group, but not a covered date.
     INSERT INTO public.children_daily_reports (child_id, child_attendance_id, teacher_note)
     SELECT '00000000-0000-4000-9000-000000000016', a.id, 'Lewat tabel'
-      FROM public.child_attendances a
+      FROM public.children_attendances a
      WHERE a.child_id = '00000000-0000-4000-9000-000000000016'
        AND a.classroom_id = '00000000-0000-4000-9000-000000000018'
        AND a.attendance_date = '2026-08-04';

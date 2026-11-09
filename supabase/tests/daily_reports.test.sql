@@ -59,12 +59,12 @@ INSERT INTO public.children_classrooms (child_id, classroom_teacher_id, started_
 
 -- A report can only exist for a child recorded present (enforce_child_present), and attendance
 -- hangs off a learning period, so each (child, program) needs a period before it can have either.
-INSERT INTO public.learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
+INSERT INTO public.children_learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
   ('00000000-0000-4000-8000-000000000040', '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', 1, '2026-01-01'),
   ('00000000-0000-4000-8000-000000000041', '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000030', 1, '2026-01-01');
 
 -- 2026-08-03: Child One present in both programs. 2026-08-04: absent from Test Classroom.
-INSERT INTO public.child_attendances (learning_period_id, child_id, classroom_id, attendance_date, status) VALUES
+INSERT INTO public.children_attendances (learning_period_id, child_id, classroom_id, attendance_date, status) VALUES
   ('00000000-0000-4000-8000-000000000040', '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-03', 'present'),
   ('00000000-0000-4000-8000-000000000041', '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000030', '2026-08-03', 'present'),
   ('00000000-0000-4000-8000-000000000040', '00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000018', '2026-08-04', 'absent');
@@ -121,7 +121,7 @@ BEGIN
 
   SELECT count(*) INTO v_reports
     FROM public.children_daily_reports r
-    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    JOIN public.children_attendances a ON a.id = r.child_attendance_id
     WHERE a.child_id = '00000000-0000-4000-8000-000000000016' AND a.attendance_date = '2026-08-03';
   SELECT count(*) INTO v_items FROM public.daily_report_items WHERE report_id = v_report_id;
   IF v_reports <> 1 OR v_items <> 2 THEN
@@ -266,7 +266,7 @@ BEGIN
   BEGIN
     INSERT INTO public.children_daily_reports (child_id, child_attendance_id)
     SELECT '00000000-0000-4000-8000-000000000016', a.id
-      FROM public.child_attendances a
+      FROM public.children_attendances a
      WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
        AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
        AND a.attendance_date = '2026-08-04';
@@ -291,7 +291,7 @@ DECLARE
 BEGIN
   SELECT r.id INTO v_first_id
     FROM public.children_daily_reports r
-    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    JOIN public.children_attendances a ON a.id = r.child_attendance_id
     WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
       AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
       AND a.attendance_date = '2026-08-03';
@@ -318,7 +318,7 @@ BEGIN
 
   SELECT count(*) INTO v_reports
     FROM public.children_daily_reports r
-    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    JOIN public.children_attendances a ON a.id = r.child_attendance_id
     WHERE a.child_id = '00000000-0000-4000-8000-000000000016' AND a.attendance_date = '2026-08-03';
   IF v_reports <> 2 THEN
     RAISE EXCEPTION 'FAIL: expected 2 reports for two programs on one day, got %', v_reports;
@@ -376,7 +376,7 @@ BEGIN
   IF (
     SELECT count(DISTINCT a.classroom_id)
     FROM public.children_daily_reports r
-    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    JOIN public.children_attendances a ON a.id = r.child_attendance_id
     WHERE r.id IN (v_first_id, v_second_id)
   ) <> 2 THEN
     RAISE EXCEPTION 'FAIL: the two reports should point at the two programs'' attendance rows';
@@ -452,7 +452,7 @@ DECLARE
 BEGIN
   SELECT r.id INTO v_report_id
     FROM public.children_daily_reports r
-    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    JOIN public.children_attendances a ON a.id = r.child_attendance_id
     WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
       AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
       AND a.attendance_date = '2026-08-03';
@@ -730,7 +730,7 @@ BEGIN
   IF EXISTS (
     SELECT 1
       FROM public.children_daily_reports r
-      JOIN public.child_attendances a ON a.id = r.child_attendance_id
+      JOIN public.children_attendances a ON a.id = r.child_attendance_id
       LEFT JOIN public.classroom_teachers ct ON ct.id = public.daily_report_group_id(r.child_attendance_id)
      WHERE r.child_id IN ('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000017')
        AND (a.child_id <> r.child_id
@@ -742,7 +742,7 @@ BEGIN
   END IF;
 
   IF public.daily_report_group_id((
-       SELECT a.id FROM public.child_attendances a
+       SELECT a.id FROM public.children_attendances a
         WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
           AND a.classroom_id = '00000000-0000-4000-8000-000000000030'
           AND a.attendance_date = '2026-08-03'
@@ -839,7 +839,7 @@ BEGIN
   SET CONSTRAINTS ALL IMMEDIATE;
   SET CONSTRAINTS ALL DEFERRED;
   IF NOT EXISTS (
-    SELECT 1 FROM public.child_attendances
+    SELECT 1 FROM public.children_attendances
      WHERE child_id = v_child AND classroom_id = v_room AND attendance_date = '2026-08-04' AND status = 'sick'
   ) THEN
     RAISE EXCEPTION 'FAIL: a day without a report should accept a status change';
@@ -854,13 +854,13 @@ DO $$
 DECLARE
   v_att uuid;
 BEGIN
-  SELECT id INTO v_att FROM public.child_attendances
+  SELECT id INTO v_att FROM public.children_attendances
    WHERE child_id = '00000000-0000-4000-8000-000000000016'
      AND classroom_id = '00000000-0000-4000-8000-000000000018'
      AND attendance_date = '2026-08-03';
 
   BEGIN
-    UPDATE public.child_attendances SET status = 'absent' WHERE id = v_att;
+    UPDATE public.children_attendances SET status = 'absent' WHERE id = v_att;
     SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
     RAISE EXCEPTION 'FAIL: a direct status change on a reported day must violate the FK';
   EXCEPTION WHEN foreign_key_violation THEN
@@ -870,19 +870,19 @@ BEGIN
 
   -- The report carries no date of its own any more: re-dating the absensi row simply moves the
   -- report with it, because the absensi row is the only record of which day it was.
-  UPDATE public.child_attendances SET attendance_date = '2026-08-05' WHERE id = v_att;
+  UPDATE public.children_attendances SET attendance_date = '2026-08-05' WHERE id = v_att;
   SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
   SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
   IF public.daily_report_attendance_date(v_att) <> '2026-08-05' THEN
     RAISE EXCEPTION 'FAIL: the report''s date should follow its absensi row';
   END IF;
-  UPDATE public.child_attendances SET attendance_date = '2026-08-03' WHERE id = v_att;
+  UPDATE public.children_attendances SET attendance_date = '2026-08-03' WHERE id = v_att;
   RAISE NOTICE 'PASS: a report''s date is its absensi row''s date';
 
   -- Moving the absensi row to another child would leave the report's child copy — and so the
   -- parent who can read it — behind: refused by the report FK (only that one is forced here).
   BEGIN
-    UPDATE public.child_attendances SET child_id = '00000000-0000-4000-8000-000000000017' WHERE id = v_att;
+    UPDATE public.children_attendances SET child_id = '00000000-0000-4000-8000-000000000017' WHERE id = v_att;
     SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
     RAISE EXCEPTION 'FAIL: moving a reported day to another child must violate the FK';
   EXCEPTION WHEN foreign_key_violation THEN
@@ -894,7 +894,7 @@ BEGIN
   SET CONSTRAINTS public.children_daily_reports_attendance_fkey DEFERRED;
 
   BEGIN
-    DELETE FROM public.child_attendances WHERE id = v_att;
+    DELETE FROM public.children_attendances WHERE id = v_att;
     SET CONSTRAINTS public.children_daily_reports_attendance_fkey IMMEDIATE;
     RAISE EXCEPTION 'FAIL: deleting a reported day must violate the FK';
   EXCEPTION WHEN foreign_key_violation THEN
@@ -942,7 +942,7 @@ DECLARE
 BEGIN
   SELECT r.id INTO v_report
     FROM public.children_daily_reports r
-    JOIN public.child_attendances a ON a.id = r.child_attendance_id
+    JOIN public.children_attendances a ON a.id = r.child_attendance_id
    WHERE a.child_id = '00000000-0000-4000-8000-000000000016'
      AND a.classroom_id = '00000000-0000-4000-8000-000000000018'
      AND a.attendance_date = '2026-08-03';
@@ -968,7 +968,7 @@ DECLARE
   v_report uuid;
 BEGIN
   SELECT a.id, r.id INTO v_att, v_report
-    FROM public.child_attendances a
+    FROM public.children_attendances a
     JOIN public.children_daily_reports r ON r.child_attendance_id = a.id
    WHERE a.child_id = v_child AND a.classroom_id = v_room AND a.attendance_date = '2026-08-03';
 
@@ -1011,8 +1011,8 @@ BEGIN
   SET CONSTRAINTS ALL DEFERRED;
 
   IF EXISTS (SELECT 1 FROM public.children_daily_reports WHERE child_id = v_child)
-     OR EXISTS (SELECT 1 FROM public.child_attendances WHERE child_id = v_child)
-     OR EXISTS (SELECT 1 FROM public.learning_periods WHERE child_id = v_child)
+     OR EXISTS (SELECT 1 FROM public.children_attendances WHERE child_id = v_child)
+     OR EXISTS (SELECT 1 FROM public.children_learning_periods WHERE child_id = v_child)
   THEN
     RAISE EXCEPTION 'FAIL: deleting a family must remove its reports, absensi and periods';
   END IF;

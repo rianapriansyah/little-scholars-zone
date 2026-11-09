@@ -24,7 +24,7 @@ describe('classroomDeleteErrorMessage', () => {
   })
 
   it('names a learning period as the blocker', () => {
-    expect(classroomDeleteErrorMessage(fkViolation('learning_periods'))).toContain(
+    expect(classroomDeleteErrorMessage(fkViolation('children_learning_periods'))).toContain(
       'periode belajar tercatat',
     )
   })

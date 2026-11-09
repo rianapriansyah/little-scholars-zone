@@ -141,7 +141,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const loadEnrollmentContext = async (classroomId: string) => {
     const [{ data: periodRows }, { data: enrollmentRows }] = await Promise.all([
       supabase
-        .from('learning_periods')
+        .from('children_learning_periods')
         .select('child_id, start_date')
         .eq('classroom_id', classroomId)
         .order('start_date'),

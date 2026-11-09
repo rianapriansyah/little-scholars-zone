@@ -1,10 +1,10 @@
 import type { Database } from './database'
 
-export type LearningPeriodRow = Database['public']['Tables']['learning_periods']['Row']
-export type ChildAttendanceRow = Database['public']['Tables']['child_attendances']['Row']
+export type LearningPeriodRow = Database['public']['Tables']['children_learning_periods']['Row']
+export type ChildAttendanceRow = Database['public']['Tables']['children_attendances']['Row']
 export type LearningPeriodStatusRow = Database['public']['Views']['learning_period_status']['Row']
 
-/** Mirrors the child_attendances.status CHECK constraint. */
+/** Mirrors the children_attendances.status CHECK constraint. */
 export const ATTENDANCE_STATUSES = ['present', 'absent', 'sick'] as const
 
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number]
@@ -46,7 +46,7 @@ export type LearningPeriodStatus = {
   daysSick: number
   daysRemaining: number
   /**
-   * The stored learning_periods.is_active flag: a day is recorded on it and it is not closed.
+   * The stored children_learning_periods.is_active flag: a day is recorded on it and it is not closed.
    * A period nobody has attended yet is not active — see lib/periodState for the three states.
    */
   isActive: boolean

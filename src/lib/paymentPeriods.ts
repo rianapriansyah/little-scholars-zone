@@ -4,7 +4,7 @@ import { uploadReceiptDirect } from './receiptStorage'
 import { parsePaymentPeriod } from '../types/payment'
 import type { PaymentPeriod, PaymentPeriodRow } from '../types/payment'
 
-/** The row auto-created by learning_periods_create_payment_period the moment a period exists. */
+/** The row auto-created by children_learning_periods_create_payment_period the moment a period exists. */
 export async function fetchPaymentPeriodForLearningPeriod(
   learningPeriodId: string,
 ): Promise<Result<PaymentPeriod | null>> {
@@ -44,7 +44,7 @@ export async function fetchPaymentPeriodsByLearningPeriodIds(
 /** Embedded names Postgrest returns alongside a payment_periods row for the admin queue/tab. */
 type PaymentPeriodWithNames = PaymentPeriodRow & {
   children: { full_name: string } | null
-  learning_periods: { period_no: number; classrooms: { label: string } | null } | null
+  children_learning_periods: { period_no: number; classrooms: { label: string } | null } | null
 }
 
 export type PaymentPeriodListEntry = PaymentPeriod & {
@@ -59,8 +59,8 @@ function toListEntry(row: PaymentPeriodWithNames): PaymentPeriodListEntry | null
   return {
     ...parsed,
     childName: row.children?.full_name ?? '—',
-    classroomLabel: row.learning_periods?.classrooms?.label ?? '—',
-    periodNo: row.learning_periods?.period_no ?? 0,
+    classroomLabel: row.children_learning_periods?.classrooms?.label ?? '—',
+    periodNo: row.children_learning_periods?.period_no ?? 0,
   }
 }
 
@@ -68,7 +68,7 @@ function toListEntry(row: PaymentPeriodWithNames): PaymentPeriodListEntry | null
 export async function fetchUnpaidPaymentPeriods(): Promise<Result<PaymentPeriodListEntry[]>> {
   const { data, error } = await supabase
     .from('payment_periods')
-    .select('*, children(full_name), learning_periods(period_no, classrooms(label))')
+    .select('*, children(full_name), children_learning_periods(period_no, classrooms(label))')
     .eq('status', 'unpaid')
     .order('due_date', { ascending: true, nullsFirst: false })
   if (error) return { ok: false, error: error.message }
@@ -85,7 +85,7 @@ export async function fetchUnpaidPaymentPeriods(): Promise<Result<PaymentPeriodL
 export async function fetchPaymentPeriodsForChild(childId: string): Promise<Result<PaymentPeriodListEntry[]>> {
   const { data, error } = await supabase
     .from('payment_periods')
-    .select('*, children(full_name), learning_periods(period_no, classrooms(label))')
+    .select('*, children(full_name), children_learning_periods(period_no, classrooms(label))')
     .eq('child_id', childId)
     .order('created_at', { ascending: false })
   if (error) return { ok: false, error: error.message }

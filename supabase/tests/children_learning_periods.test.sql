@@ -7,7 +7,7 @@
 -- auth.jwt() read.
 --
 -- Run with either:
---   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/learning_periods.test.sql
+--   psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/children_learning_periods.test.sql
 --   ...or paste it into the SQL editor / the Supabase MCP execute_sql tool.
 --
 -- Every assertion RAISEs on failure. A clean run ends with 'ALL LEARNING PERIOD TESTS PASSED'.
@@ -58,7 +58,7 @@ INSERT INTO public.children_classrooms (child_id, classroom_teacher_id, started_
   ('00000000-0000-4000-9000-000000000017', '00000000-0000-4000-9000-000000000022', '2026-01-01');
 
 -- Child One holds one period in X and an independent one in Y. Child Two has one in Z.
-INSERT INTO public.learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
+INSERT INTO public.children_learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
   ('00000000-0000-4000-9000-000000000030', '00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000018', 1, '2026-09-01'),
   ('00000000-0000-4000-9000-000000000031', '00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000019', 1, '2026-09-01'),
   ('00000000-0000-4000-9000-000000000032', '00000000-0000-4000-9000-000000000017', '00000000-0000-4000-9000-00000000001a', 1, '2026-09-01');
@@ -95,7 +95,7 @@ BEGIN
   RAISE NOTICE 'PASS: present and absent consume a day, sick does not';
 
   -- A date with no attendance row consumes nothing: 2026-09-04 is deliberately untouched.
-  SELECT count(*) INTO v_rows FROM public.child_attendances WHERE learning_period_id = v_period;
+  SELECT count(*) INTO v_rows FROM public.children_attendances WHERE learning_period_id = v_period;
   IF v_rows <> 3 THEN
     RAISE EXCEPTION 'FAIL: expected exactly 3 attendance rows, got %', v_rows;
   END IF;
@@ -107,13 +107,13 @@ BEGIN
 
   -- Re-submitting the same date corrects it instead of consuming a second day.
   PERFORM public.record_attendance(v_child, v_room, '2026-09-01', 'absent', 'salah tekan');
-  SELECT count(*) INTO v_rows FROM public.child_attendances WHERE learning_period_id = v_period;
+  SELECT count(*) INTO v_rows FROM public.children_attendances WHERE learning_period_id = v_period;
   SELECT days_consumed INTO v_consumed FROM public.learning_period_status WHERE id = v_period;
   IF v_rows <> 3 OR v_consumed <> 2 THEN
     RAISE EXCEPTION 'FAIL: re-submitting double-counted (% rows, % consumed)', v_rows, v_consumed;
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM public.child_attendances
+    SELECT 1 FROM public.children_attendances
     WHERE learning_period_id = v_period AND attendance_date = '2026-09-01'
       AND status = 'absent' AND note = 'salah tekan'
   ) THEN
@@ -221,7 +221,7 @@ DECLARE
 BEGIN
   PERFORM public.record_attendance(v_child, v_room_y, '2026-09-01', 'present');
 
-  SELECT count(*) INTO v_rows FROM public.child_attendances
+  SELECT count(*) INTO v_rows FROM public.children_attendances
     WHERE child_id = v_child AND attendance_date = '2026-09-01';
   IF v_rows <> 2 THEN
     RAISE EXCEPTION 'FAIL: a child in two classrooms should have 2 rows on the same date, got %', v_rows;
@@ -249,7 +249,7 @@ BEGIN
   -- The FK is deferred since 20261108020000, so the check is forced here rather than at a
   -- COMMIT this script never reaches.
   BEGIN
-    INSERT INTO public.child_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
+    INSERT INTO public.children_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
     VALUES (
       '00000000-0000-4000-9000-000000000031',
       '00000000-0000-4000-9000-000000000016',
@@ -257,7 +257,7 @@ BEGIN
       '2026-10-05',
       'present'
     );
-    SET CONSTRAINTS public.child_attendances_period_fkey IMMEDIATE;
+    SET CONSTRAINTS public.children_attendances_period_fkey IMMEDIATE;
     RAISE EXCEPTION 'FAIL: attendance filed against a period from another classroom must be rejected';
   EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
@@ -320,7 +320,7 @@ BEGIN
   END;
 
   BEGIN
-    INSERT INTO public.child_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
+    INSERT INTO public.children_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
     VALUES (
       '00000000-0000-4000-9000-000000000030',
       '00000000-0000-4000-9000-000000000016',
@@ -334,7 +334,7 @@ BEGIN
     RAISE NOTICE 'PASS: RLS blocks direct cross-classroom insert (%)', SQLERRM;
   END;
 
-  SELECT count(*) INTO v_rows FROM public.child_attendances
+  SELECT count(*) INTO v_rows FROM public.children_attendances
     WHERE classroom_id = '00000000-0000-4000-9000-000000000018';
   IF v_rows <> 0 THEN
     RAISE EXCEPTION 'FAIL: teacher B can read attendance from a classroom they do not teach (% rows)', v_rows;
@@ -355,7 +355,7 @@ DECLARE
   v_attendances int;
   v_periods int;
 BEGIN
-  SELECT count(*) INTO v_attendances FROM public.child_attendances
+  SELECT count(*) INTO v_attendances FROM public.children_attendances
     WHERE child_id = '00000000-0000-4000-9000-000000000016';
   SELECT count(*) INTO v_periods FROM public.learning_period_status
     WHERE child_id = '00000000-0000-4000-9000-000000000016';
@@ -376,7 +376,7 @@ DECLARE
   v_attendances int;
   v_periods int;
 BEGIN
-  SELECT count(*) INTO v_attendances FROM public.child_attendances
+  SELECT count(*) INTO v_attendances FROM public.children_attendances
     WHERE child_id = '00000000-0000-4000-9000-000000000016';
   SELECT count(*) INTO v_periods FROM public.learning_period_status
     WHERE child_id = '00000000-0000-4000-9000-000000000016';
@@ -453,7 +453,7 @@ END $$;
 -- A period with absensi cannot be deleted; a family still can
 -- (20261108020000_protect_attendance_from_period_delete.sql)
 --
--- child_attendances_period_fkey is DEFERRABLE INITIALLY DEFERRED, so it would only fire at
+-- children_attendances_period_fkey is DEFERRABLE INITIALLY DEFERRED, so it would only fire at
 -- COMMIT — which this script never reaches. Each check below forces it with SET CONSTRAINTS
 -- ... IMMEDIATE, which runs the pending checks there and then.
 -- ---------------------------------------------------------------------------
@@ -462,7 +462,7 @@ RESET ROLE;
 
 -- Period 0030 (Child One, classroom X) has absensi from the quota tests above. A fresh,
 -- never-attended period in X is the one an admin is allowed to delete.
-INSERT INTO public.learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
+INSERT INTO public.children_learning_periods (id, child_id, classroom_id, period_no, start_date) VALUES
   ('00000000-0000-4000-9000-000000000033', '00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000018', 9, '2026-12-01');
 
 SET LOCAL ROLE authenticated;
@@ -473,7 +473,7 @@ DECLARE
   v_used uuid := '00000000-0000-4000-9000-000000000030';
   v_rows int;
 BEGIN
-  SELECT count(*) INTO v_rows FROM public.child_attendances WHERE learning_period_id = v_used;
+  SELECT count(*) INTO v_rows FROM public.children_attendances WHERE learning_period_id = v_used;
   IF v_rows = 0 THEN
     RAISE EXCEPTION 'FAIL: fixture period 0030 should have absensi by now';
   END IF;
@@ -493,15 +493,15 @@ BEGIN
   -- A direct DELETE through the admin's RLS policy is refused by the FK itself. This is the
   -- path that silently erased absensi while the FK was ON DELETE CASCADE.
   BEGIN
-    DELETE FROM public.learning_periods WHERE id = v_used;
-    SET CONSTRAINTS public.child_attendances_period_fkey IMMEDIATE;
-    RAISE EXCEPTION 'FAIL: deleting a period with absensi must violate child_attendances_period_fkey';
+    DELETE FROM public.children_learning_periods WHERE id = v_used;
+    SET CONSTRAINTS public.children_attendances_period_fkey IMMEDIATE;
+    RAISE EXCEPTION 'FAIL: deleting a period with absensi must violate children_attendances_period_fkey';
   EXCEPTION WHEN foreign_key_violation THEN
     RAISE NOTICE 'PASS: a direct period delete with absensi is refused by the FK';
   END;
-  SET CONSTRAINTS public.child_attendances_period_fkey DEFERRED;
+  SET CONSTRAINTS public.children_attendances_period_fkey DEFERRED;
 
-  SELECT count(*) INTO v_rows FROM public.child_attendances WHERE learning_period_id = v_used;
+  SELECT count(*) INTO v_rows FROM public.children_attendances WHERE learning_period_id = v_used;
   IF v_rows = 0 THEN
     RAISE EXCEPTION 'FAIL: the refused delete must leave the absensi in place';
   END IF;
@@ -510,7 +510,7 @@ BEGIN
   PERFORM public.delete_learning_period('00000000-0000-4000-9000-000000000033');
   SET CONSTRAINTS ALL IMMEDIATE;
   SET CONSTRAINTS ALL DEFERRED;
-  IF EXISTS (SELECT 1 FROM public.learning_periods WHERE id = '00000000-0000-4000-9000-000000000033')
+  IF EXISTS (SELECT 1 FROM public.children_learning_periods WHERE id = '00000000-0000-4000-9000-000000000033')
      OR EXISTS (SELECT 1 FROM public.payment_periods WHERE learning_period_id = '00000000-0000-4000-9000-000000000033')
   THEN
     RAISE EXCEPTION 'FAIL: an unused period and its payment row should be deleted';
@@ -527,16 +527,16 @@ DECLARE
   v_family uuid := '00000000-0000-4000-9000-000000000015'; -- Child Two's family
   v_child uuid := '00000000-0000-4000-9000-000000000017';
 BEGIN
-  INSERT INTO public.child_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
+  INSERT INTO public.children_attendances (learning_period_id, child_id, classroom_id, attendance_date, status)
   VALUES ('00000000-0000-4000-9000-000000000032', v_child, '00000000-0000-4000-9000-00000000001a', '2026-12-15', 'present')
-  ON CONFLICT ON CONSTRAINT child_attendances_child_classroom_date_key DO NOTHING;
+  ON CONFLICT ON CONSTRAINT children_attendances_child_classroom_date_key DO NOTHING;
 
   DELETE FROM public.families WHERE id = v_family;
   SET CONSTRAINTS ALL IMMEDIATE;
   SET CONSTRAINTS ALL DEFERRED;
 
-  IF EXISTS (SELECT 1 FROM public.child_attendances WHERE child_id = v_child)
-     OR EXISTS (SELECT 1 FROM public.learning_periods WHERE child_id = v_child)
+  IF EXISTS (SELECT 1 FROM public.children_attendances WHERE child_id = v_child)
+     OR EXISTS (SELECT 1 FROM public.children_learning_periods WHERE child_id = v_child)
      OR EXISTS (SELECT 1 FROM public.children WHERE id = v_child)
   THEN
     RAISE EXCEPTION 'FAIL: deleting a family must remove its children, periods and absensi';
