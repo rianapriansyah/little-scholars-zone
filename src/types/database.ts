@@ -1190,6 +1190,10 @@ export type Database = {
         Args: { p_attendance_id: string }
         Returns: undefined
       }
+      move_child_attendances: {
+        Args: { p_attendance_ids: string[]; p_target_period_id: string }
+        Returns: number
+      }
       record_attendance: {
         Args: {
           p_child_id: string

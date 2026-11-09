@@ -314,6 +314,10 @@ export function PeriodDetailPage() {
                           hideClassroom
                           attendanceAdd
                           attendanceDelete
+                          // The rest of this class's periods: a day can only move within its class.
+                          moveTargets={group.periods.filter(
+                            (other) => other.id !== period.id,
+                          )}
                           // Recording or deleting a day moves the quota this card reads from `period`.
                           onAttendanceChanged={() => void load()}
                           headerActions={

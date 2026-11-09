@@ -24,6 +24,7 @@ import type {
 import { AddAttendanceDialog } from "./AddAttendanceDialog";
 import { AttendanceDetailDialog } from "./AttendanceDetailDialog";
 import { AttendanceHistoryList } from "./AttendanceHistoryList";
+import { MoveAttendanceDialog } from "./MoveAttendanceDialog";
 import { StatTile } from "./StatTile";
 
 type Props = {
@@ -33,6 +34,12 @@ type Props = {
   attendanceAdd?: boolean;
   /** Admin only: let a day that should never have been recorded be deleted from its dialog. */
   attendanceDelete?: boolean;
+  /**
+   * Admin only: the child's other periods in this class, which turns on Pindahkan Absen for
+   * re-filing days recorded against the wrong period. Same class only — the attendance row's
+   * foreign key ties a day to its classroom.
+   */
+  moveTargets?: LearningPeriodListEntry[];
   /**
    * Controls in the band between the period summary and Kelas — where the payment status and its
    * button go. Up here because payment is a fact about the period itself, so it reads with the
@@ -77,6 +84,7 @@ export function LearningPeriodCard({
   defaultExpanded = false,
   attendanceAdd = false,
   attendanceDelete = false,
+  moveTargets,
   headerActions,
   statusActions,
   manageActions,
@@ -93,6 +101,7 @@ export function LearningPeriodCard({
   const [openAttendance, setOpenAttendance] =
     useState<ChildAttendanceRow | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -295,16 +304,34 @@ export function LearningPeriodCard({
           >
             Riwayat Absen{attendances ? ` (${attendances.length})` : ""}
           </Typography>
-          {attendanceAdd ? (
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => setAddOpen(true)}
-            >
-              Tambah Absen
-            </Button>
-          ) : null}
         </Box>
+
+        {attendanceAdd || moveTargets ? (
+          <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+            {attendanceAdd ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setAddOpen(true)}
+                sx={{ flex: 1 }}
+              >
+                Tambah Absen
+              </Button>
+            ) : null}
+            {moveTargets ? (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setMoveOpen(true)}
+                // Nothing to move, or nowhere to move it to.
+                disabled={!attendances?.length || moveTargets.length === 0}
+                sx={{ flex: 1 }}
+              >
+                Pindahkan Absen
+              </Button>
+            ) : null}
+          </Box>
+        ) : null}
 
         <Collapse in={historyOpen} unmountOnExit>
           <Box sx={{ pt: 1 }}>
@@ -355,6 +382,17 @@ export function LearningPeriodCard({
           classroomId={period.classroomId}
           onClose={() => setAddOpen(false)}
           onSaved={reload}
+        />
+      ) : null}
+
+      {moveTargets && attendances ? (
+        <MoveAttendanceDialog
+          open={moveOpen}
+          period={period}
+          attendances={attendances}
+          targets={moveTargets}
+          onClose={() => setMoveOpen(false)}
+          onMoved={reload}
         />
       ) : null}
     </Accordion>

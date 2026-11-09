@@ -225,6 +225,26 @@ export async function deleteChildAttendance(attendanceId: string): Promise<Resul
 }
 
 /**
+ * Admin-only, Pindahkan Absen. Re-points attendance days at another period of the same child and
+ * class — for days that were filed against the wrong period before the right one existed.
+ * Returns how many days actually moved.
+ *
+ * move_child_attendances recomputes both periods' closure in the same transaction and refuses to
+ * push the target past its quota; its refusals are already worded for the admin.
+ */
+export async function moveChildAttendances(
+  attendanceIds: string[],
+  targetPeriodId: string,
+): Promise<Result<number>> {
+  const { data, error } = await supabase.rpc('move_child_attendances', {
+    p_attendance_ids: attendanceIds,
+    p_target_period_id: targetPeriodId,
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: data ?? 0 }
+}
+
+/**
  * Admin-only edit of a period that already exists — the three things that can legitimately have
  * been got wrong when it was sold: when it started, the rough end date shown to parents, and the
  * quota.
