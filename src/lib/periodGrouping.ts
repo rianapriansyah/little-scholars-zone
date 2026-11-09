@@ -1,5 +1,6 @@
 import type { LearningPeriodListEntry } from '../types/attendance'
 import type { PaymentStatus } from '../types/payment'
+import { periodState, type PeriodState } from './periodState'
 
 /** One program (classroom) a child holds periods in, newest period first. */
 export type ChildProgramGroup = {
@@ -7,8 +8,13 @@ export type ChildProgramGroup = {
   classroomLabel: string
   /** Newest first (highest periodNo). In practice one, until a renewal adds a second. */
   periods: LearningPeriodListEntry[]
-  /** True while any of its periods is still running. */
+  /** True while any of its periods is active (started and not finished). */
   isActive: boolean
+  /**
+   * The program as a whole: active if any period is, else not started if any period is still
+   * open (a renewal nobody has attended yet), else finished.
+   */
+  state: PeriodState
   /**
    * Days left on the program's most pressing open period, or null when none is open. Drives the
    * urgency chip; a closed program has nothing left to run out.
@@ -52,6 +58,7 @@ export function groupPeriodsByProgram(periods: LearningPeriodListEntry[]): Child
         classroomLabel: period.classroomLabel,
         periods: [period],
         isActive: false,
+        state: 'finished',
         daysRemaining: null,
       })
     }
@@ -62,6 +69,11 @@ export function groupPeriodsByProgram(periods: LearningPeriodListEntry[]): Child
     group.periods.sort((a, b) => b.periodNo - a.periodNo)
     const open = group.periods.filter((p) => p.isActive)
     group.isActive = open.length > 0
+    group.state = group.isActive
+      ? 'active'
+      : group.periods.some((p) => periodState(p) === 'not_started')
+        ? 'not_started'
+        : 'finished'
     group.daysRemaining = open.length > 0 ? Math.min(...open.map((p) => p.daysRemaining)) : null
   }
 

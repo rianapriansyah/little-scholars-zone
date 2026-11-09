@@ -44,6 +44,13 @@ import {
   type PaymentStatus,
 } from "../../../types/payment";
 
+/** "Periode 1 dan Periode 2", or "Periode 1, Periode 2 dan Periode 3". */
+function formatPeriodList(periodNos: number[]): string {
+  const names = periodNos.map((no) => `Periode ${no}`);
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} dan ${names[names.length - 1]}`;
+}
+
 /**
  * One child's learning periods, grouped under one heading per class (running classes first),
  * with a collapsible card per period beneath it, Periode 1, 2, 3 in order.
@@ -136,6 +143,26 @@ export function PeriodDetailPage() {
   );
 
   /**
+   * Classes where more than one period is active at once. Allowed on purpose while the school moves
+   * from the manual process to the app (the admin keeps full access to every period), but it is
+   * almost always days filed on the wrong period, so the page says so loudly. Oldest period first.
+   */
+  const multiActive = useMemo(
+    () =>
+      programs
+        .map((group) => ({
+          classroomId: group.classroomId,
+          classroomLabel: group.classroomLabel,
+          periodNos: group.periods
+            .filter((p) => p.isActive)
+            .map((p) => p.periodNo)
+            .sort((a, b) => a - b),
+        }))
+        .filter((group) => group.periodNos.length > 1),
+    [programs],
+  );
+
+  /**
    * Open exactly one card. A deep link from Detail Keluarga names a program, so open that
    * program's newest period; otherwise the newest period of the first class (running classes sort
    * first), so a child with several periods does not open as a wall of detail.
@@ -220,6 +247,22 @@ export function PeriodDetailPage() {
           {error}
         </Alert>
       ) : null}
+
+      {!loading
+        ? multiActive.map((group) => (
+            <Alert
+              key={group.classroomId}
+              severity="error"
+              variant="filled"
+              sx={{ mb: 2 }}
+            >
+              {group.classroomLabel}:{" "}
+              {formatPeriodList(group.periodNos)} sama-sama aktif. Pindahkan
+              absen ke periode yang benar, lalu Tandai Selesai periode yang
+              sudah lewat.
+            </Alert>
+          ))
+        : null}
 
       {loading ? (
         <Box display="flex" justifyContent="center" py={6}>

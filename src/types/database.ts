@@ -649,6 +649,7 @@ export type Database = {
           created_by: string | null
           guaranteed_days: number
           id: string
+          is_active: boolean
           period_no: number
           projected_end_date: string | null
           start_date: string
@@ -662,6 +663,7 @@ export type Database = {
           created_by?: string | null
           guaranteed_days?: number
           id?: string
+          is_active?: boolean
           period_no: number
           projected_end_date?: string | null
           start_date: string
@@ -675,6 +677,7 @@ export type Database = {
           created_by?: string | null
           guaranteed_days?: number
           id?: string
+          is_active?: boolean
           period_no?: number
           projected_end_date?: string | null
           start_date?: string

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Alert, Box, Button, Chip, CircularProgress, Divider, Typography } from '@mui/material'
 import { formatDate } from '../lib/formatDate'
 import { fetchPeriod, fetchPeriodAttendances } from '../lib/learningPeriods'
+import { periodState, periodStateChipProps } from '../lib/periodState'
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
 import { AddAttendanceDialog } from './AddAttendanceDialog'
 import { AttendanceDetailDialog } from './AttendanceDetailDialog'
@@ -94,12 +95,7 @@ export function LearningPeriodDetail({
         <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
           {hideChildName ? period.classroomLabel : period.childName}
         </Typography>
-        <Chip
-          size="small"
-          label={period.isActive ? 'Berjalan' : 'Selesai'}
-          color={period.isActive ? 'success' : 'default'}
-          variant={period.isActive ? 'filled' : 'outlined'}
-        />
+        <Chip size="small" {...periodStateChipProps(periodState(period))} />
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         {hideChildName ? `Periode ${period.periodNo}` : `${period.classroomLabel} · Periode ${period.periodNo}`}

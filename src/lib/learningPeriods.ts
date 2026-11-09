@@ -125,7 +125,8 @@ export async function fetchClassroomRoster(classroomId: string): Promise<Result<
  * yet, so it covers every date from its start onwards.
  *
  * Attendance can only be recorded against such a period, so this doubles as the roster filter
- * on the daily report screen. Lowest period_no wins, mirroring the RPC's choice.
+ * on the daily report screen. An active period wins, then the lowest period_no, mirroring the
+ * RPC's choice.
  */
 export async function fetchPeriodsCoveringDate(
   classroomId: string,
@@ -137,6 +138,8 @@ export async function fetchPeriodsCoveringDate(
     .eq('classroom_id', classroomId)
     .lte('start_date', attendanceDate)
     .or(`actual_end_date.is.null,actual_end_date.gte.${attendanceDate}`)
+    // Active first, then lowest period_no — the same preference record_attendance applies.
+    .order('is_active', { ascending: false })
     .order('period_no', { ascending: true })
   if (error) return { ok: false, error: error.message }
 

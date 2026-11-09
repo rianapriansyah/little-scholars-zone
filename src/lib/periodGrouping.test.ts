@@ -49,6 +49,36 @@ describe('groupPeriodsByProgram', () => {
     expect(groups[1].daysRemaining).toBeNull()
   })
 
+  it('ignores a renewal nobody has started when taking the program state and Sisa', () => {
+    const groups = groupPeriodsByProgram([
+      period({ id: 'a', periodNo: 1, daysRemaining: 2 }),
+      // Belum Mulai: open, no attendance, so not active — its 20 days must not mask the 2.
+      period({ id: 'b', periodNo: 2, isActive: false, daysRemaining: 20 }),
+    ])
+
+    expect(groups[0].state).toBe('active')
+    expect(groups[0].daysRemaining).toBe(2)
+  })
+
+  it('labels a program whose only open period has not started as Belum Mulai', () => {
+    const groups = groupPeriodsByProgram([
+      period({ id: 'a', periodNo: 1, isActive: false, closedAt: '2026-09-20', daysRemaining: 0 }),
+      period({ id: 'b', periodNo: 2, isActive: false, daysRemaining: 20 }),
+    ])
+
+    expect(groups[0].isActive).toBe(false)
+    expect(groups[0].state).toBe('not_started')
+    expect(groups[0].daysRemaining).toBeNull()
+  })
+
+  it('labels a program with every period closed as finished', () => {
+    const groups = groupPeriodsByProgram([
+      period({ id: 'a', isActive: false, closedAt: '2026-09-20', daysRemaining: 0 }),
+    ])
+
+    expect(groups[0].state).toBe('finished')
+  })
+
   it('reports the most pressing open period when a program has several', () => {
     const groups = groupPeriodsByProgram([
       period({ id: 'a', periodNo: 1, daysRemaining: 9 }),

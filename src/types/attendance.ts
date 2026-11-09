@@ -45,6 +45,10 @@ export type LearningPeriodStatus = {
   daysConsumed: number
   daysSick: number
   daysRemaining: number
+  /**
+   * The stored learning_periods.is_active flag: a day is recorded on it and it is not closed.
+   * A period nobody has attended yet is not active — see lib/periodState for the three states.
+   */
   isActive: boolean
 }
 

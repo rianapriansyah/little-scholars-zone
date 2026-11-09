@@ -4,6 +4,7 @@ import { Accordion, AccordionDetails, AccordionSummary, Box, Chip, Divider, Typo
 import { LearningPeriodDetail } from './LearningPeriodDetail'
 import { isNearingEnd } from '../lib/attendanceQuota'
 import type { ChildProgramGroup } from '../lib/periodGrouping'
+import { periodStateChipProps } from '../lib/periodState'
 import type { LearningPeriodListEntry } from '../types/attendance'
 
 type Props = {
@@ -49,12 +50,7 @@ export function ProgramPeriodCard({
         <Box sx={{ width: '100%', minWidth: 0, pr: 1 }}>
           <Typography sx={{ fontWeight: 700 }}>{group.classroomLabel}</Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 0.75 }}>
-            <Chip
-              size="small"
-              label={group.isActive ? 'Berjalan' : 'Selesai'}
-              color={group.isActive ? 'success' : 'default'}
-              variant={group.isActive ? 'filled' : 'outlined'}
-            />
+            <Chip size="small" {...periodStateChipProps(group.state)} />
             {group.daysRemaining !== null ? (
               <Chip
                 size="small"

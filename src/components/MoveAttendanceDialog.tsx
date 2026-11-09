@@ -27,6 +27,7 @@ import {
 } from '@mui/material'
 import { formatDate } from '../lib/formatDate'
 import { moveChildAttendances } from '../lib/learningPeriods'
+import { periodState, periodStateChipProps } from '../lib/periodState'
 import {
   ATTENDANCE_STATUS_LABELS,
   isAttendanceStatus,
@@ -144,11 +145,8 @@ export function MoveAttendanceDialog({
                   <span>
                     Periode {option.periodNo} · mulai {formatDate(option.startDate)}
                   </span>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={option.isActive ? `Sisa ${option.daysRemaining} hari` : 'Selesai'}
-                  />
+                  <Chip size="small" {...periodStateChipProps(periodState(option))} />
+                  <Chip size="small" variant="outlined" label={`Sisa ${option.daysRemaining} hari`} />
                 </Box>
               </MenuItem>
             ))}

@@ -6,6 +6,7 @@ import { ResponsiveTableContainer } from '../../../components/ResponsiveTableCon
 import { isNearingEnd } from '../../../lib/attendanceQuota'
 import { formatDate } from '../../../lib/formatDate'
 import { fetchPeriodsForChild } from '../../../lib/learningPeriods'
+import { periodState, periodStateChipProps } from '../../../lib/periodState'
 import { fetchPaymentPeriodsForChild } from '../../../lib/paymentPeriods'
 import type { PaymentPeriodListEntry } from '../../../lib/paymentPeriods'
 import type { LearningPeriodListEntry } from '../../../types/attendance'
@@ -128,12 +129,7 @@ export function ChildPeriodsSection({ child, family, onPeriodsChanged }: Props) 
                       />
                     </TableCell>
                     <TableCell>
-                      <Chip
-                        size="small"
-                        label={period.isActive ? 'Berjalan' : 'Selesai'}
-                        color={period.isActive ? 'success' : 'default'}
-                        variant={period.isActive ? 'filled' : 'outlined'}
-                      />
+                      <Chip size="small" {...periodStateChipProps(periodState(period))} />
                     </TableCell>
                     <TableCell onClick={() => setSelectedPeriod(period)} sx={{ cursor: 'pointer' }}>
                       {payment ? (

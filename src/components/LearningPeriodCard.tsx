@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import { isNearingEnd } from "../lib/attendanceQuota";
 import { formatDate } from "../lib/formatDate";
+import { periodState, periodStateChipProps } from "../lib/periodState";
 import { fetchPeriodAttendances } from "../lib/learningPeriods";
 import type {
   ChildAttendanceRow,
@@ -152,12 +153,7 @@ export function LearningPeriodCard({
             <Typography sx={{ fontWeight: 700 }}>
               Periode {period.periodNo}
             </Typography>
-            <Chip
-              size="small"
-              label={period.isActive ? "Berjalan" : "Selesai"}
-              color={period.isActive ? "success" : "default"}
-              variant={period.isActive ? "filled" : "outlined"}
-            />
+            <Chip size="small" {...periodStateChipProps(periodState(period))} />
             {/* Only while it is still running: days left on a closed period is noise. */}
             {period.isActive ? (
               <Chip
