@@ -4,30 +4,38 @@ import { Alert, Box, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { isNearingEnd } from '../../../lib/attendanceQuota'
-import { fetchRenewalQueue } from '../../../lib/learningPeriods'
+import { fetchChildrenPeriodList, type ChildPeriodListRow } from '../../../lib/learningPeriods'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
-import { groupPeriodsByChild, tallyPayments, type ChildPeriodGroup } from '../../../lib/periodGrouping'
-import type { PaymentStatus } from '../../../types/payment'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
 
-function childSearchBlob(row: ChildPeriodGroup): string {
-  return `${row.childName} ${row.programs.map((p) => p.classroomLabel).join(' ')}`.toLowerCase()
+/** What the Program column says for a child with no open period. */
+const STATE_TEXT: Record<'finished' | 'none', string> = {
+  none: 'Belum Memiliki Periode Belajar',
+  finished: 'Semua Periode Selesai',
+}
+
+function programText(row: ChildPeriodListRow): string {
+  return row.periodState === 'open' ? row.programLabels : STATE_TEXT[row.periodState]
+}
+
+function childSearchBlob(row: ChildPeriodListRow): string {
+  return `${row.childName} ${programText(row)}`.toLowerCase()
 }
 
 /**
- * The renewal queue, one row per child: whoever runs out of paid days first is at the top, so the
- * next family to re-sell surfaces without hunting.
+ * Periode Belajar: every active child, A–Z, one row each — whether or not they have a learning
+ * period. A child with an open period shows their programs, the fewest days left and how many
+ * invoices are paid; one without says "Belum Memiliki Periode Belajar", and one whose periods are
+ * all finished says "Semua Periode Selesai".
  *
- * A child enrolled in two programs used to take two rows, which read as two different children at
- * a glance and made the row count useless as a headcount. They now share one row and their
- * programs live inside it — see groupPeriodsByChild. Per-period work (invoices, deleting a period)
- * moved to the detail screen with them, since a child row has no single period to act on.
+ * One request: the children_learning_period_list view (20261113030000) does the grouping and
+ * counting server-side, so this page only renders. Per-period work (invoices, adding or deleting a
+ * period) lives on the detail screen a row opens.
  */
 export function PeriodsPage() {
   const navigate = useNavigate()
-  const [rows, setRows] = useState<ChildPeriodGroup[]>([])
-  const [paymentsByPeriodId, setPaymentsByPeriodId] = useState<Map<string, PaymentStatus>>(new Map())
+  const [rows, setRows] = useState<ChildPeriodListRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 })
@@ -36,16 +44,13 @@ export function PeriodsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    // One request: the open periods with names and invoice status embedded — see fetchRenewalQueue.
-    const result = await fetchRenewalQueue()
+    const result = await fetchChildrenPeriodList()
     setLoading(false)
     if (!result.ok) {
       setError(result.error)
       return
     }
-
-    setPaymentsByPeriodId(result.data.paymentStatusByPeriodId)
-    setRows(groupPeriodsByChild(result.data.periods))
+    setRows(result.data)
   }, [])
 
   useEffect(() => {
@@ -57,26 +62,33 @@ export function PeriodsPage() {
     [rows, keyword],
   )
 
-  const columns: GridColDef<ChildPeriodGroup>[] = useMemo(
+  const columns: GridColDef<ChildPeriodListRow>[] = useMemo(
     () => [
       { field: 'childName', headerName: 'Siswa', flex: 1, minWidth: 180 },
       {
-        field: 'programs',
+        field: 'programLabels',
         headerName: 'Program',
         flex: 1.4,
         minWidth: 220,
         sortable: false,
         // Named, not just counted: "2 program" alone sends the admin into the detail screen to
         // find out which, when the labels fit here.
-        valueGetter: (_v, row) => row.programs.map((p) => p.classroomLabel).join(', '),
-        renderCell: (params) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, height: '100%', minWidth: 0 }}>
-            <Chip size="small" label={params.row.programs.length} variant="outlined" />
-            <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
-              {params.value as string}
-            </Typography>
-          </Box>
-        ),
+        valueGetter: (_v, row) => programText(row),
+        renderCell: (params) =>
+          params.row.periodState === 'open' ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, height: '100%', minWidth: 0 }}>
+              <Chip size="small" label={params.row.programCount} variant="outlined" />
+              <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
+                {params.value as string}
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', minWidth: 0 }}>
+              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                {params.value as string}
+              </Typography>
+            </Box>
+          ),
       },
       {
         field: 'soonestDaysRemaining',
@@ -101,7 +113,8 @@ export function PeriodsPage() {
         width: 150,
         sortable: false,
         renderCell: (params) => {
-          const { paid, total } = tallyPayments(params.row, paymentsByPeriodId)
+          if (params.row.periodState !== 'open') return '—'
+          const { paidCount: paid, periodCount: total } = params.row
           return (
             <Chip
               size="small"
@@ -113,10 +126,10 @@ export function PeriodsPage() {
         },
       },
     ],
-    [paymentsByPeriodId],
+    [],
   )
 
-  const handleCellClick = (params: GridCellParams<ChildPeriodGroup>) => {
+  const handleCellClick = (params: GridCellParams<ChildPeriodListRow>) => {
     void navigate(`/admin/periods/${params.row.childId}`)
   }
 
@@ -126,8 +139,8 @@ export function PeriodsPage() {
         Periode Belajar
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Siswa dengan periode yang masih berjalan, sisa hari paling sedikit di atas. Klik satu siswa untuk melihat
-        tiap programnya, mengurus pembayaran, atau menghapus periode. Tambah periode baru dari Detail Keluarga.
+        Semua siswa aktif, urut nama. Klik satu siswa untuk melihat tiap programnya, mengurus pembayaran, atau
+        menambah periode belajar.
       </Typography>
 
       <DataGridSearchPanel
@@ -146,8 +159,8 @@ export function PeriodsPage() {
       />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
-      {!loading && rows.length === 0 ? (
-        <Typography color="text.secondary">Belum ada periode belajar yang berjalan.</Typography>
+      {!loading && !error && rows.length === 0 ? (
+        <Typography color="text.secondary">Belum ada siswa aktif.</Typography>
       ) : (
         <Box sx={{ width: '100%', minWidth: 0 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
@@ -159,6 +172,7 @@ export function PeriodsPage() {
               columns={columns}
               getRowId={(row) => row.childId}
               loading={loading}
+              initialState={{ sorting: { sortModel: [{ field: 'childName', sort: 'asc' }] } }}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
               pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
@@ -170,7 +184,6 @@ export function PeriodsPage() {
           </Paper>
         </Box>
       )}
-
     </Box>
   )
 }

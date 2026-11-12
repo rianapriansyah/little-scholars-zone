@@ -8,7 +8,6 @@ import type {
   LearningPeriodStatusRow,
 } from '../types/attendance'
 import type { ClassroomRow } from '../types/classroom'
-import { isPaymentStatus, type PaymentStatus } from '../types/payment'
 
 export type RosterChild = {
   childId: string
@@ -422,44 +421,63 @@ export async function fetchOpenPeriods(): Promise<Result<LearningPeriodListEntry
   return { ok: true, data: entries }
 }
 
-/** The Periode Belajar grid's data: every open period, with its invoice status. */
-export type RenewalQueue = {
-  periods: LearningPeriodListEntry[]
-  /** learning period id → its payment status. A period with no invoice row is simply absent. */
-  paymentStatusByPeriodId: Map<string, PaymentStatus>
+/**
+ * Where a child stands on the Periode Belajar list:
+ * - `open`     — has at least one open period; the program/quota/payment figures are filled
+ * - `finished` — has periods, all closed ("Semua Periode Selesai")
+ * - `none`     — has never had a period ("Belum Memiliki Periode Belajar")
+ */
+export type ChildPeriodState = 'open' | 'finished' | 'none'
+
+/** One row of the Periode Belajar list — one active child. */
+export type ChildPeriodListRow = {
+  childId: string
+  childName: string
+  periodState: ChildPeriodState
+  /** Classes with an open period. 0 unless `open`. */
+  programCount: number
+  /** Their labels, active first → fewest days left → A–Z. Empty unless `open`. */
+  programLabels: string
+  /** Fewest days left among ACTIVE periods; null when none is active (or not `open`). */
+  soonestDaysRemaining: number | null
+  /** Paid invoices / all open periods. 0 / 0 unless `open`. */
+  paidCount: number
+  periodCount: number
+}
+
+function toChildPeriodState(value: string | null): ChildPeriodState {
+  return value === 'open' || value === 'finished' ? value : 'none'
 }
 
 /**
- * The Periode Belajar grid (admin renewal queue) in ONE request: every open period from the
- * learning_period_status view — the child's name and class label are its own columns — with the
- * invoice status embedded.
- *
- * payment_periods is one-to-one with a period (payment_periods_learning_period_id_key), so the
- * embed is a single object or null. This replaces a second request that sent every open period's
- * id back in the URL (`learning_period_id=in.(…)`) — ~300 UUIDs, ~11 KB of URL and growing.
- *
- * Only the columns the list reads (no created_by / created_at). Unordered: the grid regroups and
- * sorts by child itself (groupPeriodsByChild).
+ * The Periode Belajar list in one request: every ACTIVE child, one row each, from the
+ * children_learning_period_list view (20261113030000) — built from the tables, with the grid's
+ * figures (program count/labels, soonest days left, paid/total) already computed. A child without
+ * a period is listed too. Ordered by name, A–Z.
  */
-export async function fetchRenewalQueue(): Promise<Result<RenewalQueue>> {
+export async function fetchChildrenPeriodList(): Promise<Result<ChildPeriodListRow[]>> {
   const { data, error } = await supabase
-    .from('learning_period_status')
-    .select(
-      'id, child_id, child_name, classroom_id, classroom_label, period_no, start_date, projected_end_date, actual_end_date, guaranteed_days, closed_at, is_active, days_consumed, days_sick, days_remaining, payment_periods(status)',
-    )
-    .is('closed_at', null)
+    .from('children_learning_period_list')
+    .select('*')
+    .order('child_name', { ascending: true })
   if (error) return { ok: false, error: error.message }
 
-  const periods: LearningPeriodListEntry[] = []
-  const paymentStatusByPeriodId = new Map<string, PaymentStatus>()
+  const rows: ChildPeriodListRow[] = []
   for (const row of data ?? []) {
-    const entry = toListEntry(row)
-    if (!entry) continue
-    periods.push(entry)
-    const status = row.payment_periods?.status
-    if (status && isPaymentStatus(status)) paymentStatusByPeriodId.set(entry.id, status)
+    // A view types every column nullable; a row without its child cannot be shown or opened.
+    if (!row.child_id) continue
+    rows.push({
+      childId: row.child_id,
+      childName: row.child_name ?? '—',
+      periodState: toChildPeriodState(row.period_state),
+      programCount: row.program_count ?? 0,
+      programLabels: row.program_labels ?? '',
+      soonestDaysRemaining: row.soonest_days_remaining,
+      paidCount: row.paid_count ?? 0,
+      periodCount: row.period_count ?? 0,
+    })
   }
-  return { ok: true, data: { periods, paymentStatusByPeriodId } }
+  return { ok: true, data: rows }
 }
 
 /** Every period a child has ever held, newest first — the family tab's table. */

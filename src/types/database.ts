@@ -946,6 +946,19 @@ export type Database = {
       }
     }
     Views: {
+      children_learning_period_list: {
+        Row: {
+          child_id: string | null
+          child_name: string | null
+          paid_count: number | null
+          period_count: number | null
+          period_state: string | null
+          program_count: number | null
+          program_labels: string | null
+          soonest_days_remaining: number | null
+        }
+        Relationships: []
+      }
       classroom_teachers_attendance_status: {
         Row: {
           arrival_status: string | null
