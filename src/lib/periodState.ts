@@ -24,6 +24,34 @@ export const PERIOD_STATE_LABELS: Record<PeriodState, string> = {
   finished: 'Selesai',
 }
 
+type FinishablePeriod = Pick<LearningPeriodStatus, 'isActive' | 'closedAt' | 'periodNo' | 'startDate'>
+
+/**
+ * Whether Tandai Selesai is offered on a period:
+ *
+ *   - Berjalan → yes.
+ *   - Selesai → no; there is nothing left to finish.
+ *   - Belum Mulai whose start date has passed (before `today`, WITA, ISO yyyy-mm-dd) → yes. It was
+ *     due to start and nobody attended, so the admin can close it rather than leave it open forever.
+ *   - Belum Mulai overtaken by a later period of the same class (a higher period_no that is
+ *     Berjalan or Selesai) → yes. Sold, never attended, and left open it would take a teacher's days
+ *     once the current period fills.
+ *   - Any other Belum Mulai (starts today or later, nothing after it started) → no. That is the next
+ *     block waiting its turn.
+ */
+export function canMarkFinished(
+  period: FinishablePeriod,
+  classPeriods: readonly FinishablePeriod[],
+  today: string,
+): boolean {
+  if (period.isActive) return true
+  if (period.closedAt !== null) return false
+  if (period.startDate < today) return true
+  return classPeriods.some(
+    (other) => other.periodNo > period.periodNo && (other.isActive || other.closedAt !== null),
+  )
+}
+
 /** MUI Chip props for a state, so a running period stands out and the other two stay quiet. */
 export function periodStateChipProps(state: PeriodState): {
   label: string

@@ -30,6 +30,8 @@ import {
   fetchPeriodsForChild,
 } from "../../../lib/learningPeriods";
 import { fetchPaymentPeriodsByLearningPeriodIds } from "../../../lib/paymentPeriods";
+import { todayIsoDateInWita } from "../../../lib/classStatus";
+import { canMarkFinished } from "../../../lib/periodState";
 import {
   groupPeriodsByProgram,
   type ChildProgramGroup,
@@ -43,26 +45,6 @@ import {
   PAYMENT_STATUS_LABELS,
   type PaymentStatus,
 } from "../../../types/payment";
-
-/**
- * Tandai Selesai is offered on a running period, and on a Belum Mulai one that a later period of
- * the same class has already overtaken (a higher period_no that is Berjalan or Selesai) — sold,
- * never attended, and left open it would take a teacher's days once the current period fills.
- * A Belum Mulai period with nothing started after it is the next block waiting its turn, so it
- * gets no button; a closed period has nothing left to finish.
- */
-function canFinish(
-  period: LearningPeriodListEntry,
-  classPeriods: LearningPeriodListEntry[],
-): boolean {
-  if (period.isActive) return true;
-  if (period.closedAt !== null) return false;
-  return classPeriods.some(
-    (other) =>
-      other.periodNo > period.periodNo &&
-      (other.isActive || other.closedAt !== null),
-  );
-}
 
 /** "Periode 1 dan Periode 2", or "Periode 1, Periode 2 dan Periode 3". */
 function formatPeriodList(periodNos: number[]): string {
@@ -83,6 +65,8 @@ function formatPeriodList(periodNos: number[]): string {
 export function PeriodDetailPage() {
   const { childId } = useParams<{ childId: string }>();
   const [searchParams] = useSearchParams();
+  /** WITA calendar day, for "has this period's start date passed" (canMarkFinished). */
+  const today = todayIsoDateInWita();
   /** Set by a deep link from Detail Keluarga, so that program opens rather than all of them. */
   const focusClassroomId = searchParams.get("program");
 
@@ -410,9 +394,10 @@ export function PeriodDetailPage() {
                               </Button>
                             </>
                           }
-                          // Running, or a Belum Mulai period a later one has overtaken — see canFinish.
+                          // Running, a Belum Mulai period whose start has passed, or one a later
+                          // period has overtaken — see canMarkFinished.
                           statusActions={
-                            canFinish(period, group.periods) ? (
+                            canMarkFinished(period, group.periods, today) ? (
                               <Button
                                 size="small"
                                 variant="outlined"
