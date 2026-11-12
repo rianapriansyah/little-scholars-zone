@@ -979,7 +979,9 @@ export type Database = {
         Row: {
           actual_end_date: string | null
           child_id: string | null
+          child_name: string | null
           classroom_id: string | null
+          classroom_label: string | null
           closed_at: string | null
           created_at: string | null
           created_by: string | null

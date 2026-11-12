@@ -16,26 +16,21 @@ export type RosterChild = {
   photoUrl: string | null
 }
 
-/** Embedded names Postgrest returns alongside a learning_period_status row. */
-type PeriodWithNames = Omit<LearningPeriodStatusRow, 'created_by' | 'created_at'> & {
-  children: { full_name: string } | null
-  classrooms: { label: string } | null
-}
-
 /**
- * Every view column LearningPeriodStatus reads. Lists that never show who created a period or when
- * select these instead of `*`, leaving created_by / created_at out of the payload.
+ * A learning_period_status row as the list readers select it. The child's name and the class label
+ * are the view's own columns (20261113020000), so no embed and no hand-written row type: both come
+ * from the generated view type. created_by / created_at may be left out of the select.
  */
-const PERIOD_STATUS_COLUMNS =
-  'id, child_id, classroom_id, period_no, start_date, projected_end_date, actual_end_date, guaranteed_days, closed_at, is_active, days_consumed, days_sick, days_remaining'
+type PeriodStatusListRow = Omit<LearningPeriodStatusRow, 'created_by' | 'created_at'>
 
-function toListEntry(row: PeriodWithNames): LearningPeriodListEntry | null {
+function toListEntry(row: PeriodStatusListRow): LearningPeriodListEntry | null {
   const status = parseLearningPeriodStatus(row)
   if (!status) return null
   return {
     ...status,
-    childName: row.children?.full_name ?? '—',
-    classroomLabel: row.classrooms?.label ?? '—',
+    // null only when the caller's RLS hides the child or class (the view LEFT JOINs them).
+    childName: row.child_name ?? '—',
+    classroomLabel: row.classroom_label ?? '—',
   }
 }
 
@@ -142,7 +137,7 @@ export async function fetchPeriodsCoveringDate(
 ): Promise<Result<Map<string, LearningPeriodListEntry>>> {
   const { data, error } = await supabase
     .from('learning_period_status')
-    .select('*, children(full_name), classrooms(label)')
+    .select('*')
     .eq('classroom_id', classroomId)
     .lte('start_date', attendanceDate)
     .or(`actual_end_date.is.null,actual_end_date.gte.${attendanceDate}`)
@@ -152,7 +147,7 @@ export async function fetchPeriodsCoveringDate(
   if (error) return { ok: false, error: error.message }
 
   const byChild = new Map<string, LearningPeriodListEntry>()
-  for (const row of (data ?? []) as unknown as PeriodWithNames[]) {
+  for (const row of data ?? []) {
     const entry = toListEntry(row)
     if (!entry) continue
     if (!byChild.has(entry.childId)) byChild.set(entry.childId, entry)
@@ -389,13 +384,13 @@ export async function closeLearningPeriod(periodId: string): Promise<Result<void
 export async function fetchPeriod(periodId: string): Promise<Result<LearningPeriodListEntry>> {
   const { data, error } = await supabase
     .from('learning_period_status')
-    .select('*, children(full_name), classrooms(label)')
+    .select('*')
     .eq('id', periodId)
     .maybeSingle()
   if (error) return { ok: false, error: error.message }
   if (!data) return { ok: false, error: 'Periode belajar tidak ditemukan.' }
 
-  const entry = toListEntry(data as unknown as PeriodWithNames)
+  const entry = toListEntry(data)
   if (!entry) return { ok: false, error: 'Data periode belajar tidak lengkap.' }
   return { ok: true, data: entry }
 }
@@ -414,13 +409,13 @@ export async function fetchPeriodAttendances(periodId: string): Promise<Result<C
 export async function fetchOpenPeriods(): Promise<Result<LearningPeriodListEntry[]>> {
   const { data, error } = await supabase
     .from('learning_period_status')
-    .select('*, children(full_name), classrooms(label)')
+    .select('*')
     .is('closed_at', null)
     .order('days_remaining', { ascending: true })
   if (error) return { ok: false, error: error.message }
 
   const entries: LearningPeriodListEntry[] = []
-  for (const row of (data ?? []) as unknown as PeriodWithNames[]) {
+  for (const row of data ?? []) {
     const entry = toListEntry(row)
     if (entry) entries.push(entry)
   }
@@ -436,34 +431,32 @@ export type RenewalQueue = {
 
 /**
  * The Periode Belajar grid (admin renewal queue) in ONE request: every open period from the
- * learning_period_status view, with the child's name, the class label and the invoice status
- * embedded.
+ * learning_period_status view — the child's name and class label are its own columns — with the
+ * invoice status embedded.
  *
  * payment_periods is one-to-one with a period (payment_periods_learning_period_id_key), so the
  * embed is a single object or null. This replaces a second request that sent every open period's
  * id back in the URL (`learning_period_id=in.(…)`) — ~300 UUIDs, ~11 KB of URL and growing.
  *
- * Unordered: the grid regroups and sorts by child itself (groupPeriodsByChild).
+ * Only the columns the list reads (no created_by / created_at). Unordered: the grid regroups and
+ * sorts by child itself (groupPeriodsByChild).
  */
 export async function fetchRenewalQueue(): Promise<Result<RenewalQueue>> {
   const { data, error } = await supabase
     .from('learning_period_status')
-    .select(`${PERIOD_STATUS_COLUMNS}, children(full_name), classrooms(label), payment_periods(status)`)
+    .select(
+      'id, child_id, child_name, classroom_id, classroom_label, period_no, start_date, projected_end_date, actual_end_date, guaranteed_days, closed_at, is_active, days_consumed, days_sick, days_remaining, payment_periods(status)',
+    )
     .is('closed_at', null)
   if (error) return { ok: false, error: error.message }
 
   const periods: LearningPeriodListEntry[] = []
   const paymentStatusByPeriodId = new Map<string, PaymentStatus>()
-  type PaymentEmbed = { status: string }
-  type Row = PeriodWithNames & { payment_periods: PaymentEmbed | PaymentEmbed[] | null }
-  for (const row of (data ?? []) as unknown as Row[]) {
+  for (const row of data ?? []) {
     const entry = toListEntry(row)
     if (!entry) continue
     periods.push(entry)
-    // One-to-one, so Postgrest returns an object; an array is accepted too, should it ever stop
-    // detecting the unique key, so the column never silently goes blank.
-    const payment = Array.isArray(row.payment_periods) ? row.payment_periods[0] : row.payment_periods
-    const status = payment?.status
+    const status = row.payment_periods?.status
     if (status && isPaymentStatus(status)) paymentStatusByPeriodId.set(entry.id, status)
   }
   return { ok: true, data: { periods, paymentStatusByPeriodId } }
@@ -473,13 +466,13 @@ export async function fetchRenewalQueue(): Promise<Result<RenewalQueue>> {
 export async function fetchPeriodsForChild(childId: string): Promise<Result<LearningPeriodListEntry[]>> {
   const { data, error } = await supabase
     .from('learning_period_status')
-    .select('*, children(full_name), classrooms(label)')
+    .select('*')
     .eq('child_id', childId)
     .order('period_no', { ascending: false })
   if (error) return { ok: false, error: error.message }
 
   const entries: LearningPeriodListEntry[] = []
-  for (const row of (data ?? []) as unknown as PeriodWithNames[]) {
+  for (const row of data ?? []) {
     const entry = toListEntry(row)
     if (entry) entries.push(entry)
   }

@@ -44,7 +44,9 @@ function viewRow(overrides: Partial<LearningPeriodStatusRow> = {}): LearningPeri
   return {
     id: 'period-1',
     child_id: 'child-1',
+    child_name: 'Child One',
     classroom_id: 'classroom-1',
+    classroom_label: 'Classroom One',
     period_no: 1,
     start_date: '2026-09-01',
     projected_end_date: null,
