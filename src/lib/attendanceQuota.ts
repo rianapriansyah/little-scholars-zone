@@ -43,7 +43,9 @@ export function summarizeAttendances(
  * Narrows a raw view row. Returns null rather than throwing when a required column is
  * missing, so one malformed row cannot blank an entire list.
  */
-export function parseLearningPeriodStatus(row: LearningPeriodStatusRow): LearningPeriodStatus | null {
+export function parseLearningPeriodStatus(
+  row: Omit<LearningPeriodStatusRow, 'created_by' | 'created_at'>,
+): LearningPeriodStatus | null {
   const { id, child_id, classroom_id, period_no, start_date, guaranteed_days } = row
   if (
     id === null ||

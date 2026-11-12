@@ -4,10 +4,9 @@ import { Alert, Box, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
 import { isNearingEnd } from '../../../lib/attendanceQuota'
-import { fetchOpenPeriods } from '../../../lib/learningPeriods'
+import { fetchRenewalQueue } from '../../../lib/learningPeriods'
 import { matchesSearchTokens } from '../../../lib/matchesSearchTokens'
 import { groupPeriodsByChild, tallyPayments, type ChildPeriodGroup } from '../../../lib/periodGrouping'
-import { fetchPaymentPeriodsByLearningPeriodIds } from '../../../lib/paymentPeriods'
 import type { PaymentStatus } from '../../../types/payment'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const
@@ -37,24 +36,16 @@ export function PeriodsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const periodsResult = await fetchOpenPeriods()
-    if (!periodsResult.ok) {
-      setLoading(false)
-      setError(periodsResult.error)
+    // One request: the open periods with names and invoice status embedded — see fetchRenewalQueue.
+    const result = await fetchRenewalQueue()
+    setLoading(false)
+    if (!result.ok) {
+      setError(result.error)
       return
     }
 
-    // Best-effort merge: a failed payment lookup still shows the children, just with an empty
-    // Pembayaran column, rather than blanking the whole grid.
-    const paymentsResult = await fetchPaymentPeriodsByLearningPeriodIds(periodsResult.data.map((p) => p.id))
-    const statusByPeriodId = new Map<string, PaymentStatus>()
-    if (paymentsResult.ok) {
-      for (const [periodId, payment] of paymentsResult.data) statusByPeriodId.set(periodId, payment.status)
-    }
-
-    setLoading(false)
-    setPaymentsByPeriodId(statusByPeriodId)
-    setRows(groupPeriodsByChild(periodsResult.data))
+    setPaymentsByPeriodId(result.data.paymentStatusByPeriodId)
+    setRows(groupPeriodsByChild(result.data.periods))
   }, [])
 
   useEffect(() => {

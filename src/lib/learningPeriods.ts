@@ -8,6 +8,7 @@ import type {
   LearningPeriodStatusRow,
 } from '../types/attendance'
 import type { ClassroomRow } from '../types/classroom'
+import { isPaymentStatus, type PaymentStatus } from '../types/payment'
 
 export type RosterChild = {
   childId: string
@@ -16,10 +17,17 @@ export type RosterChild = {
 }
 
 /** Embedded names Postgrest returns alongside a learning_period_status row. */
-type PeriodWithNames = LearningPeriodStatusRow & {
+type PeriodWithNames = Omit<LearningPeriodStatusRow, 'created_by' | 'created_at'> & {
   children: { full_name: string } | null
   classrooms: { label: string } | null
 }
+
+/**
+ * Every view column LearningPeriodStatus reads. Lists that never show who created a period or when
+ * select these instead of `*`, leaving created_by / created_at out of the payload.
+ */
+const PERIOD_STATUS_COLUMNS =
+  'id, child_id, classroom_id, period_no, start_date, projected_end_date, actual_end_date, guaranteed_days, closed_at, is_active, days_consumed, days_sick, days_remaining'
 
 function toListEntry(row: PeriodWithNames): LearningPeriodListEntry | null {
   const status = parseLearningPeriodStatus(row)
@@ -417,6 +425,48 @@ export async function fetchOpenPeriods(): Promise<Result<LearningPeriodListEntry
     if (entry) entries.push(entry)
   }
   return { ok: true, data: entries }
+}
+
+/** The Periode Belajar grid's data: every open period, with its invoice status. */
+export type RenewalQueue = {
+  periods: LearningPeriodListEntry[]
+  /** learning period id → its payment status. A period with no invoice row is simply absent. */
+  paymentStatusByPeriodId: Map<string, PaymentStatus>
+}
+
+/**
+ * The Periode Belajar grid (admin renewal queue) in ONE request: every open period from the
+ * learning_period_status view, with the child's name, the class label and the invoice status
+ * embedded.
+ *
+ * payment_periods is one-to-one with a period (payment_periods_learning_period_id_key), so the
+ * embed is a single object or null. This replaces a second request that sent every open period's
+ * id back in the URL (`learning_period_id=in.(…)`) — ~300 UUIDs, ~11 KB of URL and growing.
+ *
+ * Unordered: the grid regroups and sorts by child itself (groupPeriodsByChild).
+ */
+export async function fetchRenewalQueue(): Promise<Result<RenewalQueue>> {
+  const { data, error } = await supabase
+    .from('learning_period_status')
+    .select(`${PERIOD_STATUS_COLUMNS}, children(full_name), classrooms(label), payment_periods(status)`)
+    .is('closed_at', null)
+  if (error) return { ok: false, error: error.message }
+
+  const periods: LearningPeriodListEntry[] = []
+  const paymentStatusByPeriodId = new Map<string, PaymentStatus>()
+  type PaymentEmbed = { status: string }
+  type Row = PeriodWithNames & { payment_periods: PaymentEmbed | PaymentEmbed[] | null }
+  for (const row of (data ?? []) as unknown as Row[]) {
+    const entry = toListEntry(row)
+    if (!entry) continue
+    periods.push(entry)
+    // One-to-one, so Postgrest returns an object; an array is accepted too, should it ever stop
+    // detecting the unique key, so the column never silently goes blank.
+    const payment = Array.isArray(row.payment_periods) ? row.payment_periods[0] : row.payment_periods
+    const status = payment?.status
+    if (status && isPaymentStatus(status)) paymentStatusByPeriodId.set(entry.id, status)
+  }
+  return { ok: true, data: { periods, paymentStatusByPeriodId } }
 }
 
 /** Every period a child has ever held, newest first — the family tab's table. */
