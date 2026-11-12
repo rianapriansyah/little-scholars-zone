@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { Result } from './result'
 import { parseLearningPeriodStatus } from './attendanceQuota'
+import { todayIsoDateInWita } from './classStatus'
 import type {
   AttendanceStatus,
   ChildAttendanceRow,
@@ -366,10 +367,10 @@ export async function closeLearningPeriod(periodId: string): Promise<Result<void
   const attendances = await fetchPeriodAttendances(periodId)
   if (!attendances.ok) return { ok: false, error: attendances.error }
 
-  // fetchPeriodAttendances is newest first.
-  const today = new Date()
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  const actualEndDate = attendances.data[0]?.attendance_date ?? todayIso
+  // fetchPeriodAttendances is newest first. With no day recorded, the period ends today — the
+  // school's (WITA) calendar day, not the browser's, so a device set to another zone can't record
+  // the wrong date near midnight.
+  const actualEndDate = attendances.data[0]?.attendance_date ?? todayIsoDateInWita()
 
   const { error } = await supabase
     .from('children_learning_periods')
