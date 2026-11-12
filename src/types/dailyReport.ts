@@ -54,13 +54,26 @@ export const MOOD_MOMENT_LABELS: Record<MoodMoment, string> = {
 export type DailyReportMoods = Record<MoodMoment, Mood | null>
 
 /**
+ * What a report's saves are addressed by, alongside the child and date.
+ *
+ * - `group`: a teacher's sheet, opened from a teaching group's roster. The save RPCs check the
+ *   child was placed in that group on the date.
+ * - `period`: an admin's Tambah Absen, opened from a learning period's card. The period alone says
+ *   which child and class; the server finds the absensi row from it and the date. No teaching
+ *   group is involved, and the Kehadiran save files the day on this period.
+ */
+export type DailyReportSlot =
+  | { kind: 'group'; classroomTeacherId: string }
+  | { kind: 'period'; learningPeriodId: string }
+
+/**
  * One student's daily report for one class on one date. `reportId` is null when the teacher has
  * not saved anything yet; `submittedAt` null means draft (not visible to parents).
  */
 export type DailyReport = {
   reportId: string | null
   childId: string
-  classroomTeacherId: string
+  slot: DailyReportSlot
   reportDate: string
   submittedAt: string | null
   entries: DailyReportEntry[]

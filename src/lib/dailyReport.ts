@@ -96,43 +96,28 @@ function toMood(value: string | null) {
 
 const NO_MOODS: DailyReportMoods = { arrival: null, studying: null, departure: null }
 
-/**
- * One student's report for one class on one date — materi entries, moods and the teacher's note.
- * Returns an empty, unsaved DailyReport when no report exists yet, so callers never branch on
- * null.
- *
- * The slot is (child, teaching group, date): a report is one per absensi row, so a child attending
- * two programs on the same day has two, and the group is what tells them apart. The report itself
- * stores neither group nor date (20261108040000), so the daily_report_for_slot RPC resolves the slot
- * to its absensi row server-side, with the same access rules the table's teacher policies apply.
- */
-export async function fetchDailyReport(
-  childId: string,
-  classroomTeacherId: string,
-  reportDate: string,
-): Promise<Result<DailyReport>> {
-  const { data: rows, error } = await supabase.rpc('daily_report_for_slot', {
-    p_child_id: childId,
-    p_classroom_teacher_id: classroomTeacherId,
-    p_report_date: reportDate,
-  })
-  if (error) return { ok: false, error: error.message }
+/** The report columns both readers return. */
+type ReportHeadRow = {
+  id: string
+  submitted_at: string | null
+  mood_arrival: string | null
+  mood_studying: string | null
+  mood_departure: string | null
+  teacher_note: string | null
+}
 
-  // A table-returning function comes back as an array; one absensi row has at most one report.
-  const data = rows?.[0]
-  if (!data) {
+/**
+ * Turns a reader's row (or its absence) into a DailyReport, loading the materi entries. No row
+ * gives an empty, unsaved report, so callers never branch on null.
+ */
+async function toDailyReport(
+  head: ReportHeadRow | undefined,
+  base: Pick<DailyReport, 'childId' | 'slot' | 'reportDate'>,
+): Promise<Result<DailyReport>> {
+  if (!head) {
     return {
       ok: true,
-      data: {
-        reportId: null,
-        childId,
-        classroomTeacherId,
-        reportDate,
-        submittedAt: null,
-        entries: [],
-        moods: NO_MOODS,
-        teacherNote: '',
-      },
+      data: { ...base, reportId: null, submittedAt: null, entries: [], moods: NO_MOODS, teacherNote: '' },
     }
   }
 
@@ -143,7 +128,7 @@ export async function fetchDailyReport(
     const items = await supabase
       .from('daily_report_items')
       .select('curriculum_item_id, mastery_level, curriculum_items(subject, label, sort_order)')
-      .eq('report_id', data.id)
+      .eq('report_id', head.id)
     if (items.error) return { ok: false, error: items.error.message }
     itemRows = (items.data ?? []) as unknown as EmbeddedItemRow[]
   }
@@ -165,39 +150,91 @@ export async function fetchDailyReport(
   return {
     ok: true,
     data: {
-      reportId: data.id,
-      childId,
-      classroomTeacherId,
-      reportDate,
-      submittedAt: data.submitted_at,
+      ...base,
+      reportId: head.id,
+      submittedAt: head.submitted_at,
       entries: sortEntries(entries),
       moods: {
-        arrival: toMood(data.mood_arrival),
-        studying: toMood(data.mood_studying),
-        departure: toMood(data.mood_departure),
+        arrival: toMood(head.mood_arrival),
+        studying: toMood(head.mood_studying),
+        departure: toMood(head.mood_departure),
       },
-      teacherNote: data.teacher_note ?? '',
+      teacherNote: head.teacher_note ?? '',
     },
   }
 }
+
+/**
+ * One student's report for one class on one date, as a teacher's roster opens it — materi entries,
+ * moods and the teacher's note.
+ *
+ * The slot is (child, teaching group, date): a report is one per absensi row, so a child attending
+ * two programs on the same day has two, and the group is what tells them apart. The report itself
+ * stores neither group nor date (20261108040000), so the daily_report_for_slot RPC resolves the slot
+ * to its absensi row server-side, with the same access rules the table's teacher policies apply.
+ */
+export async function fetchDailyReport(
+  childId: string,
+  classroomTeacherId: string,
+  reportDate: string,
+): Promise<Result<DailyReport>> {
+  const { data: rows, error } = await supabase.rpc('daily_report_for_slot', {
+    p_child_id: childId,
+    p_classroom_teacher_id: classroomTeacherId,
+    p_report_date: reportDate,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  // A table-returning function comes back as an array; one absensi row has at most one report.
+  return toDailyReport(rows?.[0], { childId, slot: { kind: 'group', classroomTeacherId }, reportDate })
+}
+
+/**
+ * The same report, as an admin's Tambah Absen opens it from a learning period's card: the period
+ * names the child and class, the date picks the absensi row. No teaching group is resolved —
+ * the report hangs off the absensi row alone (20261108050000), so the period is enough, and a date
+ * the child's class placements happen not to cover does not block the admin.
+ */
+export async function fetchDailyReportForPeriod(
+  period: { id: string; childId: string; classroomId: string },
+  reportDate: string,
+): Promise<Result<DailyReport>> {
+  const { data: rows, error } = await supabase.rpc('daily_report_for_attendance', {
+    p_child_id: period.childId,
+    p_classroom_id: period.classroomId,
+    p_report_date: reportDate,
+  })
+  if (error) return { ok: false, error: error.message }
+
+  return toDailyReport(rows?.[0], {
+    childId: period.childId,
+    slot: { kind: 'period', learningPeriodId: period.id },
+    reportDate,
+  })
+}
+
+/** Which report a save writes to: the sheet's child and date, and the slot it was opened through. */
+type SaveTarget = Pick<DailyReport, 'childId' | 'slot' | 'reportDate'>
 
 /**
  * Atomically upserts the report and replaces its materi entries with exactly `entries`.
  * Idempotent — safe to call repeatedly while the teacher corrects a draft. Returns the
  * report id.
  */
-export async function saveDailyReportMateri(params: {
-  childId: string
-  classroomTeacherId: string
-  reportDate: string
-  entries: RpcEntry[]
-}): Promise<Result<string>> {
-  const { data, error } = await supabase.rpc('save_daily_report_items', {
-    p_child_id: params.childId,
-    p_classroom_teacher_id: params.classroomTeacherId,
-    p_report_date: params.reportDate,
-    p_entries: params.entries,
-  })
+export async function saveDailyReportMateri(target: SaveTarget, entries: RpcEntry[]): Promise<Result<string>> {
+  const { data, error } =
+    target.slot.kind === 'period'
+      ? await supabase.rpc('save_daily_report_items_for_period', {
+          p_learning_period_id: target.slot.learningPeriodId,
+          p_report_date: target.reportDate,
+          p_entries: entries,
+        })
+      : await supabase.rpc('save_daily_report_items', {
+          p_child_id: target.childId,
+          p_classroom_teacher_id: target.slot.classroomTeacherId,
+          p_report_date: target.reportDate,
+          p_entries: entries,
+        })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
 }
@@ -268,22 +305,27 @@ export async function fetchDailyReportForAttendance(
  * Suasana Hati's Simpan. Upserts the three moods — and only those: the teacher note is not touched,
  * saved or unsaved. A null mood clears it. Returns the report id.
  */
-export async function saveDailyReportMood(params: {
-  childId: string
-  classroomTeacherId: string
-  reportDate: string
-  moods: DailyReportMoods
-}): Promise<Result<string>> {
-  const { data, error } = await supabase.rpc('save_daily_report_mood', {
-    p_child_id: params.childId,
-    p_classroom_teacher_id: params.classroomTeacherId,
-    p_report_date: params.reportDate,
-    // The generated Args type models these as optional strings rather than string | null;
-    // undefined is omitted from the payload, so the RPC's DEFAULT NULL applies.
-    p_mood_arrival: params.moods.arrival ?? undefined,
-    p_mood_studying: params.moods.studying ?? undefined,
-    p_mood_departure: params.moods.departure ?? undefined,
-  })
+export async function saveDailyReportMood(target: SaveTarget, moods: DailyReportMoods): Promise<Result<string>> {
+  // The generated Args type models these as optional strings rather than string | null;
+  // undefined is omitted from the payload, so the RPC's DEFAULT NULL applies.
+  const moodArgs = {
+    p_mood_arrival: moods.arrival ?? undefined,
+    p_mood_studying: moods.studying ?? undefined,
+    p_mood_departure: moods.departure ?? undefined,
+  }
+  const { data, error } =
+    target.slot.kind === 'period'
+      ? await supabase.rpc('save_daily_report_mood_for_period', {
+          p_learning_period_id: target.slot.learningPeriodId,
+          p_report_date: target.reportDate,
+          ...moodArgs,
+        })
+      : await supabase.rpc('save_daily_report_mood', {
+          p_child_id: target.childId,
+          p_classroom_teacher_id: target.slot.classroomTeacherId,
+          p_report_date: target.reportDate,
+          ...moodArgs,
+        })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
 }
@@ -292,18 +334,21 @@ export async function saveDailyReportMood(params: {
  * Catatan Guru's Simpan sebagai Draf (and the save half of Kirim). Upserts the teacher note —
  * and only that: the moods are not touched. A blank note is stored as NULL. Returns the report id.
  */
-export async function saveDailyReportTeacherNote(params: {
-  childId: string
-  classroomTeacherId: string
-  reportDate: string
-  teacherNote: string
-}): Promise<Result<string>> {
-  const { data, error } = await supabase.rpc('save_daily_report_teacher_note', {
-    p_child_id: params.childId,
-    p_classroom_teacher_id: params.classroomTeacherId,
-    p_report_date: params.reportDate,
-    p_teacher_note: params.teacherNote.trim() || undefined,
-  })
+export async function saveDailyReportTeacherNote(target: SaveTarget, teacherNote: string): Promise<Result<string>> {
+  const note = teacherNote.trim() || undefined
+  const { data, error } =
+    target.slot.kind === 'period'
+      ? await supabase.rpc('save_daily_report_teacher_note_for_period', {
+          p_learning_period_id: target.slot.learningPeriodId,
+          p_report_date: target.reportDate,
+          p_teacher_note: note,
+        })
+      : await supabase.rpc('save_daily_report_teacher_note', {
+          p_child_id: target.childId,
+          p_classroom_teacher_id: target.slot.classroomTeacherId,
+          p_report_date: target.reportDate,
+          p_teacher_note: note,
+        })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data }
 }
@@ -324,34 +369,4 @@ export async function deleteDailyReport(reportId: string): Promise<Result<void>>
   const { error } = await supabase.rpc('delete_daily_report', { p_report_id: reportId })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data: undefined }
-}
-
-/**
- * Which teaching group a child sat in, inside one classroom, on one date. A screen that starts from
- * a learning period knows the classroom, but the report sheet is opened and saved per group (the
- * save RPCs take a group and check the child was in it), so the group is resolved first. The same
- * rule — the child's placement on that date — is what daily_report_group_id applies server-side.
- *
- * Dated rather than "current", so filling in a day from weeks ago files the report against the
- * group the child was actually in then. Returns null when they were in none, which is what the
- * save RPCs would refuse anyway.
- */
-export async function fetchClassroomTeacherForChild(params: {
-  childId: string
-  classroomId: string
-  date: string
-}): Promise<Result<string | null>> {
-  const { data, error } = await supabase
-    .from('children_classrooms')
-    .select('classroom_teacher_id, classroom_teachers!inner(classroom_id)')
-    .eq('child_id', params.childId)
-    .eq('classroom_teachers.classroom_id', params.classroomId)
-    .lte('started_at', params.date)
-    .or(`ended_at.is.null,ended_at.gte.${params.date}`)
-  if (error) return { ok: false, error: error.message }
-
-  // One active enrolment per (child, classroom) is enforced by trigger, and the date window makes
-  // closed ones unambiguous too, so more than one row would be a data problem rather than a choice
-  // to make here.
-  return { ok: true, data: data?.[0]?.classroom_teacher_id ?? null }
 }

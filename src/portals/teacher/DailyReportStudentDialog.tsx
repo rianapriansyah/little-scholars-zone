@@ -152,11 +152,6 @@ type Props = {
   report: DailyReport
   attendance: ChildAttendanceRow | null
   period: LearningPeriodListEntry | null
-  /**
-   * Admin only, from Tambah Absen on a period's card: file the day on `period` itself instead of
-   * letting record_attendance pick the lowest-numbered open one.
-   */
-  pinToPeriod?: boolean
   onClose: () => void
   /** Fires after any successful save, submit or attendance change so the roster stays in sync. */
   onChanged: () => void
@@ -184,7 +179,6 @@ export function DailyReportStudentDialog({
   report,
   attendance,
   period,
-  pinToPeriod = false,
   onClose,
   onChanged,
 }: Props) {
@@ -324,7 +318,9 @@ export function DailyReportStudentDialog({
         attendanceDate: report.reportDate,
         status: draftStatus,
         note: draftNote,
-        learningPeriodId: pinToPeriod ? period?.id : undefined,
+        // Opened from a period's card (admin Tambah Absen): file the day on that period instead of
+        // letting record_attendance pick the lowest-numbered open one.
+        learningPeriodId: report.slot.kind === 'period' ? report.slot.learningPeriodId : undefined,
       })
       if (!result.ok) {
         setError(result.error)
@@ -338,12 +334,7 @@ export function DailyReportStudentDialog({
 
   function handleSaveMood() {
     void run(async () => {
-      const result = await saveDailyReportMood({
-        childId: report.childId,
-        classroomTeacherId: report.classroomTeacherId,
-        reportDate: report.reportDate,
-        moods: draftMoods,
-      })
+      const result = await saveDailyReportMood(report, draftMoods)
       if (!result.ok) {
         setError(result.error)
         return null
@@ -356,12 +347,7 @@ export function DailyReportStudentDialog({
 
   /** Saves the note; returns the report id, or null on failure (error already surfaced). */
   async function persistTeacherNote(): Promise<string | null> {
-    const result = await saveDailyReportTeacherNote({
-      childId: report.childId,
-      classroomTeacherId: report.classroomTeacherId,
-      reportDate: report.reportDate,
-      teacherNote: draftTeacherNote,
-    })
+    const result = await saveDailyReportTeacherNote(report, draftTeacherNote)
     if (!result.ok) {
       setError(result.error)
       return null
@@ -402,12 +388,7 @@ export function DailyReportStudentDialog({
 
   function handleSaveMateri() {
     void run(async () => {
-      const result = await saveDailyReportMateri({
-        childId: report.childId,
-        classroomTeacherId: report.classroomTeacherId,
-        reportDate: report.reportDate,
-        entries: toRpcEntries(selection),
-      })
+      const result = await saveDailyReportMateri(report, toRpcEntries(selection))
       if (!result.ok) {
         setError(result.error)
         return null

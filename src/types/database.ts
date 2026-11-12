@@ -1089,6 +1089,10 @@ export type Database = {
         Args: { p_child_attendance_id: string }
         Returns: string
       }
+      daily_report_period_attendance_id: {
+        Args: { p_learning_period_id: string; p_report_date: string }
+        Returns: string
+      }
       daily_report_slot_attendance_id: {
         Args: {
           p_child_id: string
@@ -1225,6 +1229,14 @@ export type Database = {
         }
         Returns: string
       }
+      save_daily_report_items_for_period: {
+        Args: {
+          p_entries: Json
+          p_learning_period_id: string
+          p_report_date: string
+        }
+        Returns: string
+      }
       save_daily_report_mood: {
         Args: {
           p_child_id: string
@@ -1236,10 +1248,28 @@ export type Database = {
         }
         Returns: string
       }
+      save_daily_report_mood_for_period: {
+        Args: {
+          p_learning_period_id: string
+          p_mood_arrival?: string
+          p_mood_departure?: string
+          p_mood_studying?: string
+          p_report_date: string
+        }
+        Returns: string
+      }
       save_daily_report_teacher_note: {
         Args: {
           p_child_id: string
           p_classroom_teacher_id: string
+          p_report_date: string
+          p_teacher_note?: string
+        }
+        Returns: string
+      }
+      save_daily_report_teacher_note_for_period: {
+        Args: {
+          p_learning_period_id: string
           p_report_date: string
           p_teacher_note?: string
         }

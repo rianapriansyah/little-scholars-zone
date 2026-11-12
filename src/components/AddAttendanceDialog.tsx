@@ -13,12 +13,7 @@ import {
   Typography,
 } from '@mui/material'
 import { todayIsoDateInWita } from '../lib/classStatus'
-import { formatDate } from '../lib/formatDate'
-import {
-  fetchClassroomTeacherForChild,
-  fetchCurriculumItems,
-  fetchDailyReport,
-} from '../lib/dailyReport'
+import { fetchCurriculumItems, fetchDailyReportForPeriod } from '../lib/dailyReport'
 import { fetchAttendanceByChild } from '../lib/learningPeriods'
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
 import type { CurriculumItemRow } from '../types/curriculumItem'
@@ -29,19 +24,17 @@ import { DailyReportStudentDialog } from '../portals/teacher/DailyReportStudentD
  * Tambah Absen: an admin records a day that nobody filled at the time, from the child's own
  * Detail Periode Belajar.
  *
- * Two steps, because the date decides everything else. Picking it resolves which teaching group
- * the child sat in that day — attendance is keyed by programme and the report by group, so the
- * sheet cannot open until that is known — and then hands over to the same per-student sheet the
- * teachers use, so there is one implementation of "fill a child's day" rather than an admin copy
- * of it.
+ * Everything is driven by the learning period whose card Tambah Absen was pressed on: the period
+ * names the child and class, and the picked date names the day. That is enough to load and save
+ * both halves of the sheet — Kehadiran is filed on this period (record_attendance with
+ * p_learning_period_id, 20261109020000), and the report is saved by (period, date) through the
+ * save_daily_report_*_for_period RPCs (20261113010000), which find the absensi row themselves. No
+ * teaching group is looked up: a report hangs off its absensi row alone (20261108050000), so a
+ * date the child's class placements don't cover no longer blocks the admin.
  *
- * The day is filed on the period whose card Tambah Absen was pressed on, not on whichever open
- * period record_attendance would pick (the lowest-numbered) — an older period nobody closed would
- * otherwise swallow it. See 20261109020000_record_attendance_chosen_period.sql.
- *
- * Otherwise nothing special is needed server-side: an admin already passes both write gates and
- * can edit a report after it was sent. What the admin writes is attributed to "Admin" rather than
- * to the class's teacher — see 20261019060000_daily_report_admin_author.sql.
+ * Then it hands over to the same per-student sheet the teachers use, so there is one
+ * implementation of "fill a child's day" rather than an admin copy of it. What the admin writes is
+ * attributed to "Admin" — see 20261019060000_daily_report_admin_author.sql.
  */
 export function AddAttendanceDialog({
   open,
@@ -50,7 +43,7 @@ export function AddAttendanceDialog({
   onSaved,
 }: {
   open: boolean
-  /** The period the day is filed on. Its child and programme decide the group for the date. */
+  /** The period the day is filed on. Its child and class are all the sheet needs besides the date. */
   learningPeriod: LearningPeriodListEntry
   onClose: () => void
   /** Fires after anything is saved, so the period's quota tiles and history reload. */
@@ -63,7 +56,6 @@ export function AddAttendanceDialog({
   const [error, setError] = useState<string | null>(null)
 
   const [catalog, setCatalog] = useState<CurriculumItemRow[]>([])
-  const [classroomTeacherId, setClassroomTeacherId] = useState<string | null>(null)
   const [report, setReport] = useState<DailyReport | null>(null)
   const [attendance, setAttendance] = useState<ChildAttendanceRow | null>(null)
 
@@ -71,27 +63,19 @@ export function AddAttendanceDialog({
     if (!open) return
     setDate(today)
     setError(null)
-    setClassroomTeacherId(null)
     setReport(null)
   }, [open, today])
 
   async function handleOpenSheet() {
+    // The picker's max only guides the browser's own widget; a typed date can still pass it.
+    if (!date || date > today) return setError('Pilih tanggal yang sudah lewat atau hari ini.')
+
     setLoading(true)
     setError(null)
 
-    const groupResult = await fetchClassroomTeacherForChild({ childId, classroomId, date })
-    if (!groupResult.ok) {
-      setLoading(false)
-      return setError(groupResult.error)
-    }
-    if (!groupResult.data) {
-      setLoading(false)
-      return setError(`Siswa ini belum terdaftar di kelas tersebut pada ${formatDate(date)}.`)
-    }
-
     const [catalogResult, reportResult, attendanceResult] = await Promise.all([
       fetchCurriculumItems(),
-      fetchDailyReport(childId, groupResult.data, date),
+      fetchDailyReportForPeriod({ id: learningPeriod.id, childId, classroomId }, date),
       fetchAttendanceByChild(classroomId, date),
     ])
     setLoading(false)
@@ -101,14 +85,13 @@ export function AddAttendanceDialog({
     if (!attendanceResult.ok) return setError(attendanceResult.error)
 
     setCatalog(catalogResult.data)
-    setReport(reportResult.data)
     setAttendance(attendanceResult.data.get(childId) ?? null)
-    setClassroomTeacherId(groupResult.data)
+    setReport(reportResult.data)
   }
 
-  // Once the group is resolved the per-student sheet takes over entirely; this dialog steps out of
-  // the way rather than nesting one modal inside another.
-  if (open && classroomTeacherId && report) {
+  // Once loaded, the per-student sheet takes over entirely; this dialog steps out of the way
+  // rather than nesting one modal inside another.
+  if (open && report) {
     return (
       <DailyReportStudentDialog
         key={`${childId}-${date}`}
@@ -119,9 +102,7 @@ export function AddAttendanceDialog({
         report={report}
         attendance={attendance}
         period={learningPeriod}
-        pinToPeriod
         onClose={() => {
-          setClassroomTeacherId(null)
           setReport(null)
           onClose()
         }}
