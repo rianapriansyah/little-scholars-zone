@@ -17,6 +17,7 @@ import {
 import { isNearingEnd } from "../lib/attendanceQuota";
 import { formatDate } from "../lib/formatDate";
 import { periodState, periodStateChipProps } from "../lib/periodState";
+import { isPeriodQuotaFull } from "../lib/addAttendanceChecks";
 import { fetchPeriodAttendances } from "../lib/learningPeriods";
 import type {
   ChildAttendanceRow,
@@ -103,6 +104,8 @@ export function LearningPeriodCard({
     useState<ChildAttendanceRow | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  /** Every guaranteed day is used: there is no room to add one, so Tambah Absen is off. */
+  const quotaFull = isPeriodQuotaFull(period);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -309,6 +312,7 @@ export function LearningPeriodCard({
                 size="small"
                 variant="outlined"
                 onClick={() => setAddOpen(true)}
+                disabled={quotaFull}
                 sx={{ flex: 1 }}
               >
                 Tambah Absen
@@ -327,6 +331,16 @@ export function LearningPeriodCard({
               </Button>
             ) : null}
           </Box>
+        ) : null}
+        {attendanceAdd && quotaFull ? (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: "block", mt: 0.5 }}
+          >
+            Kuota Periode {period.periodNo} sudah penuh ({period.daysConsumed}/
+            {period.guaranteedDays}), jadi Tambah Absen tidak tersedia.
+          </Typography>
         ) : null}
 
         <Collapse in={historyOpen} unmountOnExit>

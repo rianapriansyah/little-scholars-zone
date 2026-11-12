@@ -12,9 +12,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { addAttendanceDateProblem } from '../lib/addAttendanceChecks'
 import { todayIsoDateInWita } from '../lib/classStatus'
 import { fetchCurriculumItems, fetchDailyReportForPeriod } from '../lib/dailyReport'
-import { fetchAttendanceByChild } from '../lib/learningPeriods'
+import { formatDate } from '../lib/formatDate'
+import { fetchAttendanceByChild, fetchPeriodsForChild } from '../lib/learningPeriods'
 import type { ChildAttendanceRow, LearningPeriodListEntry } from '../types/attendance'
 import type { CurriculumItemRow } from '../types/curriculumItem'
 import type { DailyReport } from '../types/dailyReport'
@@ -31,6 +33,12 @@ import { DailyReportStudentDialog } from '../portals/teacher/DailyReportStudentD
  * save_daily_report_*_for_period RPCs (20261113010000), which find the absensi row themselves. No
  * teaching group is looked up: a report hangs off its absensi row alone (20261108050000), so a
  * date the child's class placements don't cover no longer blocks the admin.
+ *
+ * Before the sheet opens, the date must belong to this period (addAttendanceDateProblem): not
+ * before it started, not after it ended (its actual end date, or else the day before the next
+ * period starts), and not already recorded on another of the child's periods — that day is moved
+ * with Pindahkan Absen instead. A period whose quota is used up never gets here: its card disables
+ * Tambah Absen.
  *
  * Then it hands over to the same per-student sheet the teachers use, so there is one
  * implementation of "fill a child's day" rather than an admin copy of it. What the admin writes is
@@ -51,7 +59,12 @@ export function AddAttendanceDialog({
 }) {
   const { childId, childName, classroomId } = learningPeriod
   const today = todayIsoDateInWita()
-  const [date, setDate] = useState(today)
+  // The picker's range: from the period's start to its actual end, never past today. A period
+  // without an actual end may still be bounded by the next one; that is checked on Lanjut.
+  const minDate = learningPeriod.startDate
+  const maxDate =
+    learningPeriod.actualEndDate && learningPeriod.actualEndDate < today ? learningPeriod.actualEndDate : today
+  const [date, setDate] = useState(maxDate)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,10 +74,10 @@ export function AddAttendanceDialog({
 
   useEffect(() => {
     if (!open) return
-    setDate(today)
+    setDate(maxDate)
     setError(null)
     setReport(null)
-  }, [open, today])
+  }, [open, maxDate])
 
   async function handleOpenSheet() {
     // The picker's max only guides the browser's own widget; a typed date can still pass it.
@@ -73,19 +86,30 @@ export function AddAttendanceDialog({
     setLoading(true)
     setError(null)
 
-    const [catalogResult, reportResult, attendanceResult] = await Promise.all([
+    const [catalogResult, reportResult, attendanceResult, periodsResult] = await Promise.all([
       fetchCurriculumItems(),
       fetchDailyReportForPeriod({ id: learningPeriod.id, childId, classroomId }, date),
       fetchAttendanceByChild(classroomId, date),
+      fetchPeriodsForChild(childId),
     ])
     setLoading(false)
 
     if (!catalogResult.ok) return setError(catalogResult.error)
     if (!reportResult.ok) return setError(reportResult.error)
     if (!attendanceResult.ok) return setError(attendanceResult.error)
+    if (!periodsResult.ok) return setError(periodsResult.error)
+
+    const existing = attendanceResult.data.get(childId) ?? null
+    const problem = addAttendanceDateProblem({
+      date,
+      period: learningPeriod,
+      classPeriods: periodsResult.data.filter((p) => p.classroomId === classroomId),
+      existing,
+    })
+    if (problem) return setError(problem)
 
     setCatalog(catalogResult.data)
-    setAttendance(attendanceResult.data.get(childId) ?? null)
+    setAttendance(existing)
     setReport(reportResult.data)
   }
 
@@ -139,8 +163,12 @@ export function AddAttendanceDialog({
           value={date}
           onChange={(e) => setDate(e.target.value)}
           fullWidth
-          slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }}
-          helperText="Tanggal yang sudah lewat atau hari ini."
+          slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: minDate, max: maxDate } }}
+          helperText={
+            learningPeriod.actualEndDate
+              ? `Periode ${learningPeriod.periodNo}: ${formatDate(minDate)} sampai ${formatDate(learningPeriod.actualEndDate)}.`
+              : `Periode ${learningPeriod.periodNo} mulai ${formatDate(minDate)}. Tidak lewat hari ini.`
+          }
         />
 
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>

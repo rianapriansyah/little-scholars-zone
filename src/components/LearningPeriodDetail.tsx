@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Alert, Box, Button, Chip, CircularProgress, Divider, Typography } from '@mui/material'
+import { isPeriodQuotaFull } from '../lib/addAttendanceChecks'
 import { formatDate } from '../lib/formatDate'
 import { fetchPeriod, fetchPeriodAttendances } from '../lib/learningPeriods'
 import { periodState, periodStateChipProps } from '../lib/periodState'
@@ -123,11 +124,23 @@ export function LearningPeriodDetail({
           {attendanceDetail && attendances.length > 0 ? ' · klik satu tanggal untuk detailnya' : ''}
         </Typography>
         {attendanceAdd ? (
-          <Button size="small" variant="outlined" onClick={() => setAddOpen(true)}>
+          // A used-up quota leaves no room for another day.
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setAddOpen(true)}
+            disabled={isPeriodQuotaFull(period)}
+          >
             Tambah Absen
           </Button>
         ) : null}
       </Box>
+      {attendanceAdd && isPeriodQuotaFull(period) ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+          Kuota Periode {period.periodNo} sudah penuh ({period.daysConsumed}/{period.guaranteedDays}), jadi Tambah
+          Absen tidak tersedia.
+        </Typography>
+      ) : null}
 
       <AttendanceHistoryList
         attendances={attendances}
