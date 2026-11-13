@@ -22,9 +22,14 @@ const DRAWER_WIDTH = 260
 
 export type PortalNavItem = { to: string; label: string }
 
+/** A group of nav items below a divider, with an optional heading (e.g. "Area Administrasi"). */
+export type PortalNavSection = { title?: string; items: PortalNavItem[] }
+
 type Props = {
   title: string
   navItems: PortalNavItem[]
+  /** Rendered after a divider at the bottom of the drawer — account and admin settings. */
+  footer?: PortalNavSection
 }
 
 /**
@@ -65,7 +70,7 @@ function NavList({
   )
 }
 
-export function PortalLayout({ title, navItems }: Props) {
+export function PortalLayout({ title, navItems, footer }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { signOut } = useAuth()
   const navigate = useNavigate()
@@ -74,11 +79,8 @@ export function PortalLayout({ title, navItems }: Props) {
   const toggleDrawer = () => setDrawerOpen((open) => !open)
   const closeDrawer = () => setDrawerOpen(false)
 
-  const allTos = navItems.map((item) => item.to)
+  const allTos = [...navItems, ...(footer?.items ?? [])].map((item) => item.to)
   const selectedTo = findSelectedTo(pathname, allTos)
-
-  const mainNavItems = navItems.slice(0, -1)
-  const lastNavItem = navItems[navItems.length - 1]
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -135,11 +137,20 @@ export function PortalLayout({ title, navItems }: Props) {
         }}
       >
         <Box sx={{ py: 1, overflowY: 'auto' }}>
-          <NavList items={mainNavItems} selectedTo={selectedTo} onNavigate={closeDrawer} />
-          {lastNavItem ? (
+          <NavList items={navItems} selectedTo={selectedTo} onNavigate={closeDrawer} />
+          {footer && footer.items.length > 0 ? (
             <>
               <Divider sx={{ my: 1 }} />
-              <NavList items={[lastNavItem]} selectedTo={selectedTo} onNavigate={closeDrawer} />
+              {footer.title ? (
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  sx={{ display: 'block', px: 3, pt: 0.5, pb: 0.5, lineHeight: 1.5 }}
+                >
+                  {footer.title}
+                </Typography>
+              ) : null}
+              <NavList items={footer.items} selectedTo={selectedTo} onNavigate={closeDrawer} />
             </>
           ) : null}
         </Box>

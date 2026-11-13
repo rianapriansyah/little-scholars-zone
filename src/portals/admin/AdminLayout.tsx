@@ -1,6 +1,6 @@
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
-import { PortalLayout, type PortalNavItem } from '../../components/PortalLayout'
+import { PortalLayout, type PortalNavItem, type PortalNavSection } from '../../components/PortalLayout'
 
 const NAV: PortalNavItem[] = [
   { to: '/admin/dashboard', label: 'Dashboard' },
@@ -12,13 +12,20 @@ const NAV: PortalNavItem[] = [
   { to: '/admin/curriculum', label: 'Kurikulum' },
   { to: '/admin/periods', label: 'Periode Belajar' },
   { to: '/admin/teachers-attendance', label: 'Kehadiran Guru' },
-  { to: '/admin/manage-account', label: 'Kelola Akun' },
 ]
+
+const ADMINISTRATION: PortalNavSection = {
+  title: 'Area Administrasi',
+  items: [
+    { to: '/admin/manage-account', label: 'Kelola Akun' },
+    { to: '/admin/branches', label: 'Kelola Cabang' },
+  ],
+}
 
 export function AdminLayout() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="id">
-      <PortalLayout title="Little Schoolars Zone — Admin" navItems={NAV} />
+      <PortalLayout title="Little Schoolars Zone — Admin" navItems={NAV} footer={ADMINISTRATION} />
     </LocalizationProvider>
   )
 }

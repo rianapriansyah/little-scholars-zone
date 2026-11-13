@@ -699,6 +699,21 @@ export type Database = {
           },
         ]
       }
+      office_branch: {
+        Row: {
+          id: string
+          name: string
+        }
+        Insert: {
+          id?: string
+          name: string
+        }
+        Update: {
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       payment_periods: {
         Row: {
           amount: number

@@ -22,6 +22,7 @@ import { PeriodDetailPage } from './portals/admin/periods/PeriodDetailPage'
 import { TeachersAttendancePage } from './portals/admin/attendance/TeachersAttendancePage'
 import { RegistrationsPage } from './portals/admin/registrations/RegistrationsPage'
 import { RegistrationDetailPage } from './portals/admin/registrations/RegistrationDetailPage'
+import { OfficeBranchesPage } from './portals/admin/branches/OfficeBranchesPage'
 import { TeacherLayout } from './portals/teacher/TeacherLayout'
 import { TeacherRosterPage } from './portals/teacher/TeacherRosterPage'
 import { DailyReportPage } from './portals/teacher/DailyReportPage'
@@ -65,6 +66,7 @@ export default function App() {
               <Route path="periods/:childId" element={<PeriodDetailPage />} />
               <Route path="teachers-attendance" element={<TeachersAttendancePage />} />
               <Route path="manage-account" element={<ManageAccountPage />} />
+              <Route path="branches" element={<OfficeBranchesPage />} />
             </Route>
           </Route>
 
