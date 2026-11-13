@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Box, Chip, Paper, Typography } from '@mui/material'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import { Box, Chip, ListItemButton, ListItemText, Paper, Typography } from '@mui/material'
 import { TeacherAttendanceDialog } from '../attendance/TeacherAttendanceDialog'
 import { todayIsoDateInWita } from '../../../lib/classStatus'
 import {
@@ -7,7 +8,6 @@ import {
   groupAttendanceByTeacher,
   type TeacherAttendanceGroup,
 } from '../../../lib/classroomTeacherAttendance'
-import { ARRIVAL_STATUS_LABELS, DEPARTURE_STATUS_LABELS } from '../../../types/classroomTeacherAttendance'
 import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
 
 type Props = {
@@ -17,11 +17,6 @@ type Props = {
   isClassDay: boolean
   /** Refetches the dashboard's roster after a correction is saved in the dialog. */
   onSaved: () => void
-}
-
-const MISSING_LABEL = {
-  clock_in: ARRIVAL_STATUS_LABELS.missing,
-  clock_out: DEPARTURE_STATUS_LABELS.missing,
 }
 
 /**
@@ -68,33 +63,27 @@ export function IncompleteAttendanceCard({ entries, isClassDay, onSaved }: Props
           Semua guru sudah lengkap absen hari ini.
         </Typography>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
           {incomplete.map((teacher) => (
-            <Box
+            // ListItemButton rather than a Box with onClick: the row is the only way into the
+            // dialog, so it has to be reachable by keyboard too. One line per teacher with a count
+            // — which class is missing which punch is in the dialog, the same split the student
+            // attendance card below makes, so a teacher with two classes no longer takes two rows.
+            <ListItemButton
               key={teacher.teacherId}
               onClick={() => handleRowClick(teacher.teacherId)}
-              sx={{
-                p: 1,
-                borderRadius: 1,
-                cursor: 'pointer',
-                '&:hover': { bgcolor: 'action.hover' },
-              }}
+              sx={{ borderRadius: 1, px: 1, gap: 1 }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                {teacher.teacherName}
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                {teacher.classes.map((cls) => (
-                  <Chip
-                    key={cls.classroomTeacherId}
-                    size="small"
-                    variant="outlined"
-                    color="warning"
-                    label={`${cls.classroomLabel} · ${MISSING_LABEL[cls.missing]}`}
-                  />
-                ))}
-              </Box>
-            </Box>
+              <ListItemText
+                primary={
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {teacher.teacherName}
+                  </Typography>
+                }
+              />
+              <Chip size="small" variant="outlined" color="warning" label={`${teacher.classes.length} kelas`} />
+              <ChevronRightIcon sx={{ color: 'text.disabled' }} />
+            </ListItemButton>
           ))}
         </Box>
       )}
