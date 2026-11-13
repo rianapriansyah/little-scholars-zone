@@ -405,12 +405,23 @@ export async function fetchPeriodAttendances(periodId: string): Promise<Result<C
   return { ok: true, data: data ?? [] }
 }
 
-/** Admin renewal queue: every open period, nearest to running out first. */
-export async function fetchOpenPeriods(): Promise<Result<LearningPeriodListEntry[]>> {
+/**
+ * Admin renewal queue: the running periods with `threshold` guaranteed days left or fewer, nearest
+ * to running out first.
+ *
+ * Filtered here rather than read in full: a program counts as near-due on its lowest days_remaining
+ * among its ACTIVE periods (groupPeriodsByProgram), so an inactive period — a queued renewal — must
+ * not qualify a program on its own, and `is_active` is part of the filter for that reason. Taking
+ * only the qualifying rows leaves that minimum intact, so selectNearDueChildren gives the same
+ * answer on this subset as on every open period.
+ */
+export async function fetchNearDuePeriods(threshold: number): Promise<Result<LearningPeriodListEntry[]>> {
   const { data, error } = await supabase
     .from('learning_period_status')
     .select('*')
     .is('closed_at', null)
+    .eq('is_active', true)
+    .lte('days_remaining', threshold)
     .order('days_remaining', { ascending: true })
   if (error) return { ok: false, error: error.message }
 

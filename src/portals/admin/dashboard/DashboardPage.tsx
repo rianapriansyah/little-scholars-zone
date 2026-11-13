@@ -4,8 +4,8 @@ import { supabase } from '../../../lib/supabase'
 import { isWitaClassDay, todayIsoDateInWita } from '../../../lib/classStatus'
 import { fetchAttendanceRoster } from '../../../lib/classroomTeacherAttendance'
 import { fetchUnfilledClassAttendance, type ClassAttendanceGap } from '../../../lib/childAttendanceGaps'
-import { fetchOpenPeriods } from '../../../lib/learningPeriods'
-import { selectNearDueChildren, type NearDueChild } from '../../../lib/nearDuePeriods'
+import { fetchNearDuePeriods } from '../../../lib/learningPeriods'
+import { NEAR_DUE_DAYS_REMAINING, selectNearDueChildren, type NearDueChild } from '../../../lib/nearDuePeriods'
 import type { ClassroomTeacherAttendanceListEntry } from '../../../types/classroomTeacherAttendance'
 import { IncompleteAttendanceCard } from './IncompleteAttendanceCard'
 import { UnfilledStudentAttendanceCard } from './UnfilledStudentAttendanceCard'
@@ -121,7 +121,7 @@ export function DashboardPage() {
           : Promise.resolve({ ok: true as const, data: [] }),
         // Not weekend-gated, unlike the two above: a quota runs out on the days it was spent, and
         // a family still has to be chased about it on a Saturday.
-        fetchOpenPeriods(),
+        fetchNearDuePeriods(NEAR_DUE_DAYS_REMAINING),
       ])
     setLoading(false)
 
@@ -134,9 +134,10 @@ export function DashboardPage() {
     // incomplete-attendance card empty, same severity as any other card having nothing to show.
     if (attendanceResult.ok) setAttendanceEntries(attendanceResult.data)
     if (gapsResult.ok) setAttendanceGaps(gapsResult.data)
-    // Filtered here rather than in the query: the threshold is a product rule, not a database
-    // one, and learning_period_status has no index that would make `days_remaining <= 5` cheaper
-    // than the renewal queue's existing full read.
+    // The query already narrows to the running periods at or under the threshold, so only the
+    // small result crosses the wire; the threshold itself stays a TypeScript constant (a product
+    // rule, not a database one) and is passed in. selectNearDueChildren still applies the same rule
+    // when it groups, so the two cannot disagree.
     if (periodsResult.ok) setNearDue(selectNearDueChildren(periodsResult.data))
 
     const classrooms = classroomsRes.data ?? []
