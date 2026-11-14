@@ -517,7 +517,7 @@ export type Database = {
           },
         ]
       }
-      employee_positions: {
+      employee_roles: {
         Row: {
           created_at: string
           id: string
@@ -586,7 +586,7 @@ export type Database = {
             foreignKeyName: "employees_position_id_fkey"
             columns: ["position_id"]
             isOneToOne: false
-            referencedRelation: "employee_positions"
+            referencedRelation: "employee_roles"
             referencedColumns: ["id"]
           },
         ]
@@ -1154,7 +1154,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      default_employee_position_id: { Args: never; Returns: string }
+      default_employee_role_id: { Args: never; Returns: string }
       delete_child_attendance: {
         Args: { p_attendance_id: string }
         Returns: undefined
