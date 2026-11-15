@@ -187,6 +187,13 @@ export type Database = {
             referencedRelation: "employee_assignment_rates"
             referencedColumns: ["classroom_teacher_id"]
           },
+          {
+            foreignKeyName: "children_classrooms_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_schedules"
+            referencedColumns: ["classroom_teacher_id"]
+          },
         ]
       }
       children_daily_reports: {
@@ -372,27 +379,30 @@ export type Database = {
       }
       classroom_teachers: {
         Row: {
-          classroom_id: string
+          classroom_id: string | null
           created_at: string | null
           id: string
+          is_flexi_hours: boolean | null
           teacher_id: string
           time_end: string | null
           time_start: string | null
           work_item_id: string | null
         }
         Insert: {
-          classroom_id: string
+          classroom_id?: string | null
           created_at?: string | null
           id?: string
+          is_flexi_hours?: boolean | null
           teacher_id: string
           time_end?: string | null
           time_start?: string | null
           work_item_id?: string | null
         }
         Update: {
-          classroom_id?: string
+          classroom_id?: string | null
           created_at?: string | null
           id?: string
+          is_flexi_hours?: boolean | null
           teacher_id?: string
           time_end?: string | null
           time_start?: string | null
@@ -481,6 +491,13 @@ export type Database = {
             referencedRelation: "employee_assignment_rates"
             referencedColumns: ["classroom_teacher_id"]
           },
+          {
+            foreignKeyName: "classroom_teachers_attendances_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_schedules"
+            referencedColumns: ["classroom_teacher_id"]
+          },
         ]
       }
       classroom_teachers_substitutions: {
@@ -530,6 +547,13 @@ export type Database = {
             columns: ["classroom_teacher_id"]
             isOneToOne: false
             referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["classroom_teacher_id"]
+          },
+          {
+            foreignKeyName: "classroom_teachers_substitutions_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_schedules"
             referencedColumns: ["classroom_teacher_id"]
           },
           {
@@ -1182,6 +1206,13 @@ export type Database = {
             referencedRelation: "employee_assignment_rates"
             referencedColumns: ["classroom_teacher_id"]
           },
+          {
+            foreignKeyName: "classroom_teachers_attendances_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_schedules"
+            referencedColumns: ["classroom_teacher_id"]
+          },
         ]
       }
       employee_assignment_rates: {
@@ -1202,6 +1233,50 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_assignment_schedules: {
+        Row: {
+          active: boolean | null
+          classroom_id: string | null
+          classroom_teacher_id: string | null
+          employee_id: string | null
+          is_billable: boolean | null
+          is_flexi_hours: boolean | null
+          label: string | null
+          time_end: string | null
+          time_start: string | null
+          work_item_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_teachers_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classroom_teachers_teacher_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classroom_teachers_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["work_item_id"]
+          },
+          {
+            foreignKeyName: "classroom_teachers_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
             referencedColumns: ["id"]
           },
         ]

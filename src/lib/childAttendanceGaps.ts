@@ -225,7 +225,8 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
     const teacher = group.employees as unknown as
       | { full_name: string; call_name: string | null; contact_phone: string | null }
       | null
-    if (!classroom || !classroom.active || !classroom.is_billable) continue
+    // Staff work (no classroom) never holds children, so it has no class attendance to fill.
+    if (!classroom || !group.classroom_id || !classroom.active || !classroom.is_billable) continue
 
     classes.set(group.id, {
       classroomId: group.classroom_id,

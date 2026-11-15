@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { fetchAssignmentRates } from './assignmentRates'
+import { fetchAssignmentSchedules } from './assignmentSchedules'
 import type { Result } from './result'
 import { teacherDisplayName } from './teacherName'
 import { getTodaysClassEndInWita, witaWallClockTime } from './classStatus'
@@ -240,12 +241,14 @@ export async function clockOutAndContinueClassroomTeacher(
  * so a forgotten punch is visible as a gap rather than silently absent from the list.
  */
 export async function fetchAttendanceRoster(sessionDate: string): Promise<Result<ClassroomTeacherAttendanceListEntry[]>> {
-  const { data: groupRows, error: gError } = await supabase
-    .from('classroom_teachers')
-    .select(
-      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours), employees(full_name, call_name)',
-    )
-  if (gError) return { ok: false, error: gError.message }
+  // Teaching and staff work alike: the schedule comes from employee_assignment_schedules (the class,
+  // or the work item and the assignment's own times), the same source the clock-in rules read.
+  const schedulesResult = await fetchAssignmentSchedules()
+  if (!schedulesResult.ok) return schedulesResult
+
+  const { data: employeeRows, error: eError } = await supabase.from('employees').select('id, full_name, call_name')
+  if (eError) return { ok: false, error: eError.message }
+  const employeeById = new Map((employeeRows ?? []).map((e) => [e.id, e]))
 
   // The rate and the branch come from the program or work item, never from the classroom.
   const ratesResult = await fetchAssignmentRates()
@@ -265,30 +268,22 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   }
 
   const entries: ClassroomTeacherAttendanceListEntry[] = []
-  for (const group of groupRows ?? []) {
-    const classroom = group.classrooms as unknown as
-      | {
-          label: string
-          time_start: string
-          time_end: string
-          active: boolean
-          is_flexi_hours: boolean
-        }
-      | null
-    const teacher = group.employees as unknown as { full_name: string; call_name: string | null } | null
-    if (!classroom || !classroom.active) continue
+  for (const schedule of schedulesResult.data) {
+    if (!schedule.active) continue
+    const teacher = employeeById.get(schedule.employeeId)
+    const id = schedule.classroomTeacherId
 
     entries.push({
-      classroomTeacherId: group.id,
-      teacherId: group.teacher_id,
-      classroomLabel: classroom.label,
+      classroomTeacherId: id,
+      teacherId: schedule.employeeId,
+      classroomLabel: schedule.label,
       teacherName: teacher ? teacherDisplayName(teacher) : '—',
-      classroomRate: rates.get(group.id)?.rate ?? null,
-      branchName: rates.get(group.id)?.branchName ?? null,
-      timeStart: classroom.time_start,
-      timeEnd: classroom.time_end,
-      isFlexiHours: classroom.is_flexi_hours,
-      status: byClassroomTeacher.get(group.id) ?? null,
+      classroomRate: rates.get(id)?.rate ?? null,
+      branchName: rates.get(id)?.branchName ?? null,
+      timeStart: schedule.timeStart,
+      timeEnd: schedule.timeEnd,
+      isFlexiHours: schedule.isFlexiHours,
+      status: byClassroomTeacher.get(id) ?? null,
     })
   }
   entries.sort((a, b) => a.classroomLabel.localeCompare(b.classroomLabel))

@@ -3,6 +3,7 @@ import { createWorkItem, deleteWorkItem, fetchWorkItems, updateWorkItem } from '
 import type { Result } from '../../../lib/result'
 import type { RateItemValues } from './RateItemDialog'
 import { RateItemListPage, type RateItemEntry } from './RateItemListPage'
+import { WorkItemAssignmentsSection } from './WorkItemAssignmentsSection'
 
 /**
  * Kelola Item Kerja: paid work that is not teaching a class — Piket, Konten, Caregiving, Kasir,
@@ -33,6 +34,7 @@ export function WorkItemsPage() {
       load={load}
       onSave={save}
       onDelete={deleteWorkItem}
+      renderExtra={(id, reload) => <WorkItemAssignmentsSection workItemId={id} onChanged={reload} />}
     />
   )
 }

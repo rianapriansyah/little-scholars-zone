@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
 import {
   Alert,
@@ -41,6 +41,8 @@ type Props = {
   onDelete: (id: string) => Promise<Result<void>>
   onClose: () => void
   onSaved: () => void
+  /** Extra section shown when editing an existing item (Kelola Item Kerja: its assignments). */
+  renderExtra?: (id: string) => ReactNode
 }
 
 /**
@@ -59,6 +61,7 @@ export function RateItemDialog({
   onDelete,
   onClose,
   onSaved,
+  renderExtra,
 }: Props) {
   const isEdit = item !== null
 
@@ -199,6 +202,13 @@ export function RateItemDialog({
               control={<Switch id="rate-item-active" checked={active} onChange={(e) => setActive(e.target.checked)} />}
               label="Aktif"
             />
+
+            {isEdit && renderExtra ? (
+              <>
+                <Divider />
+                {renderExtra(item.id)}
+              </>
+            ) : null}
 
             {isEdit ? (
               <>

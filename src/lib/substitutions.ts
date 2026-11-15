@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { fetchAssignmentSchedules } from './assignmentSchedules'
 import type { Result } from './result'
 import { teacherDisplayName } from './teacherName'
 import type { SubstitutableClass } from '../types/substitution'
@@ -77,26 +78,22 @@ export async function withdrawSubstitution(params: {
 export async function fetchOwnSchedules(
   teacherId: string,
 ): Promise<Result<{ classroomId: string; timeStart: string; timeEnd: string | null }[]>> {
-  const { data, error } = await supabase
-    .from('classroom_teachers')
-    .select('classroom_id, classrooms(time_start, time_end, is_flexi_hours)')
-    .eq('teacher_id', teacherId)
-  if (error) return { ok: false, error: error.message }
+  // The same schedules declare_substitution checks against: a class's times, or a staff-work
+  // assignment's own times (Piket 07.00–08.00 still blocks covering a class at 07.30).
+  const result = await fetchAssignmentSchedules({ employeeId: teacherId })
+  if (!result.ok) return result
 
   const schedules: { classroomId: string; timeStart: string; timeEnd: string | null }[] = []
-  for (const row of data ?? []) {
-    const classroom = row.classrooms as unknown as {
-      time_start: string
-      time_end: string | null
-      is_flexi_hours: boolean
-    } | null
+  for (const s of result.data) {
     // A flexi-hours programme has no real schedule, so it cannot clash with anything — the same
     // reason declare_substitution leaves it out of its own overlap check.
-    if (!classroom || classroom.is_flexi_hours) continue
+    if (s.isFlexiHours) continue
     schedules.push({
-      classroomId: row.classroom_id,
-      timeStart: classroom.time_start,
-      timeEnd: classroom.time_end,
+      // Staff work has no class; its assignment id stands in, which never equals a real class, so
+      // it is always compared — as the server does with IS DISTINCT FROM.
+      classroomId: s.classroomId ?? s.classroomTeacherId,
+      timeStart: s.timeStart,
+      timeEnd: s.timeEnd,
     })
   }
 

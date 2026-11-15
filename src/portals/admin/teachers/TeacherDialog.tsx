@@ -17,6 +17,7 @@ import {
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
+import { fetchAssignmentSchedules } from '../../../lib/assignmentSchedules'
 import { createTeacherAccount } from '../../../lib/createTeacherAccount'
 import { CredentialsRevealDialog } from '../../../components/CredentialsRevealDialog'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
@@ -50,7 +51,8 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
 
   /** Classes still pointing at this teacher — a hard delete is blocked (23503) until each one
    * is reassigned or removed from the classroom's own Penugasan tab. */
-  const [assignedClassrooms, setAssignedClassrooms] = useState<{ classroomId: string; label: string }[]>([])
+  /** Every assignment still held — a class (released from its Penugasan tab) or staff work (Kelola Item Kerja). */
+  const [assignedClassrooms, setAssignedClassrooms] = useState<{ key: string; label: string; href: string }[]>([])
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -91,17 +93,17 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
       return
     }
     let cancelled = false
-    void supabase
-      .from('classroom_teachers')
-      .select('classroom_id, classrooms(label)')
-      .eq('teacher_id', teacher.id)
-      .then(({ data }) => {
-        if (cancelled) return
-        const rows = (data ?? []) as unknown as { classroom_id: string; classrooms: { label: string } | null }[]
-        setAssignedClassrooms(
-          rows.map((row) => ({ classroomId: row.classroom_id, label: row.classrooms?.label ?? '—' })),
-        )
-      })
+    // Classes and staff work alike: each links to where its assignment is released.
+    void fetchAssignmentSchedules({ employeeId: teacher.id }).then((result) => {
+      if (cancelled || !result.ok) return
+      setAssignedClassrooms(
+        result.data.map((s) => ({
+          key: s.classroomTeacherId,
+          label: s.label,
+          href: s.classroomId ? `/admin/classrooms/${s.classroomId}` : '/admin/work-items',
+        })),
+      )
+    })
     return () => {
       cancelled = true
     }
@@ -355,12 +357,12 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
                 <Divider />
                 {assignedClassrooms.length > 0 ? (
                   <Alert severity="warning">
-                    Guru ini masih ditetapkan ke {assignedClassrooms.length} kelas. Lepaskan penugasannya dari tab
-                    Penugasan sebelum menghapus:
+                    Guru ini masih punya {assignedClassrooms.length} penugasan. Lepaskan dulu (kelas dari tab
+                    Penugasan, pekerjaan lain dari Kelola Item Kerja) sebelum menghapus:
                     <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
                       {assignedClassrooms.map((c) => (
-                        <li key={c.classroomId}>
-                          <Link component={RouterLink} to={`/admin/classrooms/${c.classroomId}`} underline="hover">
+                        <li key={c.key}>
+                          <Link component={RouterLink} to={c.href} underline="hover">
                             {c.label}
                           </Link>
                         </li>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
 import { DataGrid, type GridCellParams, type GridColDef } from '@mui/x-data-grid'
 import { DataGridSearchPanel } from '../../../components/DataGridSearchPanel'
@@ -36,6 +36,8 @@ type Props = {
   load: () => Promise<Result<RateItemEntry[]>>
   onSave: (values: RateItemValues, id: string | null) => Promise<Result<void>>
   onDelete: (id: string) => Promise<Result<void>>
+  /** Extra section in the edit dialog; `reload` refreshes this list's counts. */
+  renderExtra?: (id: string, reload: () => void) => ReactNode
 }
 
 /**
@@ -55,6 +57,7 @@ export function RateItemListPage({
   load,
   onSave,
   onDelete,
+  renderExtra,
 }: Props) {
   const [rows, setRows] = useState<RateItemEntry[]>([])
   const [branches, setBranches] = useState<OfficeBranchRow[]>([])
@@ -208,6 +211,7 @@ export function RateItemListPage({
         onDelete={onDelete}
         onClose={() => setDialogOpen(false)}
         onSaved={() => void reload()}
+        renderExtra={renderExtra ? (id) => renderExtra(id, () => void reload()) : undefined}
       />
     </Box>
   )

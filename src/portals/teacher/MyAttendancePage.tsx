@@ -13,8 +13,8 @@ import {
 } from '@mui/material'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
-import { supabase } from '../../lib/supabase'
 import { fetchAssignmentRates } from '../../lib/assignmentRates'
+import { fetchAssignmentSchedules } from '../../lib/assignmentSchedules'
 import { formatIdr } from '../../lib/formatIdr'
 import { teacherDisplayName } from '../../lib/teacherName'
 import {
@@ -89,30 +89,28 @@ export function MyAttendancePage() {
     setLoading(true)
     setError(null)
 
-    const { data: groupRows, error: gError } = await supabase
-      .from('classroom_teachers')
-      .select('id, classrooms(label)')
-      .eq('teacher_id', teacher.id)
-    if (gError) {
-      setError(gError.message)
+    // Classes and staff work alike, labelled the way the home screen labels them.
+    const schedulesResult = await fetchAssignmentSchedules({ employeeId: teacher.id })
+    if (!schedulesResult.ok) {
+      setError(schedulesResult.error)
       setLoading(false)
       return
     }
+    const groupRows = schedulesResult.data.map((s) => ({ id: s.classroomTeacherId, label: s.label }))
 
     // The rate and branch come from the program or work item, never from the classroom.
-    const ratesResult = await fetchAssignmentRates((groupRows ?? []).map((row) => row.id))
+    const ratesResult = await fetchAssignmentRates(groupRows.map((row) => row.id))
     if (!ratesResult.ok) {
       setError(ratesResult.error)
       setLoading(false)
       return
     }
 
-    const teacherClasses: TeacherAttendanceReportClass[] = (groupRows ?? []).map((row) => {
-      const classroom = row.classrooms as unknown as { label: string } | null
+    const teacherClasses: TeacherAttendanceReportClass[] = groupRows.map((row) => {
       const rate = ratesResult.data.get(row.id)
       return {
         classroomTeacherId: row.id,
-        classroomLabel: classroom?.label ?? '—',
+        classroomLabel: row.label,
         rate: rate?.rate ?? null,
         branchName: rate?.branchName ?? null,
       }

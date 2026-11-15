@@ -103,7 +103,8 @@ export function DailyReportPage() {
           time_start: string
           time_end: string | null
         } | null
-        if (!classroom) continue
+        // Staff work (no classroom) has no children to report on.
+        if (!classroom || !row.classroom_id) continue
         options.push({
           classroomTeacherId: row.id,
           classroomId: row.classroom_id,

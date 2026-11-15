@@ -22,6 +22,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { fetchAssignmentSchedules } from '../../lib/assignmentSchedules'
 import { fetchChildIdsWithOpenPeriod } from '../../lib/learningPeriods'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -56,9 +57,20 @@ import {
 import type { ClassroomTeacherAttendanceStatus } from '../../types/classroomTeacherAttendance'
 import { DAILY_REPORT_ENABLED } from '../../lib/featureFlags'
 
+/**
+ * What a card needs to know about the work behind it. Shaped like the ClassroomRow fields the
+ * card reads, but filled from employee_assignment_schedules, so a staff-work assignment (Piket,
+ * Konten, Caregiving) with no classroom gets a card exactly like a class does. `id` is the
+ * classroom for teaching, the assignment for staff work.
+ */
+type CardSlot = Pick<ClassroomRow, 'label' | 'time_start' | 'time_end' | 'is_billable' | 'is_flexi_hours'> & {
+  id: string
+  max_students_per_teacher: number | null
+}
+
 type GroupWithRoster = {
   id: string
-  classroom: ClassroomRow
+  classroom: CardSlot
   roster: { childId: string; childName: string }[]
 }
 
@@ -137,17 +149,46 @@ export function TeacherRosterPage() {
     let cancelled = false
     setLoading(true)
     void (async () => {
-      const { data: groupRows, error: gError } = await supabase
-        .from('classroom_teachers')
-        .select('id, classrooms(*)')
-        .eq('teacher_id', teacher.id)
-      if (gError) {
+      // Every assignment with its schedule, from the same view the clock-in rules read. Staff work
+      // whose work item was deactivated is left off; a class keeps showing as it always has.
+      const schedulesResult = await fetchAssignmentSchedules({ employeeId: teacher.id })
+      if (!schedulesResult.ok) {
         if (!cancelled) {
-          setError(gError.message)
+          setError(schedulesResult.error)
           setLoading(false)
         }
         return
       }
+      const schedules = schedulesResult.data.filter((s) => s.classroomId !== null || s.active)
+
+      // The student limit is a property of the class, only shown on billable cards.
+      const billableClassroomIds = [
+        ...new Set(schedules.filter((s) => s.isBillable && s.classroomId).map((s) => s.classroomId as string)),
+      ]
+      const { data: limitRows, error: lError } = billableClassroomIds.length
+        ? await supabase.from('classrooms').select('id, max_students_per_teacher').in('id', billableClassroomIds)
+        : { data: [], error: null }
+      if (lError) {
+        if (!cancelled) {
+          setError(lError.message)
+          setLoading(false)
+        }
+        return
+      }
+      const limitByClassroom = new Map((limitRows ?? []).map((row) => [row.id, row.max_students_per_teacher]))
+
+      const groupRows = schedules.map((s) => ({
+        id: s.classroomTeacherId,
+        classroom: {
+          id: s.classroomId ?? s.classroomTeacherId,
+          label: s.label,
+          time_start: s.timeStart,
+          time_end: s.timeEnd,
+          is_billable: s.isBillable,
+          is_flexi_hours: s.isFlexiHours,
+          max_students_per_teacher: s.classroomId ? (limitByClassroom.get(s.classroomId) ?? null) : null,
+        } satisfies CardSlot,
+      }))
 
       // A billable class only lists children who also hold an unfinished learning period in it
       // (Berjalan or Belum Mulai). Enrolment alone outlives the period: a child whose periods are
@@ -156,9 +197,8 @@ export function TeacherRosterPage() {
       // Non-billable work items (Piket Pagi) have no periods at all, so they are not filtered.
       const openByClassroom = new Map<string, Set<string>>()
       const results: GroupWithRoster[] = []
-      for (const group of groupRows ?? []) {
-        const classroom = group.classrooms as unknown as ClassroomRow | null
-        if (!classroom) continue
+      for (const group of groupRows) {
+        const classroom = group.classroom
         const [{ data: enrollmentRows, error: eError }, openResult] = await Promise.all([
           supabase
             .from('children_classrooms')
@@ -520,7 +560,7 @@ export function TeacherRosterPage() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Sen–Jum · {classroom.time_start.slice(0, 5)}
               {classroom.time_end ? `–${classroom.time_end.slice(0, 5)}` : ''} · {group.roster.length}/
-              {classroom.max_students_per_teacher} siswa
+              {classroom.max_students_per_teacher ?? '—'} siswa
             </Typography>
             {group.roster.length === 0 ? (
               <Typography variant="body2" color="text.secondary">

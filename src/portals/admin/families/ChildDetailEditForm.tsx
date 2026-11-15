@@ -188,6 +188,7 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
         // table (see 20260815010000_classrooms_billable_and_flexi_hours.sql).
         const options: Group[] = (data ?? [])
           .filter((row) => (row.classrooms as unknown as { is_billable: boolean } | null)?.is_billable)
+          .flatMap((row) => (row.classroom_id ? [{ ...row, classroom_id: row.classroom_id }] : []))
           .map((row) => {
             const classroom = row.classrooms as unknown as { label: string } | null
             const teacher = row.employees as unknown as { full_name: string; call_name: string | null } | null

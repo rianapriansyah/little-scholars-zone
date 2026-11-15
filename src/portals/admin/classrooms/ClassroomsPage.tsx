@@ -43,7 +43,8 @@ export function ClassroomsPage() {
 
     const groupClassroomId = new Map<string, string>()
     for (const g of groupsRes.data ?? []) {
-      groupClassroomId.set(g.id, g.classroom_id)
+      // Staff-work assignments have no classroom and no children; nothing to count.
+      if (g.classroom_id) groupClassroomId.set(g.id, g.classroom_id)
     }
 
     const countByClassroom = new Map<string, number>()
