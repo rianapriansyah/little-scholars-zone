@@ -125,12 +125,29 @@ export type TeacherAttendanceReportClass = {
   classroomTeacherId: string
   classroomLabel: string
   /**
-   * IDR per hour for this class — classrooms.teacher_rate, not the teacher's own. null means it
-   * has not been set yet: the minutes still count toward Total Durasi, but earn nothing and are
-   * reported as missing rather than silently valued at zero.
+   * IDR per hour for this assignment, from employee_assignment_rates: the program's rate for
+   * teaching, the work item's rate for other work (see lib/assignmentRates). null means it has not
+   * been set yet: the minutes still count toward Total Durasi, but earn nothing and are reported as
+   * missing rather than silently valued at zero.
    */
   rate: number | null
+  /**
+   * The branch this assignment's pay belongs to (the program's or work item's branch). Each branch
+   * issues its own payslip, so the totals are also split by it. Absent or null: "Tanpa Cabang".
+   */
+  branchName?: string | null
 }
+
+/** One branch's share of a person's month: what goes on that branch's payslip. */
+export type BranchTotal = {
+  branchName: string
+  totalMinutes: number
+  /** null when nothing worked for this branch has a rate. */
+  pay: number | null
+}
+
+/** Label for assignments whose branch is unknown (no rate source yet). */
+export const NO_BRANCH_LABEL = 'Tanpa Cabang'
 
 export type ClassMinutesTotal = TeacherAttendanceReportClass & {
   totalMinutes: number
@@ -165,6 +182,11 @@ export function summarizeAttendanceByClass(
   estimatedPay: number | null
   /** Classes with minutes but no rate. Their time is in the total durasi but not in the money. */
   classesMissingRate: string[]
+  /**
+   * The same minutes and pay split per branch, one entry per branch with any assignment, A–Z.
+   * Summed from classTotals, so the branch lines always add up to the grand total.
+   */
+  branchTotals: BranchTotal[]
 } {
   const minutesByKey = new Map<string, number>()
   for (const row of attendanceRows) {
@@ -186,11 +208,22 @@ export function summarizeAttendanceByClass(
     .filter((c) => c.rate === null && c.totalMinutes > 0)
     .map((c) => c.classroomLabel)
 
+  const byBranch = new Map<string, BranchTotal>()
+  for (const c of classTotals) {
+    const branchName = c.branchName ?? NO_BRANCH_LABEL
+    const entry = byBranch.get(branchName) ?? { branchName, totalMinutes: 0, pay: null }
+    entry.totalMinutes += c.totalMinutes
+    if (c.pay !== null && c.totalMinutes > 0) entry.pay = (entry.pay ?? 0) + c.pay
+    byBranch.set(branchName, entry)
+  }
+  const branchTotals = [...byBranch.values()].sort((a, b) => a.branchName.localeCompare(b.branchName))
+
   return {
     classTotals,
     grandTotalMinutes,
     estimatedPay: payable.length > 0 ? payable.reduce((sum, c) => sum + (c.pay ?? 0), 0) : null,
     classesMissingRate,
+    branchTotals,
   }
 }
 
@@ -201,6 +234,8 @@ export type MonthlyAttendanceSummary = {
   estimatedPay: number | null
   /** Classes whose minutes are in grandTotalMinutes but not in estimatedPay, for want of a rate. */
   classesMissingRate: string[]
+  /** One payslip per branch — see summarizeAttendanceByClass. */
+  branchTotals: BranchTotal[]
 }
 
 /**
@@ -224,13 +259,13 @@ export async function fetchMonthlyAttendanceSummary(params: {
   )
   if (!fetchResult.ok) return fetchResult
 
-  const { grandTotalMinutes, estimatedPay, classesMissingRate } = summarizeAttendanceByClass(
+  const { grandTotalMinutes, estimatedPay, classesMissingRate, branchTotals } = summarizeAttendanceByClass(
     classes,
     { start, end },
     fetchResult.data,
   )
 
-  return { ok: true, data: { label, grandTotalMinutes, estimatedPay, classesMissingRate } }
+  return { ok: true, data: { label, grandTotalMinutes, estimatedPay, classesMissingRate, branchTotals } }
 }
 
 const MARGIN_LEFT = 14
@@ -271,7 +306,7 @@ export async function downloadTeacherAttendanceReport(params: {
   // The rows and the totals both come from reportDatesInRange (the totals via
   // summarizeAttendanceByClass), so every printed day is a counted day.
   const rowDates = reportDatesInRange(start, end)
-  const { classTotals, grandTotalMinutes, estimatedPay, classesMissingRate } = summarizeAttendanceByClass(
+  const { classTotals, grandTotalMinutes, estimatedPay, classesMissingRate, branchTotals } = summarizeAttendanceByClass(
     classes,
     { start, end },
     fetchResult.data,
@@ -355,8 +390,8 @@ export async function downloadTeacherAttendanceReport(params: {
   doc.text('Ringkasan Total Durasi Bulan Ini', MARGIN_LEFT, cursorY)
   cursorY += 4
 
-  // The rate belongs to the class now, so there is no single "jam x rate" to print: each class
-  // is priced on its own row and the estimate is their sum. A class with no rate set shows the
+  // The rate belongs to the program or work item, so there is no single "jam x rate" to print:
+  // each class is priced on its own row and the estimate is their sum. A class with no rate set shows the
   // reason in its own cell rather than a blank, so an incomplete total explains itself.
   type Cell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> }
   const summaryRows: Cell[][] = classTotals.map((c) => [
@@ -381,7 +416,7 @@ export async function downloadTeacherAttendanceReport(params: {
       content:
         estimatedPay != null
           ? `Estimasi yang akan diterima ${teacherName}: ${formatIdr(estimatedPay)}`
-          : 'Rate per jam belum diatur di kelas manapun — atur di menu Kelas untuk melihat estimasi gaji.',
+          : 'Rate per jam belum diatur — atur di Kelola Program atau Kelola Item Kerja untuk melihat estimasi gaji.',
       colSpan: 4,
       styles: { fontStyle: estimatedPay != null ? 'bold' : 'italic' },
     },
@@ -404,6 +439,32 @@ export async function downloadTeacherAttendanceReport(params: {
     margin: { left: MARGIN_LEFT },
     head: [['Kelas', 'Total Durasi', 'Rate / Jam', 'Estimasi']],
     body: summaryRows,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [46, 87, 76] },
+  })
+  cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12
+
+  // One payslip per branch: each branch pays its own share, and the last row is the person's total
+  // across all of them. The lines are summed from the per-class rows above, so they always agree.
+  ensureSpace(30)
+  doc.setFontSize(12)
+  doc.text('Ringkasan per Cabang', MARGIN_LEFT, cursorY)
+  cursorY += 4
+  const branchRows: Cell[][] = branchTotals.map((b) => [
+    b.branchName,
+    `${b.totalMinutes} menit`,
+    b.pay != null ? formatIdr(b.pay) : b.totalMinutes > 0 ? 'Rate belum diatur' : '—',
+  ])
+  branchRows.push([
+    { content: 'Total Semua Cabang', styles: { fontStyle: 'bold' } },
+    { content: `${grandTotalMinutes} menit`, styles: { fontStyle: 'bold' } },
+    { content: estimatedPay != null ? formatIdr(estimatedPay) : 'Belum bisa dihitung', styles: { fontStyle: 'bold' } },
+  ])
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: MARGIN_LEFT },
+    head: [['Cabang', 'Total Durasi', 'Estimasi']],
+    body: branchRows,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [46, 87, 76] },
   })

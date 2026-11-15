@@ -23,6 +23,8 @@ import { TeachersAttendancePage } from './portals/admin/attendance/TeachersAtten
 import { RegistrationsPage } from './portals/admin/registrations/RegistrationsPage'
 import { RegistrationDetailPage } from './portals/admin/registrations/RegistrationDetailPage'
 import { OfficeBranchesPage } from './portals/admin/branches/OfficeBranchesPage'
+import { ProgramsPage } from './portals/admin/rates/ProgramsPage'
+import { WorkItemsPage } from './portals/admin/rates/WorkItemsPage'
 import { TeacherLayout } from './portals/teacher/TeacherLayout'
 import { TeacherRosterPage } from './portals/teacher/TeacherRosterPage'
 import { DailyReportPage } from './portals/teacher/DailyReportPage'
@@ -67,6 +69,8 @@ export default function App() {
               <Route path="teachers-attendance" element={<TeachersAttendancePage />} />
               <Route path="manage-account" element={<ManageAccountPage />} />
               <Route path="branches" element={<OfficeBranchesPage />} />
+              <Route path="programs" element={<ProgramsPage />} />
+              <Route path="work-items" element={<WorkItemsPage />} />
             </Route>
           </Route>
 

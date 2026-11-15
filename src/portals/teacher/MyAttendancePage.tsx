@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { useTeacherProfile } from '../../hooks/useTeacherProfile'
 import { supabase } from '../../lib/supabase'
+import { fetchAssignmentRates } from '../../lib/assignmentRates'
 import { formatIdr } from '../../lib/formatIdr'
 import { teacherDisplayName } from '../../lib/teacherName'
 import {
@@ -22,6 +23,7 @@ import {
   fetchMonthlyAttendance,
   formatHoursMinutes,
   summarizeAttendanceByClass,
+  type BranchTotal,
   type TeacherAttendanceReportClass,
 } from '../../lib/teacherAttendanceReport'
 
@@ -71,6 +73,8 @@ export function MyAttendancePage() {
   const [totalMinutes, setTotalMinutes] = useState(0)
   /** Summed per class at each class's own rate — see summarizeAttendanceByClass. */
   const [estimatedPay, setEstimatedPay] = useState<number | null>(null)
+  /** The same estimate split per branch — one payslip per branch. */
+  const [branchTotals, setBranchTotals] = useState<BranchTotal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
@@ -87,7 +91,7 @@ export function MyAttendancePage() {
 
     const { data: groupRows, error: gError } = await supabase
       .from('classroom_teachers')
-      .select('id, classrooms(label, teacher_rate)')
+      .select('id, classrooms(label)')
       .eq('teacher_id', teacher.id)
     if (gError) {
       setError(gError.message)
@@ -95,12 +99,22 @@ export function MyAttendancePage() {
       return
     }
 
+    // The rate and branch come from the program or work item, never from the classroom.
+    const ratesResult = await fetchAssignmentRates((groupRows ?? []).map((row) => row.id))
+    if (!ratesResult.ok) {
+      setError(ratesResult.error)
+      setLoading(false)
+      return
+    }
+
     const teacherClasses: TeacherAttendanceReportClass[] = (groupRows ?? []).map((row) => {
-      const classroom = row.classrooms as unknown as { label: string; teacher_rate: number | null } | null
+      const classroom = row.classrooms as unknown as { label: string } | null
+      const rate = ratesResult.data.get(row.id)
       return {
         classroomTeacherId: row.id,
         classroomLabel: classroom?.label ?? '—',
-        rate: classroom?.teacher_rate ?? null,
+        rate: rate?.rate ?? null,
+        branchName: rate?.branchName ?? null,
       }
     })
     setClasses(teacherClasses)
@@ -116,13 +130,14 @@ export function MyAttendancePage() {
       return
     }
     // Same calculation, over the same days, as the PDF — see summarizeAttendanceByClass.
-    const { grandTotalMinutes, estimatedPay: pay } = summarizeAttendanceByClass(
+    const { grandTotalMinutes, estimatedPay: pay, branchTotals: perBranch } = summarizeAttendanceByClass(
       teacherClasses,
       { start, end },
       attendanceResult.data,
     )
     setTotalMinutes(grandTotalMinutes)
     setEstimatedPay(pay)
+    setBranchTotals(perBranch)
   }, [teacher, start, end])
 
   useEffect(() => {
@@ -197,6 +212,21 @@ export function MyAttendancePage() {
             hint={estimatedPayLabel ? 'Perkiraan kasar, bukan patokan' : 'Rate kelas belum diatur'}
           />
         </Box>
+
+        {/* Working for both branches means two payslips; show each branch's share. */}
+        {branchTotals.length > 1 ? (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              Per Cabang
+            </Typography>
+            {branchTotals.map((b) => (
+              <Typography key={b.branchName} variant="body2" color="text.secondary">
+                {b.branchName}: {formatHoursMinutes(b.totalMinutes)} ·{' '}
+                {b.pay != null ? formatIdr(b.pay) : b.totalMinutes > 0 ? 'rate belum diatur' : '—'}
+              </Typography>
+            ))}
+          </Box>
+        ) : null}
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Perkiraan kasar berdasarkan jam mengajar tercatat — bukan angka penggajian resmi.

@@ -19,6 +19,8 @@ const ADMINISTRATION: PortalNavSection = {
   items: [
     { to: '/admin/manage-account', label: 'Kelola Akun' },
     { to: '/admin/branches', label: 'Kelola Cabang' },
+    { to: '/admin/programs', label: 'Kelola Program' },
+    { to: '/admin/work-items', label: 'Kelola Item Kerja' },
   ],
 }
 

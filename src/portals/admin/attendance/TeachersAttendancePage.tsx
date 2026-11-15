@@ -83,6 +83,7 @@ export function TeachersAttendancePage() {
         classroomTeacherId: c.classroomTeacherId,
         classroomLabel: c.classroomLabel,
         rate: c.classroomRate,
+        branchName: c.branchName,
       })),
       referenceDate: sessionDate,
     }).then((result) => {
@@ -113,6 +114,7 @@ export function TeachersAttendancePage() {
         classroomTeacherId: c.classroomTeacherId,
         classroomLabel: c.classroomLabel,
         rate: c.classroomRate,
+        branchName: c.branchName,
       })),
       referenceDate: sessionDate,
     })
@@ -274,9 +276,18 @@ export function TeachersAttendancePage() {
                     </Typography>
                   </>
                 ) : (
-                  'Rate per jam belum diatur di kelas manapun — atur di menu Kelas untuk melihat estimasi gaji.'
+                  'Rate per jam belum diatur — atur di Kelola Program atau Kelola Item Kerja untuk melihat estimasi gaji.'
                 )}
               </Typography>
+              {/* One payslip per branch. Only worth listing when the month spans more than one. */}
+              {downloadSummary.branchTotals.length > 1
+                ? downloadSummary.branchTotals.map((b) => (
+                    <Typography key={b.branchName} variant="body2" color="text.secondary" sx={{ mt: 0.5, pl: 1.5 }}>
+                      {b.branchName}: {formatHoursMinutes(b.totalMinutes)} ·{' '}
+                      {b.pay != null ? formatIdr(b.pay) : b.totalMinutes > 0 ? 'rate belum diatur' : '—'}
+                    </Typography>
+                  ))
+                : null}
               {/* The rate is per class now, so a teacher can have a real number that still leaves
                   hours out. Say which, rather than let the total read as the whole month. */}
               {downloadSummary.estimatedPay != null && downloadSummary.classesMissingRate.length > 0 ? (

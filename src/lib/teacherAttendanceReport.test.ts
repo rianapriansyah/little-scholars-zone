@@ -215,6 +215,46 @@ describe('summarizeAttendanceByClass', () => {
     expect(result.grandTotalMinutes).toBe(0)
   })
 
+  it('splits minutes and pay per branch, and the branches add up to the total', () => {
+    const twoBranches = [
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas Bimba', rate: 8000, branchName: 'Bimba' },
+      { classroomTeacherId: 'b', classroomLabel: 'Konten Rucil', rate: 8000, branchName: 'Rucil' },
+      { classroomTeacherId: 'c', classroomLabel: 'Piket Bimba', rate: 5000, branchName: 'Bimba' },
+    ]
+    const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 120 }),
+      fakeRow({ classroomTeacherId: 'b', sessionDate: '2026-08-03', minutesTaught: 30 }),
+      fakeRow({ classroomTeacherId: 'c', sessionDate: '2026-08-03', minutesTaught: 60 }),
+    ]
+
+    const result = summarizeAttendanceByClass(twoBranches, monday, rows)
+
+    expect(result.branchTotals).toEqual([
+      { branchName: 'Bimba', totalMinutes: 180, pay: 2 * 8000 + 5000 },
+      { branchName: 'Rucil', totalMinutes: 30, pay: 4000 },
+    ])
+    const branchPay = result.branchTotals.reduce((sum, b) => sum + (b.pay ?? 0), 0)
+    expect(branchPay).toBe(result.estimatedPay)
+  })
+
+  it('puts an assignment without a branch under Tanpa Cabang, with no pay when it has no rate', () => {
+    const mixed = [
+      { classroomTeacherId: 'a', classroomLabel: 'Kelas A', rate: 8000, branchName: 'Bimba' },
+      { classroomTeacherId: 'b', classroomLabel: 'Kelas Baru', rate: null, branchName: null },
+    ]
+    const rows = [
+      fakeRow({ classroomTeacherId: 'a', sessionDate: '2026-08-03', minutesTaught: 60 }),
+      fakeRow({ classroomTeacherId: 'b', sessionDate: '2026-08-03', minutesTaught: 30 }),
+    ]
+
+    const result = summarizeAttendanceByClass(mixed, monday, rows)
+
+    expect(result.branchTotals).toEqual([
+      { branchName: 'Bimba', totalMinutes: 60, pay: 8000 },
+      { branchName: 'Tanpa Cabang', totalMinutes: 30, pay: null },
+    ])
+  })
+
   it('gives a class with no attendance rows at all a total of zero', () => {
     const result = summarizeAttendanceByClass(classes, monday, [])
     expect(result.classTotals).toEqual([

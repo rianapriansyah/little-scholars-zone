@@ -18,64 +18,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      children_attendances: {
-        Row: {
-          attendance_date: string
-          child_id: string
-          classroom_id: string
-          id: string
-          learning_period_id: string
-          note: string | null
-          recorded_at: string
-          recorded_by: string | null
-          status: string
-        }
-        Insert: {
-          attendance_date: string
-          child_id: string
-          classroom_id: string
-          id?: string
-          learning_period_id: string
-          note?: string | null
-          recorded_at?: string
-          recorded_by?: string | null
-          status: string
-        }
-        Update: {
-          attendance_date?: string
-          child_id?: string
-          classroom_id?: string
-          id?: string
-          learning_period_id?: string
-          note?: string | null
-          recorded_at?: string
-          recorded_by?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "children_attendances_child_id_fkey"
-            columns: ["child_id"]
-            isOneToOne: false
-            referencedRelation: "children"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "children_attendances_period_fkey"
-            columns: ["learning_period_id", "child_id", "classroom_id"]
-            isOneToOne: false
-            referencedRelation: "learning_period_status"
-            referencedColumns: ["id", "child_id", "classroom_id"]
-          },
-          {
-            foreignKeyName: "children_attendances_period_fkey"
-            columns: ["learning_period_id", "child_id", "classroom_id"]
-            isOneToOne: false
-            referencedRelation: "children_learning_periods"
-            referencedColumns: ["id", "child_id", "classroom_id"]
-          },
-        ]
-      }
       children: {
         Row: {
           active: boolean
@@ -120,6 +62,71 @@ export type Database = {
           },
         ]
       }
+      children_attendances: {
+        Row: {
+          attendance_date: string
+          child_id: string
+          classroom_id: string
+          id: string
+          learning_period_id: string
+          note: string | null
+          recorded_at: string
+          recorded_by: string | null
+          status: string
+        }
+        Insert: {
+          attendance_date: string
+          child_id: string
+          classroom_id: string
+          id?: string
+          learning_period_id: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status: string
+        }
+        Update: {
+          attendance_date?: string
+          child_id?: string
+          classroom_id?: string
+          id?: string
+          learning_period_id?: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "children_attendances_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_attendances_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_period_list"
+            referencedColumns: ["child_id"]
+          },
+          {
+            foreignKeyName: "children_attendances_period_fkey"
+            columns: ["learning_period_id", "child_id", "classroom_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_periods"
+            referencedColumns: ["id", "child_id", "classroom_id"]
+          },
+          {
+            foreignKeyName: "children_attendances_period_fkey"
+            columns: ["learning_period_id", "child_id", "classroom_id"]
+            isOneToOne: false
+            referencedRelation: "learning_period_status"
+            referencedColumns: ["id", "child_id", "classroom_id"]
+          },
+        ]
+      }
       children_classrooms: {
         Row: {
           child_id: string
@@ -160,11 +167,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "children_classrooms_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_period_list"
+            referencedColumns: ["child_id"]
+          },
+          {
             foreignKeyName: "children_classrooms_classroom_teacher_id_fkey"
             columns: ["classroom_teacher_id"]
             isOneToOne: false
             referencedRelation: "classroom_teachers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_classrooms_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["classroom_teacher_id"]
           },
         ]
       }
@@ -234,6 +255,80 @@ export type Database = {
             referencedRelation: "children"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "children_daily_reports_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_period_list"
+            referencedColumns: ["child_id"]
+          },
+        ]
+      }
+      children_learning_periods: {
+        Row: {
+          actual_end_date: string | null
+          child_id: string
+          classroom_id: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          guaranteed_days: number
+          id: string
+          is_active: boolean
+          period_no: number
+          projected_end_date: string | null
+          start_date: string
+        }
+        Insert: {
+          actual_end_date?: string | null
+          child_id: string
+          classroom_id: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          guaranteed_days?: number
+          id?: string
+          is_active?: boolean
+          period_no: number
+          projected_end_date?: string | null
+          start_date: string
+        }
+        Update: {
+          actual_end_date?: string | null
+          child_id?: string
+          classroom_id?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          guaranteed_days?: number
+          id?: string
+          is_active?: boolean
+          period_no?: number
+          projected_end_date?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "children_learning_periods_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_learning_periods_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_period_list"
+            referencedColumns: ["child_id"]
+          },
+          {
+            foreignKeyName: "children_learning_periods_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
         ]
       }
       classroom_teacher_work_sessions: {
@@ -281,18 +376,27 @@ export type Database = {
           created_at: string | null
           id: string
           teacher_id: string
+          time_end: string | null
+          time_start: string | null
+          work_item_id: string | null
         }
         Insert: {
           classroom_id: string
           created_at?: string | null
           id?: string
           teacher_id: string
+          time_end?: string | null
+          time_start?: string | null
+          work_item_id?: string | null
         }
         Update: {
           classroom_id?: string
           created_at?: string | null
           id?: string
           teacher_id?: string
+          time_end?: string | null
+          time_start?: string | null
+          work_item_id?: string | null
         }
         Relationships: [
           {
@@ -307,6 +411,20 @@ export type Database = {
             columns: ["teacher_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classroom_teachers_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["work_item_id"]
+          },
+          {
+            foreignKeyName: "classroom_teachers_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
             referencedColumns: ["id"]
           },
         ]
@@ -356,6 +474,13 @@ export type Database = {
             referencedRelation: "classroom_teachers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "classroom_teachers_attendances_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["classroom_teacher_id"]
+          },
         ]
       }
       classroom_teachers_substitutions: {
@@ -401,6 +526,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "classroom_teachers_substitutions_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["classroom_teacher_id"]
+          },
+          {
             foreignKeyName: "classroom_teachers_substitutions_substitute_teacher_id_fkey"
             columns: ["substitute_teacher_id"]
             isOneToOne: false
@@ -420,6 +552,7 @@ export type Database = {
           label: string
           max_students_per_teacher: number
           price: number
+          program_id: string | null
           teacher_rate: number | null
           time_end: string
           time_start: string
@@ -434,6 +567,7 @@ export type Database = {
           label: string
           max_students_per_teacher?: number
           price: number
+          program_id?: string | null
           teacher_rate?: number | null
           time_end: string
           time_start: string
@@ -448,11 +582,27 @@ export type Database = {
           label?: string
           max_students_per_teacher?: number
           price?: number
+          program_id?: string | null
           teacher_rate?: number | null
           time_end?: string
           time_start?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "classrooms_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["program_id"]
+          },
+          {
+            foreignKeyName: "classrooms_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       curriculum_items: {
         Row: {
@@ -639,66 +789,6 @@ export type Database = {
         }
         Relationships: []
       }
-      children_learning_periods: {
-        Row: {
-          actual_end_date: string | null
-          child_id: string
-          classroom_id: string
-          closed_at: string | null
-          created_at: string
-          created_by: string | null
-          guaranteed_days: number
-          id: string
-          is_active: boolean
-          period_no: number
-          projected_end_date: string | null
-          start_date: string
-        }
-        Insert: {
-          actual_end_date?: string | null
-          child_id: string
-          classroom_id: string
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          guaranteed_days?: number
-          id?: string
-          is_active?: boolean
-          period_no: number
-          projected_end_date?: string | null
-          start_date: string
-        }
-        Update: {
-          actual_end_date?: string | null
-          child_id?: string
-          classroom_id?: string
-          closed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          guaranteed_days?: number
-          id?: string
-          is_active?: boolean
-          period_no?: number
-          projected_end_date?: string | null
-          start_date?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "children_learning_periods_child_id_fkey"
-            columns: ["child_id"]
-            isOneToOne: false
-            referencedRelation: "children"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "children_learning_periods_classroom_id_fkey"
-            columns: ["classroom_id"]
-            isOneToOne: false
-            referencedRelation: "classrooms"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       office_branch: {
         Row: {
           id: string
@@ -766,11 +856,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "payment_periods_learning_period_id_fkey"
-            columns: ["learning_period_id"]
-            isOneToOne: true
-            referencedRelation: "learning_period_status"
-            referencedColumns: ["id"]
+            foreignKeyName: "payment_periods_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_period_list"
+            referencedColumns: ["child_id"]
           },
           {
             foreignKeyName: "payment_periods_learning_period_id_fkey"
@@ -780,10 +870,52 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_periods_learning_period_id_fkey"
+            columns: ["learning_period_id"]
+            isOneToOne: true
+            referencedRelation: "learning_period_status"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payment_periods_registration_submission_id_fkey"
             columns: ["registration_submission_id"]
             isOneToOne: false
             referencedRelation: "registration_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programs: {
+        Row: {
+          active: boolean
+          branch_id: string
+          created_at: string
+          hourly_rate: number
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          branch_id: string
+          created_at?: string
+          hourly_rate: number
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          branch_id?: string
+          created_at?: string
+          hourly_rate?: number
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programs_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "office_branch"
             referencedColumns: ["id"]
           },
         ]
@@ -835,6 +967,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "children"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_children_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_period_list"
+            referencedColumns: ["child_id"]
           },
           {
             foreignKeyName: "registration_children_classroom_id_fkey"
@@ -959,6 +1098,41 @@ export type Database = {
           },
         ]
       }
+      work_items: {
+        Row: {
+          active: boolean
+          branch_id: string
+          created_at: string
+          hourly_rate: number
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          branch_id: string
+          created_at?: string
+          hourly_rate: number
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          branch_id?: string
+          created_at?: string
+          hourly_rate?: number
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_items_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "office_branch"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       children_learning_period_list: {
@@ -1001,6 +1175,35 @@ export type Database = {
             referencedRelation: "classroom_teachers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "classroom_teachers_attendances_classroom_teacher_id_fkey"
+            columns: ["classroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "employee_assignment_rates"
+            referencedColumns: ["classroom_teacher_id"]
+          },
+        ]
+      }
+      employee_assignment_rates: {
+        Row: {
+          branch_id: string | null
+          branch_name: string | null
+          classroom_teacher_id: string | null
+          employee_id: string | null
+          hourly_rate: number | null
+          program_id: string | null
+          rate_source: string | null
+          work_item_id: string | null
+          work_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_teachers_teacher_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
         ]
       }
       learning_period_status: {
@@ -1030,6 +1233,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "children"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_learning_periods_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children_learning_period_list"
+            referencedColumns: ["child_id"]
           },
           {
             foreignKeyName: "children_learning_periods_classroom_id_fkey"

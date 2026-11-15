@@ -9,14 +9,17 @@ import {
   List,
   ListItem,
   ListItemText,
+  MenuItem,
   Switch,
   TextField,
   Typography,
 } from '@mui/material'
 import { supabase } from '../../../lib/supabase'
 import { classroomDeleteErrorMessage } from '../../../lib/classroomDeleteError'
-import { digitsOnly, groupDigits } from '../../../lib/formatIdr'
+import { digitsOnly, formatIdr, groupDigits } from '../../../lib/formatIdr'
+import { fetchPrograms } from '../../../lib/programs'
 import type { ClassroomRow } from '../../../types/classroom'
+import type { ProgramListEntry } from '../../../types/program'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { DangerZone } from '../../../components/DangerZone'
 
@@ -46,8 +49,12 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
     const [timeStart, setTimeStart] = useState('10:00')
     const [timeEnd, setTimeEnd] = useState('11:00')
     const [price, setPrice] = useState('')
-    /** What a teacher earns per hour here — classrooms.teacher_rate. Raw digits, like price. */
-    const [teacherRate, setTeacherRate] = useState('')
+    /**
+     * The program this class slot belongs to. A teacher's hourly rate comes from the program
+     * (Kelola Program), never from the class, so this form no longer takes a rate.
+     */
+    const [programId, setProgramId] = useState('')
+    const [programs, setPrograms] = useState<ProgramListEntry[]>([])
     /** Children one teacher may hold here — classrooms.max_students_per_teacher. */
     const [maxStudents, setMaxStudents] = useState('6')
     const [guaranteedDays, setGuaranteedDays] = useState('20')
@@ -67,7 +74,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       // Raw digits only: numeric(12,2) can arrive with a fractional part, which the grouped
       // display and digitsOnly() would both mangle.
       setPrice(classroom ? String(Math.round(classroom.price)) : '')
-      setTeacherRate(classroom?.teacher_rate != null ? String(Math.round(classroom.teacher_rate)) : '')
+      setProgramId(classroom?.program_id ?? '')
       setMaxStudents(String(classroom?.max_students_per_teacher ?? 6))
       setGuaranteedDays(String(classroom?.guaranteed_days ?? 20))
       setActive(classroom?.active ?? true)
@@ -111,8 +118,19 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
     }, [classroom])
 
     useEffect(() => {
+      void fetchPrograms().then((result) => {
+        if (result.ok) setPrograms(result.data)
+      })
+    }, [])
+
+    useEffect(() => {
       onBusyChange?.({ saving, deleting })
     }, [saving, deleting, onBusyChange])
+
+    const selectedProgram = programs.find((p) => p.id === programId) ?? null
+    // Inactive programs stay listed only when this class already uses one, so editing an old
+    // class never silently drops its program.
+    const programOptions = programs.filter((p) => p.active || p.id === programId)
 
     async function handleSave() {
       setError(null)
@@ -136,6 +154,10 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         setError('Masukkan harga program. Isi 0 bila kelas ini memang tidak dipungut biaya.')
         return
       }
+      if (isBillable && !selectedProgram) {
+        setError('Pilih program. Rate guru diambil dari program ini.')
+        return
+      }
       const priceValue = isBillable ? Number(price) : 0
       const guaranteedDaysValue = isBillable ? Number(guaranteedDays) : 20
       if (isBillable && (!Number.isInteger(guaranteedDaysValue) || guaranteedDaysValue < 1)) {
@@ -150,6 +172,14 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         return
       }
 
+      // A billable class takes its program; teacher_rate is kept as a copy of the program's rate
+      // until the column is dropped, nothing reads it any more. A staff-work class has no program
+      // (its people are paid from their work item) and its old teacher_rate is left as it is.
+      const programFields =
+        isBillable && selectedProgram
+          ? { program_id: selectedProgram.id, teacher_rate: selectedProgram.hourly_rate }
+          : { program_id: null }
+
       setSaving(true)
       if (isEdit) {
         const { error: uErr } = await supabase
@@ -159,7 +189,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             time_start: timeStart,
             time_end: timeEnd,
             price: priceValue,
-            teacher_rate: teacherRate ? Number(teacherRate) : null,
+            ...programFields,
             max_students_per_teacher: maxStudentsValue,
             guaranteed_days: guaranteedDaysValue,
             active,
@@ -178,7 +208,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           time_start: timeStart,
           time_end: timeEnd,
           price: priceValue,
-          teacher_rate: teacherRate ? Number(teacherRate) : null,
+          ...programFields,
           max_students_per_teacher: maxStudentsValue,
           guaranteed_days: guaranteedDaysValue,
           is_billable: isBillable,
@@ -277,6 +307,28 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           {isBillable ? (
             <>
               <Typography variant="subtitle2">Program & Biaya</Typography>
+              <TextField
+                id="classroom-program"
+                select
+                size="small"
+                label="Program"
+                value={programOptions.some((p) => p.id === programId) ? programId : ''}
+                onChange={(e) => setProgramId(e.target.value)}
+                required
+                fullWidth
+                helperText={
+                  selectedProgram
+                    ? `Rate guru ${formatIdr(selectedProgram.hourly_rate)} per jam, dari program ${selectedProgram.name} (${selectedProgram.branchName}). Ubah di Kelola Program.`
+                    : 'Rate guru diambil dari program yang dipilih.'
+                }
+              >
+                {programOptions.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.name} — {p.branchName}
+                    {p.active ? '' : ' (nonaktif)'}
+                  </MenuItem>
+                ))}
+              </TextField>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 {/* Money input follows car-rental: raw digits in state, dot-grouped for display,
                     inputMode numeric with an Rp adornment. type="number" would let a spinner,
@@ -332,20 +384,11 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             </Typography>
           ) : null}
 
-          {/* Outside the Bisa Ditagih branch on purpose: an internal program is not billed to a
-              family but is still paid work, so it carries a rate like any other class. */}
-          <Divider />
-          <Typography variant="subtitle2">Gaji Guru</Typography>
-          <TextField
-            size="small"
-            label="Rate per Jam"
-            value={groupDigits(teacherRate)}
-            onChange={(e) => setTeacherRate(digitsOnly(e.target.value))}
-            fullWidth
-            inputMode="numeric"
-            slotProps={{ input: { startAdornment: <InputAdornment position="start">Rp</InputAdornment> } }}
-            helperText="Dibayarkan ke siapa pun yang mengajar kelas ini. Kosongkan bila belum ditentukan — jamnya tetap tercatat, tapi belum masuk estimasi gaji."
-          />
+          {isBillable ? null : (
+            <Typography variant="body2" color="text.secondary">
+              Rate kerja internal (piket, konten, pengasuhan) diatur per cabang di Kelola Item Kerja, bukan di kelas.
+            </Typography>
+          )}
 
           {isEdit ? (
             <>

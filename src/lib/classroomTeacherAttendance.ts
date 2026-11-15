@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { fetchAssignmentRates } from './assignmentRates'
 import type { Result } from './result'
 import { teacherDisplayName } from './teacherName'
 import { getTodaysClassEndInWita, witaWallClockTime } from './classStatus'
@@ -242,9 +243,14 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   const { data: groupRows, error: gError } = await supabase
     .from('classroom_teachers')
     .select(
-      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours, teacher_rate), employees(full_name, call_name)',
+      'id, teacher_id, classrooms(label, time_start, time_end, active, is_flexi_hours), employees(full_name, call_name)',
     )
   if (gError) return { ok: false, error: gError.message }
+
+  // The rate and the branch come from the program or work item, never from the classroom.
+  const ratesResult = await fetchAssignmentRates()
+  if (!ratesResult.ok) return ratesResult
+  const rates = ratesResult.data
 
   const { data: statusRows, error: sError } = await supabase
     .from('classroom_teachers_attendance_status')
@@ -267,7 +273,6 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
           time_end: string
           active: boolean
           is_flexi_hours: boolean
-          teacher_rate: number | null
         }
       | null
     const teacher = group.employees as unknown as { full_name: string; call_name: string | null } | null
@@ -278,7 +283,8 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
       teacherId: group.teacher_id,
       classroomLabel: classroom.label,
       teacherName: teacher ? teacherDisplayName(teacher) : '—',
-      classroomRate: classroom.teacher_rate,
+      classroomRate: rates.get(group.id)?.rate ?? null,
+      branchName: rates.get(group.id)?.branchName ?? null,
       timeStart: classroom.time_start,
       timeEnd: classroom.time_end,
       isFlexiHours: classroom.is_flexi_hours,

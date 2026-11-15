@@ -99,10 +99,13 @@ export type ClassroomTeacherAttendanceListEntry = {
   classroomLabel: string
   teacherName: string
   /**
-   * What this class pays per hour, in IDR — classrooms.teacher_rate, not the teacher's own. null
-   * means not set yet. Varies per entry: a teacher's classes can pay differently.
+   * What this assignment pays per hour, in IDR — the program's rate for teaching, the work item's
+   * for other work (employee_assignment_rates), never the teacher's own. null means not set yet.
+   * Varies per entry: a teacher's assignments can pay differently.
    */
   classroomRate: number | null
+  /** The branch whose payslip this assignment's pay goes on. null when there is no rate source. */
+  branchName: string | null
   timeStart: string
   timeEnd: string
   /** No real schedule to clock in/out against (e.g. Pembuatan Konten) — see classrooms.is_flexi_hours. */
