@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "node scripts/vitest.mjs run",
     "deploy:function:create-teacher-account": "supabase functions deploy create-teacher-account",
     "deploy:function:create-family-account": "supabase functions deploy create-family-account",
     "deploy:function:submit-registration": "supabase functions deploy submit-registration"
