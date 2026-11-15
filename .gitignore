@@ -27,3 +27,6 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Local data backups taken before risky migrations (personal data, never commit)
+backups/
