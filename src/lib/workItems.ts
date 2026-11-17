@@ -16,18 +16,18 @@ function saveError(error: { code?: string; message: string }): string {
 
 /** Every work item with its branch name and assignment count, A–Z by branch then name. Admin only. */
 export async function fetchWorkItems(): Promise<Result<WorkItemListEntry[]>> {
-  const { data, error } = await supabase.from('work_items').select('*, office_branch(name), classroom_teachers(count)')
+  const { data, error } = await supabase.from('work_items').select('*, office_branch(name), employee_assignments(count)')
   if (error) return { ok: false, error: error.message }
 
   const entries = (data ?? []).map((row) => {
-    const { office_branch, classroom_teachers, ...item } = row as typeof row & {
+    const { office_branch, employee_assignments, ...item } = row as typeof row & {
       office_branch: { name: string } | null
-      classroom_teachers: { count: number }[] | null
+      employee_assignments: { count: number }[] | null
     }
     return {
       ...(item as WorkItemRow),
       branchName: office_branch?.name ?? '—',
-      assignmentCount: classroom_teachers?.[0]?.count ?? 0,
+      assignmentCount: employee_assignments?.[0]?.count ?? 0,
     }
   })
   entries.sort((a, b) => a.branchName.localeCompare(b.branchName) || a.name.localeCompare(b.name))

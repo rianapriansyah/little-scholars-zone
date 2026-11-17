@@ -92,7 +92,7 @@ export function DashboardPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    // Classrooms only run Monday–Friday, but classroom_teachers itself carries no notion of
+    // Classrooms only run Monday–Friday, but employee_assignments itself carries no notion of
     // that — fetching the roster on a weekend would show every teacher as "incomplete" since
     // nobody clocks in then, so the fetch is skipped outright rather than fetched and hidden.
     const [
@@ -110,7 +110,7 @@ export function DashboardPage() {
         supabase.from('classrooms').select('id, label, active').eq('is_billable', true).order('label'),
         supabase.from('employees').select('id, active'),
         supabase.from('children').select('id, active'),
-        supabase.from('classroom_teachers').select('id, classroom_id'),
+        supabase.from('employee_assignments').select('id, classroom_id'),
         supabase.from('children_classrooms').select('classroom_teacher_id').is('ended_at', null),
         isWitaClassDay()
           ? fetchAttendanceRoster(todayIsoDateInWita())

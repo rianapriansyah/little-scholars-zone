@@ -1,7 +1,7 @@
 import type { Database } from './database'
 
-export type ClassroomTeacherAttendanceRow = Database['public']['Tables']['classroom_teachers_attendances']['Row']
-export type ClassroomTeacherAttendanceStatusRow = Database['public']['Views']['classroom_teachers_attendance_status']['Row']
+export type ClassroomTeacherAttendanceRow = Database['public']['Tables']['employee_attendances']['Row']
+export type ClassroomTeacherAttendanceStatusRow = Database['public']['Views']['employee_attendance_status']['Row']
 
 /** Mirrors the clocked_in_source/clocked_out_source CHECK constraint. */
 export const ATTENDANCE_SOURCES = ['teacher', 'admin'] as const
@@ -56,7 +56,7 @@ export const DEPARTURE_STATUS_LABELS: Record<DepartureStatus, string> = {
 }
 
 /**
- * classroom_teachers_attendance_status with the columns that are never actually null narrowed
+ * employee_attendance_status with the columns that are never actually null narrowed
  * away. Postgrest types every view column as nullable because a view has no NOT NULL metadata;
  * this is narrowed once at the data-access boundary (see parseClassroomTeacherAttendanceStatus)
  * instead of at every use site, same reasoning as LearningPeriodStatus.
@@ -77,7 +77,7 @@ export type ClassroomTeacherAttendanceStatus = {
    * The day's paid minutes. On a flexi-hours day with several work sessions this is their SUM,
    * not clockedOutAt − clockedInAt: a teacher who worked 09:00–11:00 and 13:00–15:00 has 240
    * minutes, and the unworked break between them is excluded. null while nothing has been
-   * finished yet. See classroom_teacher_work_sessions.
+   * finished yet. See employee_work_sessions.
    */
   minutesTaught: number | null
   /**

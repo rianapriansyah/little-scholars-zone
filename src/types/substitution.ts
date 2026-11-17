@@ -1,6 +1,6 @@
 import type { Database } from './database'
 
-export type SubstitutionRow = Database['public']['Tables']['classroom_teachers_substitutions']['Row']
+export type SubstitutionRow = Database['public']['Tables']['employee_substitutions']['Row']
 
 /**
  * One group the signed-in teacher could cover today, as Gantikan Kelas sees it: the class, the

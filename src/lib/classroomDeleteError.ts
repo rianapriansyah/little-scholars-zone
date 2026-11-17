@@ -7,12 +7,12 @@
  * Four tables can do that, and none of them cascade:
  *
  *   children_classrooms        20260701120000_v1_core_tables.sql
- *   classroom_teachers         20260726030000_classroom_multi_teacher.sql
+ *   employee_assignments       20260726030000_classroom_multi_teacher.sql (renamed 20261118010000)
  *   children_learning_periods  20260803010000_learning_periods_attendance.sql (renamed 20261109050000)
  *   registration_children      20260810010000_parent_registration.sql
  *
  * The old message blamed "riwayat pendaftaran siswa" for all four, which misled on the common
- * case: a classroom that only ever had a teacher assigned (classroom_teachers) and no student at
+ * case: a classroom that only ever had a teacher assigned (employee_assignments) and no student at
  * all is refused with exactly the same code, and the admin is told to look for enrollments that
  * do not exist. Each blocker now gets its own sentence, because each has a different way out.
  */
@@ -33,7 +33,7 @@ const FOREIGN_KEY_VIOLATION = '23503'
 const BLOCKER_MESSAGES: Record<string, string> = {
   children_classrooms:
     'Tidak dapat dihapus: kelas ini memiliki riwayat pendaftaran siswa. Nonaktifkan saja.',
-  classroom_teachers:
+  employee_assignments:
     'Tidak dapat dihapus: kelas ini masih memiliki guru yang ditugaskan. Lepaskan penugasan gurunya dulu, atau nonaktifkan kelas saja.',
   children_learning_periods:
     'Tidak dapat dihapus: kelas ini memiliki periode belajar tercatat. Nonaktifkan saja.',

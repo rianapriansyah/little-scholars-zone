@@ -389,7 +389,7 @@ export function TeacherRosterPage() {
   )
 
   /**
-   * `groupId` is a classroom_teachers id — the same thing the Laporan Harian class picker is
+   * `groupId` is a employee_assignments id — the same thing the Laporan Harian class picker is
    * keyed on — so the report screen opens straight on this class instead of whichever one
    * happened to sort first.
    */

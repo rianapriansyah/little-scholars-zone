@@ -70,7 +70,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
 
   const loadGroups = async (classroomId: string) => {
     const { data: groupRows } = await supabase
-      .from('classroom_teachers')
+      .from('employee_assignments')
       .select('id, teacher_id, employees(full_name)')
       .eq('classroom_id', classroomId)
       .order('created_at')
@@ -109,12 +109,12 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   const loadActiveEnrollments = async (classroomId: string) => {
     const { data } = await supabase
       .from('children_classrooms')
-      .select('id, child_id, classroom_teacher_id, classroom_teachers!inner(classroom_id, employees(full_name))')
-      .eq('classroom_teachers.classroom_id', classroomId)
+      .select('id, child_id, classroom_teacher_id, employee_assignments!inner(classroom_id, employees(full_name))')
+      .eq('employee_assignments.classroom_id', classroomId)
       .is('ended_at', null)
     const map = new Map<string, ActiveEnrollment>()
     for (const row of data ?? []) {
-      const ct = row.classroom_teachers as unknown as { employees: { full_name: string } | null } | null
+      const ct = row.employee_assignments as unknown as { employees: { full_name: string } | null } | null
       map.set(row.child_id, {
         enrollmentId: row.id,
         classroomTeacherId: row.classroom_teacher_id,
@@ -147,8 +147,8 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
         .order('start_date'),
       supabase
         .from('children_classrooms')
-        .select('child_id, classroom_teachers!inner(classroom_id)')
-        .eq('classroom_teachers.classroom_id', classroomId),
+        .select('child_id, employee_assignments!inner(classroom_id)')
+        .eq('employee_assignments.classroom_id', classroomId),
     ])
 
     const starts = new Map<string, string>()
@@ -183,7 +183,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
     setBusy(true)
     setError(null)
     const { error: iErr } = await supabase
-      .from('classroom_teachers')
+      .from('employee_assignments')
       .insert({ classroom_id: classroom.id, teacher_id: newTeacherId })
     setBusy(false)
     if (iErr) {
@@ -198,7 +198,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   async function handleChangeTeacher(groupId: string, teacherId: string) {
     setBusy(true)
     setError(null)
-    const { error: uErr } = await supabase.from('classroom_teachers').update({ teacher_id: teacherId }).eq('id', groupId)
+    const { error: uErr } = await supabase.from('employee_assignments').update({ teacher_id: teacherId }).eq('id', groupId)
     setBusy(false)
     if (uErr) {
       setError(uErr.code === '23505' ? 'Guru ini sudah ditetapkan ke kelas ini.' : uErr.message)
@@ -211,7 +211,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
   async function handleRemoveTeacher(groupId: string) {
     setBusy(true)
     setError(null)
-    const { error: dErr } = await supabase.from('classroom_teachers').delete().eq('id', groupId)
+    const { error: dErr } = await supabase.from('employee_assignments').delete().eq('id', groupId)
     setBusy(false)
     if (dErr) {
       if (dErr.code === '23503') {

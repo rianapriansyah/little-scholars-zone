@@ -39,8 +39,8 @@ INSERT INTO public.work_items (id, branch_id, name, hourly_rate) VALUES
   ('00000000-0000-4000-c000-000000000031', (SELECT id FROM public.office_branch WHERE name = 'Rumah Main Rumah Kecil (Rucil)'), 'WI Test Konten', 7000);
 
 CREATE OR REPLACE FUNCTION pg_temp.status(p_group uuid)
-RETURNS public.classroom_teachers_attendance_status LANGUAGE sql STABLE AS $fn$
-  SELECT * FROM public.classroom_teachers_attendance_status
+RETURNS public.employee_attendance_status LANGUAGE sql STABLE AS $fn$
+  SELECT * FROM public.employee_attendance_status
    WHERE classroom_teacher_id = p_group
      AND session_date = (now() AT TIME ZONE 'Asia/Makassar')::date;
 $fn$;
@@ -51,14 +51,14 @@ $fn$;
 CREATE OR REPLACE FUNCTION pg_temp.backdate_open_session(p_group uuid, p_interval interval)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $fn$
 DECLARE
-  v_attendance_id uuid := (SELECT id FROM public.classroom_teachers_attendances
+  v_attendance_id uuid := (SELECT id FROM public.employee_attendances
     WHERE classroom_teacher_id = p_group AND session_date = (now() AT TIME ZONE 'Asia/Makassar')::date);
 BEGIN
   PERFORM set_config('app.work_sessions_managed', 'on', true);
-  UPDATE public.classroom_teacher_work_sessions SET started_at = started_at - p_interval
+  UPDATE public.employee_work_sessions SET started_at = started_at - p_interval
     WHERE attendance_id = v_attendance_id AND ended_at IS NULL;
-  UPDATE public.classroom_teachers_attendances SET clocked_in_at = (
-      SELECT min(started_at) FROM public.classroom_teacher_work_sessions WHERE attendance_id = v_attendance_id)
+  UPDATE public.employee_attendances SET clocked_in_at = (
+      SELECT min(started_at) FROM public.employee_work_sessions WHERE attendance_id = v_attendance_id)
     WHERE id = v_attendance_id;
   PERFORM set_config('app.work_sessions_managed', '', true);
 END;
@@ -71,7 +71,7 @@ $fn$;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-c000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}';
 
-INSERT INTO public.classroom_teachers (id, teacher_id, classroom_id, work_item_id, time_start, time_end, is_flexi_hours) VALUES
+INSERT INTO public.employee_assignments (id, teacher_id, classroom_id, work_item_id, time_start, time_end, is_flexi_hours) VALUES
   ('00000000-0000-4000-c000-000000000020', '00000000-0000-4000-c000-000000000010', NULL, '00000000-0000-4000-c000-000000000030',
    '00:00', ((now() AT TIME ZONE 'Asia/Makassar') + interval '3 minutes')::time, false),
   ('00000000-0000-4000-c000-000000000021', '00000000-0000-4000-c000-000000000010', NULL, '00000000-0000-4000-c000-000000000031',
@@ -86,7 +86,7 @@ BEGIN
   RAISE NOTICE 'PASS: the admin assigns staff work with no classroom';
 
   BEGIN
-    INSERT INTO public.classroom_teachers (teacher_id, classroom_id, work_item_id)
+    INSERT INTO public.employee_assignments (teacher_id, classroom_id, work_item_id)
     VALUES ('00000000-0000-4000-c000-000000000010', NULL, NULL);
     RAISE EXCEPTION 'FAIL: an assignment with neither a class nor a work item was accepted';
   EXCEPTION WHEN check_violation THEN
@@ -94,7 +94,7 @@ BEGIN
   END;
 
   BEGIN
-    INSERT INTO public.classroom_teachers (teacher_id, work_item_id, time_start, time_end)
+    INSERT INTO public.employee_assignments (teacher_id, work_item_id, time_start, time_end)
     VALUES ('00000000-0000-4000-c000-000000000010', '00000000-0000-4000-c000-000000000030', '08:00', '09:00');
     RAISE EXCEPTION 'FAIL: a work-item assignment without its flexi flag was accepted';
   EXCEPTION WHEN check_violation THEN
@@ -113,7 +113,7 @@ DECLARE
   v_kasir uuid := '00000000-0000-4000-c000-000000000020';
   v_konten uuid := '00000000-0000-4000-c000-000000000021';
   v_label text;
-  v_status public.classroom_teachers_attendance_status;
+  v_status public.employee_attendance_status;
   v_end time;
 BEGIN
   SELECT label INTO v_label FROM public.employee_assignment_schedules WHERE classroom_teacher_id = v_kasir;
@@ -123,7 +123,7 @@ BEGIN
   RAISE NOTICE 'PASS: the staff member sees their own staff work, labelled with its branch';
 
   BEGIN
-    INSERT INTO public.classroom_teachers (teacher_id, work_item_id, time_start, time_end, is_flexi_hours)
+    INSERT INTO public.employee_assignments (teacher_id, work_item_id, time_start, time_end, is_flexi_hours)
     VALUES ('00000000-0000-4000-c000-000000000010', '00000000-0000-4000-c000-000000000030', '08:00', '09:00', false);
     RAISE EXCEPTION 'FAIL: a teacher was able to assign themselves';
   EXCEPTION WHEN insufficient_privilege THEN

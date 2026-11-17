@@ -66,7 +66,7 @@ export function parseClassroomTeacherAttendanceStatus(
  * Which button a flexi-hours work item (Pembuatan Konten) shows right now.
  *
  * Flexi work is not one block a day: a teacher starts, finishes, and can start again after a
- * break, and each stretch is its own session (see classroom_teacher_work_sessions). So finishing
+ * break, and each stretch is its own session (see employee_work_sessions). So finishing
  * never retires the button the way it does on a scheduled class — it only changes what the button
  * offers next.
  *
@@ -137,7 +137,7 @@ export async function fetchAttendanceForClassroomTeachers(
   if (classroomTeacherIds.length === 0) return { ok: true, data: new Map() }
 
   const { data, error } = await supabase
-    .from('classroom_teachers_attendance_status')
+    .from('employee_attendance_status')
     .select('*')
     .in('classroom_teacher_id', classroomTeacherIds)
     .eq('session_date', sessionDate)
@@ -256,7 +256,7 @@ export async function fetchAttendanceRoster(sessionDate: string): Promise<Result
   const rates = ratesResult.data
 
   const { data: statusRows, error: sError } = await supabase
-    .from('classroom_teachers_attendance_status')
+    .from('employee_attendance_status')
     .select('*')
     .eq('session_date', sessionDate)
   if (sError) return { ok: false, error: sError.message }
@@ -408,7 +408,7 @@ export async function saveClassroomTeacherAttendance(params: {
   const { data: userRes } = await supabase.auth.getUser()
 
   const { data, error } = await supabase
-    .from('classroom_teachers_attendances')
+    .from('employee_attendances')
     .upsert(
       {
         classroom_teacher_id: params.classroomTeacherId,

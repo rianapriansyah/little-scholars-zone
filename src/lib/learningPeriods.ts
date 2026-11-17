@@ -34,10 +34,10 @@ function toListEntry(row: PeriodStatusListRow): LearningPeriodListEntry | null {
   }
 }
 
-/** The classrooms this teacher is assigned to, via the classroom_teachers junction. */
+/** The classrooms this teacher is assigned to, via the employee_assignments junction. */
 export async function fetchTeacherClassrooms(teacherId: string): Promise<Result<ClassroomRow[]>> {
   const { data, error } = await supabase
-    .from('classroom_teachers')
+    .from('employee_assignments')
     .select('classrooms(*)')
     .eq('teacher_id', teacherId)
   if (error) return { ok: false, error: error.message }
@@ -56,12 +56,12 @@ export async function fetchTeacherClassrooms(teacherId: string): Promise<Result<
  * The classrooms a child is currently enrolled in, newest enrollment first. A child can sit in
  * one class per program, so this is a list — the period dialog preselects the head of it.
  * Enrollment points at a (classroom, teacher) pair, so the classroom comes out through
- * classroom_teachers.
+ * employee_assignments.
  */
 export async function fetchChildActiveClassrooms(childId: string): Promise<Result<ClassroomRow[]>> {
   const { data, error } = await supabase
     .from('children_classrooms')
-    .select('classroom_teachers(classrooms(*))')
+    .select('employee_assignments(classrooms(*))')
     .eq('child_id', childId)
     .is('ended_at', null)
     .order('started_at', { ascending: false })
@@ -69,7 +69,7 @@ export async function fetchChildActiveClassrooms(childId: string): Promise<Resul
 
   const classrooms: ClassroomRow[] = []
   for (const row of data ?? []) {
-    const group = row.classroom_teachers as unknown as { classrooms: ClassroomRow | null } | null
+    const group = row.employee_assignments as unknown as { classrooms: ClassroomRow | null } | null
     if (group?.classrooms) classrooms.push(group.classrooms)
   }
   return { ok: true, data: classrooms }
@@ -95,7 +95,7 @@ export async function fetchActiveClassrooms(): Promise<Result<ClassroomRow[]>> {
  */
 export async function fetchClassroomRoster(classroomId: string): Promise<Result<RosterChild[]>> {
   const { data: groupRows, error: gError } = await supabase
-    .from('classroom_teachers')
+    .from('employee_assignments')
     .select('id')
     .eq('classroom_id', classroomId)
   if (gError) return { ok: false, error: gError.message }

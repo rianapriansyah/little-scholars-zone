@@ -44,7 +44,7 @@ INSERT INTO public.classrooms (id, label, time_start, time_end, price) VALUES
   ('00000000-0000-4000-9000-000000000019', 'LP Classroom Y', '11:00', '12:00', 500000),
   ('00000000-0000-4000-9000-00000000001a', 'LP Classroom Z', '13:00', '14:00', 500000);
 
-INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
+INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-9000-000000000020', '00000000-0000-4000-9000-000000000018', '00000000-0000-4000-9000-000000000012'),
   ('00000000-0000-4000-9000-000000000021', '00000000-0000-4000-9000-000000000019', '00000000-0000-4000-9000-000000000012'),
   ('00000000-0000-4000-9000-000000000022', '00000000-0000-4000-9000-00000000001a', '00000000-0000-4000-9000-000000000013');
@@ -397,7 +397,7 @@ END $$;
 RESET ROLE;
 
 -- A second group in classroom Z, so a switch within Z has somewhere to go.
-INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
+INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-9000-000000000023', '00000000-0000-4000-9000-00000000001a', '00000000-0000-4000-9000-000000000012');
 
 DO $$

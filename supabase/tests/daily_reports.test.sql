@@ -46,7 +46,7 @@ INSERT INTO public.classrooms (id, label, time_start, time_end, price) VALUES
   ('00000000-0000-4000-8000-000000000018', 'Test Classroom', '10:00', '12:00', 0),
   ('00000000-0000-4000-8000-000000000030', 'Test Classroom 2', '15:30', '17:30', 0);
 
-INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
+INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-8000-000000000019', '00000000-0000-4000-8000-000000000018', '00000000-0000-4000-8000-000000000012'),
   ('00000000-0000-4000-8000-00000000001a', '00000000-0000-4000-8000-000000000018', '00000000-0000-4000-8000-000000000013'),
   ('00000000-0000-4000-8000-000000000031', '00000000-0000-4000-8000-000000000030', '00000000-0000-4000-8000-000000000012');
@@ -731,7 +731,7 @@ BEGIN
     SELECT 1
       FROM public.children_daily_reports r
       JOIN public.children_attendances a ON a.id = r.child_attendance_id
-      LEFT JOIN public.classroom_teachers ct ON ct.id = public.daily_report_group_id(r.child_attendance_id)
+      LEFT JOIN public.employee_assignments ct ON ct.id = public.daily_report_group_id(r.child_attendance_id)
      WHERE r.child_id IN ('00000000-0000-4000-8000-000000000016', '00000000-0000-4000-8000-000000000017')
        AND (a.child_id <> r.child_id
             OR a.classroom_id <> r.classroom_id

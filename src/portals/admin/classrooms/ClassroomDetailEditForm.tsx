@@ -85,7 +85,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
 
       if (classroom) {
         void supabase
-          .from('classroom_teachers')
+          .from('employee_assignments')
           .select('id, employees(full_name)')
           .eq('classroom_id', classroom.id)
           .then(({ data }) => {
@@ -172,13 +172,10 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         return
       }
 
-      // A billable class takes its program; teacher_rate is kept as a copy of the program's rate
-      // until the column is dropped, nothing reads it any more. A staff-work class has no program
-      // (its people are paid from their work item) and its old teacher_rate is left as it is.
+      // A billable class takes its program, and its teachers are paid the program's rate. A
+      // non-billable class has no program.
       const programFields =
-        isBillable && selectedProgram
-          ? { program_id: selectedProgram.id, teacher_rate: selectedProgram.hourly_rate }
-          : { program_id: null }
+        isBillable && selectedProgram ? { program_id: selectedProgram.id } : { program_id: null }
 
       setSaving(true)
       if (isEdit) {

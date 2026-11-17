@@ -70,7 +70,7 @@ export async function fetchMonthlyAttendance(
   if (classroomTeacherIds.length === 0) return { ok: true, data: [] }
 
   const { data, error } = await supabase
-    .from('classroom_teachers_attendance_status')
+    .from('employee_attendance_status')
     .select('*')
     .in('classroom_teacher_id', classroomTeacherIds)
     .gte('session_date', start)

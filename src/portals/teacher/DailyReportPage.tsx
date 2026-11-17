@@ -78,7 +78,7 @@ export function DailyReportPage() {
     void (async () => {
       const [{ data: groupRows, error: gError }, catalogResult] = await Promise.all([
         supabase
-          .from('classroom_teachers')
+          .from('employee_assignments')
           .select('id, classroom_id, classrooms(label, time_start, time_end)')
           .eq('teacher_id', teacher.id),
         fetchCurriculumItems(),

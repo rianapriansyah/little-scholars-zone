@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 import type { Result } from './result'
 
 /**
- * When and how one assignment (classroom_teachers row) is worked, from the
+ * When and how one assignment (employee_assignments row) is worked, from the
  * employee_assignment_schedules view — the same source every clock-in rule in the database reads.
  * Teaching takes these from its class; staff work (Piket, Konten, Caregiving, Kasir...) from its
  * work item and its own times, with no classroom behind it.

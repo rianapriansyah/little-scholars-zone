@@ -30,7 +30,7 @@ export function ClassroomsPage() {
     setError(null)
     const [classroomsRes, groupsRes, enrollmentsRes] = await Promise.all([
       supabase.from('classrooms').select('*').order('label'),
-      supabase.from('classroom_teachers').select('id, classroom_id'),
+      supabase.from('employee_assignments').select('id, classroom_id'),
       supabase.from('children_classrooms').select('classroom_teacher_id').is('ended_at', null),
     ])
     setLoading(false)

@@ -1,4 +1,4 @@
--- Tests for guru pengganti: the classroom_teachers_substitutions table and its trigger, the
+-- Tests for guru pengganti: the employee_substitutions table and its trigger, the
 -- date-aware write gates, the substitute's read policies, declare/withdraw, substitutable_classes,
 -- and the author attribution in daily_report_for_attendance (migrations 20261019020000 and
 -- 20261019030000).
@@ -17,7 +17,7 @@
 --
 -- Two ways coverage gets created here, for two different reasons:
 --   * the fixed-date cases (2026-08-03) insert the row directly under the admin JWT, which
---     admin_all_classroom_teachers_substitutions permits. declare_substitution deliberately has no
+--     admin_all_employee_substitutions permits. declare_substitution deliberately has no
 --     date parameter, so an arbitrary past date is not reachable through it.
 --   * the declare_substitution cases use is_flexi_hours classrooms, which is what makes them
 --     deterministic: that RPC reads today's WITA date itself and applies the Mon–Fri and
@@ -59,7 +59,7 @@ INSERT INTO public.classrooms (id, label, time_start, time_end, price, is_flexi_
   ('00000000-0000-4000-9000-00000000001b', 'Sub Test Flexi Two',       '08:00', '09:00', 0, true);
 
 -- g20 and g21 are two groups of the SAME classroom; g22 is C's group elsewhere.
-INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
+INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-9000-000000000020', '00000000-0000-4000-9000-000000000018', '00000000-0000-4000-9000-000000000012'),
   ('00000000-0000-4000-9000-000000000021', '00000000-0000-4000-9000-000000000018', '00000000-0000-4000-9000-000000000013'),
   ('00000000-0000-4000-9000-000000000022', '00000000-0000-4000-9000-000000000019', '00000000-0000-4000-9000-000000000014'),
@@ -231,7 +231,7 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000001","r
 
 DO $$
 BEGIN
-  INSERT INTO public.classroom_teachers_substitutions (
+  INSERT INTO public.employee_substitutions (
     classroom_teacher_id, substitute_teacher_id, session_date, counts_for_pay, created_by_role, reason
   ) VALUES (
     '00000000-0000-4000-9000-000000000020',
@@ -245,7 +245,7 @@ BEGIN
 
   -- Self-substitution, whatever the route in.
   BEGIN
-    INSERT INTO public.classroom_teachers_substitutions (
+    INSERT INTO public.employee_substitutions (
       classroom_teacher_id, substitute_teacher_id, session_date, counts_for_pay, created_by_role
     ) VALUES (
       '00000000-0000-4000-9000-000000000023',
@@ -260,7 +260,7 @@ BEGIN
 
   -- A second substitute on the same group and day is allowed: the absent teacher's children are
   -- distributed among those who are left, so each of them gets a row.
-  INSERT INTO public.classroom_teachers_substitutions (
+  INSERT INTO public.employee_substitutions (
     classroom_teacher_id, substitute_teacher_id, session_date, counts_for_pay, created_by_role
   ) VALUES (
     '00000000-0000-4000-9000-000000000020',
@@ -271,7 +271,7 @@ BEGIN
 
   -- But the SAME teacher twice on the same group and day still cannot.
   BEGIN
-    INSERT INTO public.classroom_teachers_substitutions (
+    INSERT INTO public.employee_substitutions (
       classroom_teacher_id, substitute_teacher_id, session_date, counts_for_pay, created_by_role
     ) VALUES (
       '00000000-0000-4000-9000-000000000020',
@@ -286,7 +286,7 @@ BEGIN
 
   -- Clean up so the later date-scoping checks still measure what they mean to: C is used below as
   -- the teacher with no access to this classroom.
-  DELETE FROM public.classroom_teachers_substitutions
+  DELETE FROM public.employee_substitutions
   WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000020'
     AND substitute_teacher_id = '00000000-0000-4000-9000-000000000014'
     AND session_date = '2026-08-03';
@@ -321,7 +321,7 @@ BEGIN
     RAISE EXCEPTION 'FAIL: B should now see the covered child';
   END IF;
 
-  SELECT count(*) INTO v_rows FROM public.classroom_teachers
+  SELECT count(*) INTO v_rows FROM public.employee_assignments
     WHERE id = '00000000-0000-4000-9000-000000000020';
   IF v_rows <> 1 THEN
     RAISE EXCEPTION 'FAIL: B should now see the covered group row';
@@ -412,7 +412,7 @@ SET LOCAL request.jwt.claims = '';
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}';
 
-INSERT INTO public.classroom_teachers_substitutions (
+INSERT INTO public.employee_substitutions (
   classroom_teacher_id, substitute_teacher_id, session_date, counts_for_pay, created_by_role
 ) VALUES (
   '00000000-0000-4000-9000-000000000020',
@@ -625,7 +625,7 @@ BEGIN
   END IF;
 
   SELECT counts_for_pay INTO v_counts
-    FROM public.classroom_teachers_substitutions WHERE id = v_id;
+    FROM public.employee_substitutions WHERE id = v_id;
   IF NOT v_counts THEN
     RAISE EXCEPTION 'FAIL: B holds no group in the flexi classroom, so this should be payable';
   END IF;
@@ -702,7 +702,7 @@ BEGIN
   -- C can only SELECT her own coverage row, so a raw count here would read 1 whether B's row
   -- survived or not. other_substitute_count below is the assertion that actually proves it: it
   -- comes from a SECURITY DEFINER function that can see every substitute on the group.
-  SELECT count(*) INTO v_rows FROM public.classroom_teachers_substitutions
+  SELECT count(*) INTO v_rows FROM public.employee_substitutions
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023' AND session_date = v_date;
   IF v_rows <> 1 THEN
     RAISE EXCEPTION 'FAIL: C should see exactly her own coverage row, got %', v_rows;
@@ -735,7 +735,7 @@ RESET ROLE;
 SET LOCAL request.jwt.claims = '';
 
 -- A is standing right there, so her class is not a coverage situation.
-INSERT INTO public.classroom_teachers_attendances (classroom_teacher_id, session_date, clocked_in_at, clocked_in_source)
+INSERT INTO public.employee_attendances (classroom_teacher_id, session_date, clocked_in_at, clocked_in_source)
 VALUES ('00000000-0000-4000-9000-000000000024', (now() AT TIME ZONE 'Asia/Makassar')::date, now(), 'teacher');
 
 SET LOCAL ROLE authenticated;
@@ -794,7 +794,7 @@ DO $$
 DECLARE
   v_rows int;
 BEGIN
-  SELECT count(*) INTO v_rows FROM public.classroom_teachers_substitutions
+  SELECT count(*) INTO v_rows FROM public.employee_substitutions
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023';
   IF v_rows <> 1 THEN
     RAISE EXCEPTION 'FAIL: withdrawing C''s share must leave B''s row, % rows left', v_rows;
@@ -814,7 +814,7 @@ DECLARE
   v_rows int;
 BEGIN
   -- Visible to her beforehand, so the 0 below means "deleted" rather than "never readable".
-  SELECT count(*) INTO v_rows FROM public.classroom_teachers_substitutions
+  SELECT count(*) INTO v_rows FROM public.employee_substitutions
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023';
   IF v_rows <> 1 THEN
     RAISE EXCEPTION 'FAIL: B should be able to see her own coverage before withdrawing it, got %', v_rows;
@@ -822,7 +822,7 @@ BEGIN
 
   PERFORM public.withdraw_substitution('00000000-0000-4000-9000-000000000023', v_date);
 
-  SELECT count(*) INTO v_rows FROM public.classroom_teachers_substitutions
+  SELECT count(*) INTO v_rows FROM public.employee_substitutions
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000023';
   IF v_rows <> 0 THEN
     RAISE EXCEPTION 'FAIL: B should have been able to withdraw her own coverage';
@@ -843,7 +843,7 @@ BEGIN
 
   -- 2026-08-03's coverage is untouched by a withdraw aimed at today.
   IF NOT EXISTS (
-    SELECT 1 FROM public.classroom_teachers_substitutions
+    SELECT 1 FROM public.employee_substitutions
     WHERE classroom_teacher_id = '00000000-0000-4000-9000-000000000020' AND session_date = '2026-08-03'
   ) THEN
     RAISE EXCEPTION 'FAIL: withdraw must only ever remove today''s coverage';

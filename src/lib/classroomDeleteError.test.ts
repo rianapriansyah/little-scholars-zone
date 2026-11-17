@@ -18,7 +18,7 @@ describe('classroomDeleteErrorMessage', () => {
   })
 
   it('names the assigned teacher as the blocker, not a student enrollment', () => {
-    const message = classroomDeleteErrorMessage(fkViolation('classroom_teachers'))
+    const message = classroomDeleteErrorMessage(fkViolation('employee_assignments'))
     expect(message).toContain('guru yang ditugaskan')
     expect(message).not.toContain('pendaftaran siswa')
   })
@@ -37,7 +37,7 @@ describe('classroomDeleteErrorMessage', () => {
 
   it('falls back to the message when PostgREST withholds details', () => {
     expect(
-      classroomDeleteErrorMessage({ ...fkViolation('classroom_teachers'), details: null }),
+      classroomDeleteErrorMessage({ ...fkViolation('employee_assignments'), details: null }),
     ).toContain('guru yang ditugaskan')
   })
 

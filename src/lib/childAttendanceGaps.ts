@@ -196,7 +196,7 @@ type ClassMeta = {
 export async function fetchUnfilledClassAttendance(date: string): Promise<Result<ClassAttendanceGap[]>> {
   const [groupsRes, enrollmentsRes, periodsRes, attendancesRes] = await Promise.all([
     supabase
-      .from('classroom_teachers')
+      .from('employee_assignments')
       .select(
         'id, classroom_id, teacher_id, classrooms(label, time_start, time_end, active, is_billable), employees(full_name, call_name, contact_phone)',
       ),

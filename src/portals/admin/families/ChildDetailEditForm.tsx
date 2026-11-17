@@ -109,13 +109,13 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
     const { data } = await supabase
       .from('children_classrooms')
       .select(
-        'id, classroom_teacher_id, started_at, ended_at, end_reason, classroom_teachers(classroom_id, classrooms(label), employees(full_name, call_name))',
+        'id, classroom_teacher_id, started_at, ended_at, end_reason, employee_assignments(classroom_id, classrooms(label), employees(full_name, call_name))',
       )
       .eq('child_id', id)
       .order('started_at', { ascending: false })
     setEnrollments(
       (data ?? []).map((row) => {
-        const group = row.classroom_teachers as unknown as
+        const group = row.employee_assignments as unknown as
           | {
               classroom_id: string
               classrooms: { label: string } | null
@@ -180,7 +180,7 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
     if (!childId) return
 
     void supabase
-      .from('classroom_teachers')
+      .from('employee_assignments')
       .select('id, classroom_id, classrooms(label, is_billable), employees(full_name, call_name)')
       .then(({ data }) => {
         // Enrolling a child only ever makes sense into a real fee-paying program — never into

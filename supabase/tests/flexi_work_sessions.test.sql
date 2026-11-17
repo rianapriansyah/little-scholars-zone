@@ -1,6 +1,6 @@
--- Tests for flexi-hours work sessions: the classroom_teacher_work_sessions table, the Mulai →
+-- Tests for flexi-hours work sessions: the employee_work_sessions table, the Mulai →
 -- Selesai → Lanjutkan cycle through the two clock RPCs, the summed minutes_taught in
--- classroom_teachers_attendance_status, and the admin-edit collapse trigger (migration
+-- employee_attendance_status, and the admin-edit collapse trigger (migration
 -- 20261106010000).
 --
 -- Everything runs inside one transaction that ends in ROLLBACK, so it is safe to run against the
@@ -47,37 +47,37 @@ INSERT INTO public.classrooms (id, label, time_start, time_end, price, is_billab
   ('00000000-0000-4000-b000-000000000018', 'Flexi Test Programme', '08:00', '17:00', 0, false, true),
   ('00000000-0000-4000-b000-000000000019', 'Flexi Test Scheduled', '00:00', '23:59', 0, true,  false);
 
-INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
+INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-b000-000000000020', '00000000-0000-4000-b000-000000000018', '00000000-0000-4000-b000-000000000010'),
   ('00000000-0000-4000-b000-000000000021', '00000000-0000-4000-b000-000000000019', '00000000-0000-4000-b000-000000000010'),
   ('00000000-0000-4000-b000-000000000022', '00000000-0000-4000-b000-000000000017', '00000000-0000-4000-b000-000000000010');
 
 -- Shorthands, so each assertion below reads as the thing it is checking rather than as a join.
 CREATE OR REPLACE FUNCTION pg_temp.attendance_id(p_group uuid) RETURNS uuid LANGUAGE sql STABLE AS $fn$
-  SELECT id FROM public.classroom_teachers_attendances
+  SELECT id FROM public.employee_attendances
    WHERE classroom_teacher_id = p_group
      AND session_date = (now() AT TIME ZONE 'Asia/Makassar')::date;
 $fn$;
 
 CREATE OR REPLACE FUNCTION pg_temp.minutes(p_group uuid) RETURNS int LANGUAGE sql STABLE AS $fn$
-  SELECT minutes_taught FROM public.classroom_teachers_attendance_status
+  SELECT minutes_taught FROM public.employee_attendance_status
    WHERE classroom_teacher_id = p_group
      AND session_date = (now() AT TIME ZONE 'Asia/Makassar')::date;
 $fn$;
 
 CREATE OR REPLACE FUNCTION pg_temp.session_count(p_group uuid) RETURNS int LANGUAGE sql STABLE AS $fn$
-  SELECT work_session_count FROM public.classroom_teachers_attendance_status
+  SELECT work_session_count FROM public.employee_attendance_status
    WHERE classroom_teacher_id = p_group
      AND session_date = (now() AT TIME ZONE 'Asia/Makassar')::date;
 $fn$;
 
 CREATE OR REPLACE FUNCTION pg_temp.open_sessions(p_group uuid) RETURNS int LANGUAGE sql STABLE AS $fn$
-  SELECT count(*)::int FROM public.classroom_teacher_work_sessions
+  SELECT count(*)::int FROM public.employee_work_sessions
    WHERE attendance_id = pg_temp.attendance_id(p_group) AND ended_at IS NULL;
 $fn$;
 
 CREATE OR REPLACE FUNCTION pg_temp.clocked_out_at(p_group uuid) RETURNS timestamptz LANGUAGE sql STABLE AS $fn$
-  SELECT clocked_out_at FROM public.classroom_teachers_attendances
+  SELECT clocked_out_at FROM public.employee_attendances
    WHERE id = pg_temp.attendance_id(p_group);
 $fn$;
 
@@ -105,13 +105,13 @@ DECLARE
 BEGIN
   PERFORM set_config('app.work_sessions_managed', 'on', true);
 
-  UPDATE public.classroom_teacher_work_sessions
+  UPDATE public.employee_work_sessions
     SET started_at = started_at - p_interval
     WHERE attendance_id = v_attendance_id AND ended_at IS NULL;
 
-  UPDATE public.classroom_teachers_attendances
+  UPDATE public.employee_attendances
     SET clocked_in_at = (
-      SELECT min(started_at) FROM public.classroom_teacher_work_sessions
+      SELECT min(started_at) FROM public.employee_work_sessions
        WHERE attendance_id = v_attendance_id
     )
     WHERE id = v_attendance_id;
@@ -224,11 +224,11 @@ BEGIN
   -- Still idempotent the old way: on a scheduled class a second tap must not shift the recorded
   -- time, which is the behaviour the flexi branch deliberately no longer shares.
   DECLARE
-    v_first timestamptz := (SELECT clocked_in_at FROM public.classroom_teachers_attendances
+    v_first timestamptz := (SELECT clocked_in_at FROM public.employee_attendances
                              WHERE id = pg_temp.attendance_id(v_group));
   BEGIN
     PERFORM public.clock_in_classroom_teacher(v_group);
-    IF (SELECT clocked_in_at FROM public.classroom_teachers_attendances
+    IF (SELECT clocked_in_at FROM public.employee_attendances
          WHERE id = pg_temp.attendance_id(v_group)) <> v_first THEN
       RAISE EXCEPTION 'FAIL: a second Masuk Kelas must not shift a scheduled class''s jam masuk';
     END IF;
@@ -275,11 +275,11 @@ BEGIN
 
   -- Mulai at t1.
   PERFORM public.clock_in_classroom_teacher(v_group, v_t1);
-  IF (SELECT clocked_in_at FROM public.classroom_teachers_attendances
+  IF (SELECT clocked_in_at FROM public.employee_attendances
        WHERE id = pg_temp.attendance_id(v_group)) <> v_t1 THEN
     RAISE EXCEPTION 'FAIL: Mulai must record the picked time as jam masuk';
   END IF;
-  IF (SELECT started_at FROM public.classroom_teacher_work_sessions
+  IF (SELECT started_at FROM public.employee_work_sessions
        WHERE attendance_id = pg_temp.attendance_id(v_group) AND ended_at IS NULL) <> v_t1 THEN
     RAISE EXCEPTION 'FAIL: the running session must start at the picked time';
   END IF;
@@ -315,7 +315,7 @@ BEGIN
   IF pg_temp.session_count(v_group) <> 2 OR pg_temp.open_sessions(v_group) <> 1 THEN
     RAISE EXCEPTION 'FAIL: Lanjutkan at a picked time must open a second session';
   END IF;
-  IF (SELECT clocked_in_at FROM public.classroom_teachers_attendances
+  IF (SELECT clocked_in_at FROM public.employee_attendances
        WHERE id = pg_temp.attendance_id(v_group)) <> v_t1 THEN
     RAISE EXCEPTION 'FAIL: Lanjutkan must not move the day''s jam masuk';
   END IF;
@@ -338,7 +338,7 @@ BEGIN
 
   -- Selesai at t4: the day is the two picked stretches, not the span across them.
   PERFORM public.clock_out_classroom_teacher(v_group, v_t4);
-  IF (SELECT sum(ended_at - started_at) FROM public.classroom_teacher_work_sessions
+  IF (SELECT sum(ended_at - started_at) FROM public.employee_work_sessions
        WHERE attendance_id = pg_temp.attendance_id(v_group)) <> (v_t2 - v_t1) + (v_t4 - v_t3) THEN
     RAISE EXCEPTION 'FAIL: the sessions must be exactly the picked stretches';
   END IF;
@@ -366,7 +366,7 @@ BEGIN
   v_out := (v_day::text || ' 16:00')::timestamp AT TIME ZONE 'Asia/Makassar';
 
   -- Exactly what saveClassroomTeacherAttendance sends from the Kehadiran Guru dialog.
-  UPDATE public.classroom_teachers_attendances
+  UPDATE public.employee_attendances
     SET clocked_in_at = v_in, clocked_in_source = 'admin',
         clocked_out_at = v_out, clocked_out_source = 'admin',
         edited_by = '00000000-0000-4000-b000-000000000001'
@@ -384,7 +384,7 @@ BEGIN
 
   -- Re-saving the same values changes nothing: the trigger only acts on a pair that moved, so
   -- opening the dialog and pressing Simpan without editing is not a destructive act.
-  UPDATE public.classroom_teachers_attendances
+  UPDATE public.employee_attendances
     SET clocked_in_at = v_in, clocked_out_at = v_out, notes = 'tidak mengubah jam'
     WHERE id = pg_temp.attendance_id(v_group);
 
@@ -394,7 +394,7 @@ BEGIN
   RAISE NOTICE 'PASS: saving a correction that changes no times is a no-op';
 
   -- Clearing the jam masuk clears the day entirely rather than leaving orphaned sessions behind.
-  UPDATE public.classroom_teachers_attendances
+  UPDATE public.employee_attendances
     SET clocked_in_at = NULL, clocked_in_source = NULL,
         clocked_out_at = NULL, clocked_out_source = NULL
     WHERE id = pg_temp.attendance_id(v_group);
@@ -421,9 +421,9 @@ DECLARE
 BEGIN
   -- Rebuild the legacy shape: a finished pair with no session rows under it.
   PERFORM set_config('app.work_sessions_managed', 'on', true);
-  DELETE FROM public.classroom_teacher_work_sessions
+  DELETE FROM public.employee_work_sessions
     WHERE attendance_id = pg_temp.attendance_id(v_group);
-  UPDATE public.classroom_teachers_attendances
+  UPDATE public.employee_attendances
     SET clocked_in_at = now() - interval '5 hours', clocked_in_source = 'teacher',
         clocked_out_at = now() - interval '2 hours', clocked_out_source = 'teacher'
     WHERE id = pg_temp.attendance_id(v_group);

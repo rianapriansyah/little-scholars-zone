@@ -36,7 +36,7 @@ INSERT INTO public.children (id, family_id, full_name) VALUES
 INSERT INTO public.classrooms (id, label, time_start, time_end, price) VALUES
   ('00000000-0000-4000-9000-000000000018', 'Test AAA Classroom', '08:00', '10:00', 0);
 
-INSERT INTO public.classroom_teachers (id, classroom_id, teacher_id) VALUES
+INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-9000-000000000019', '00000000-0000-4000-9000-000000000018', '00000000-0000-4000-9000-000000000012');
 
 INSERT INTO public.children_classrooms (child_id, classroom_teacher_id, started_at, ended_at) VALUES

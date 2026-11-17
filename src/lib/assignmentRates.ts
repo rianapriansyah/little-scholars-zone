@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 import type { Result } from './result'
 
 /**
- * What one assignment (classroom_teachers row) is paid per hour, and which branch that pay belongs
+ * What one assignment (employee_assignments row) is paid per hour, and which branch that pay belongs
  * to. Read from the employee_assignment_rates view, the only place a rate comes from:
  * programs.hourly_rate for teaching (through the class), work_items.hourly_rate for any other work.
  */

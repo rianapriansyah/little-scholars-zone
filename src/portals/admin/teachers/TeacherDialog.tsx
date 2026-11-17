@@ -155,7 +155,7 @@ export function TeacherDialog({ open, teacher, onClose, onSaved }: Props) {
       photo_url: photoUrl,
       start_working_at: startWorkingAt || todayIsoDate(),
       end_working_at: endWorkingAt || null,
-      // No rate: pay is per class (classrooms.teacher_rate), and the old personal rate column was
+      // No rate: pay comes from the program or work item assigned, and the old personal rate column was
       // dropped when teachers became employees. position_id is left to its database default
       // (Pengajar) — this dialog only ever creates teachers.
     }

@@ -36,7 +36,7 @@ export function ChildrenPage() {
       supabase.from('families').select('*'),
       supabase
         .from('children_classrooms')
-        .select('child_id, classroom_teachers(classrooms(label), employees(full_name))')
+        .select('child_id, employee_assignments(classrooms(label), employees(full_name))')
         .is('ended_at', null),
     ])
     setLoading(false)
@@ -51,7 +51,7 @@ export function ChildrenPage() {
     // A child can sit in one class per program, so this is a list, not a single label.
     const classroomsByChild = new Map<string, string[]>()
     for (const row of enrollmentsRes.data ?? []) {
-      const group = row.classroom_teachers as unknown as
+      const group = row.employee_assignments as unknown as
         | { classrooms: { label: string } | null; employees: { full_name: string } | null }
         | null
       if (!group?.classrooms) continue
