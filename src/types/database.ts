@@ -344,8 +344,6 @@ export type Database = {
           created_at: string | null
           guaranteed_days: number
           id: string
-          is_billable: boolean
-          is_flexi_hours: boolean
           label: string
           max_students_per_teacher: number
           price: number
@@ -358,8 +356,6 @@ export type Database = {
           created_at?: string | null
           guaranteed_days?: number
           id?: string
-          is_billable?: boolean
-          is_flexi_hours?: boolean
           label: string
           max_students_per_teacher?: number
           price: number
@@ -372,8 +368,6 @@ export type Database = {
           created_at?: string | null
           guaranteed_days?: number
           id?: string
-          is_billable?: boolean
-          is_flexi_hours?: boolean
           label?: string
           max_students_per_teacher?: number
           price?: number
@@ -1197,7 +1191,6 @@ export type Database = {
           classroom_id: string | null
           classroom_teacher_id: string | null
           employee_id: string | null
-          is_billable: boolean | null
           is_flexi_hours: boolean | null
           label: string | null
           time_end: string | null

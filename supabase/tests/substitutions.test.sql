@@ -19,13 +19,20 @@
 --   * the fixed-date cases (2026-08-03) insert the row directly under the admin JWT, which
 --     admin_all_employee_substitutions permits. declare_substitution deliberately has no
 --     date parameter, so an arbitrary past date is not reachable through it.
---   * the declare_substitution cases use is_flexi_hours classrooms, which is what makes them
---     deterministic: that RPC reads today's WITA date itself and applies the Mon–Fri and
---     "an hour before the class starts" rules, neither of which a fixed fixture date can satisfy on
---     every day this suite might run. A flexi classroom skips both by design, leaving the rules the
---     script actually wants to pin: sharing a group, self-substitution and the clocked-in guard.
+--   * the declare_substitution cases run on pg_temp.cover_day(): the last weekday before today.
+--     That RPC applies the Mon–Fri rule to the date and the "an hour before the class starts" rule
+--     to today only, so a past weekday satisfies both on every day this suite might run (classes
+--     have fixed hours since 20261118040000; they used to rely on a flexi classroom). That leaves
+--     the rules the script actually wants to pin: sharing a group, self-substitution and the
+--     clocked-in guard. The two classes they use run 05:00–06:00, clear of B's and C's own classes,
+--     so the "two rooms at once" rule does not get in the way either.
 
 BEGIN;
+
+CREATE FUNCTION pg_temp.cover_day() RETURNS date LANGUAGE sql STABLE AS $fn$
+  SELECT d - CASE extract(isodow FROM d)::int WHEN 1 THEN 3 WHEN 7 THEN 2 ELSE 1 END
+  FROM (SELECT (now() AT TIME ZONE 'Asia/Makassar')::date AS d) t;
+$fn$;
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -52,11 +59,11 @@ INSERT INTO public.families (id, login_email, auth_user_id) VALUES
 INSERT INTO public.children (id, family_id, full_name) VALUES
   ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000015', 'Sub Test Child');
 
-INSERT INTO public.classrooms (id, label, time_start, time_end, price, is_flexi_hours) VALUES
-  ('00000000-0000-4000-9000-000000000018', 'Sub Test Classroom',       '10:00', '12:00', 0, false),
-  ('00000000-0000-4000-9000-000000000019', 'Sub Test Classroom Other', '13:00', '15:00', 0, false),
-  ('00000000-0000-4000-9000-00000000001a', 'Sub Test Flexi One',       '08:00', '09:00', 0, true),
-  ('00000000-0000-4000-9000-00000000001b', 'Sub Test Flexi Two',       '08:00', '09:00', 0, true);
+INSERT INTO public.classrooms (id, label, time_start, time_end, price) VALUES
+  ('00000000-0000-4000-9000-000000000018', 'Sub Test Classroom',       '10:00', '12:00', 0),
+  ('00000000-0000-4000-9000-000000000019', 'Sub Test Classroom Other', '13:00', '15:00', 0),
+  ('00000000-0000-4000-9000-00000000001a', 'Sub Test Early One',       '05:00', '06:00', 0),
+  ('00000000-0000-4000-9000-00000000001b', 'Sub Test Early Two',       '05:00', '06:00', 0);
 
 -- g20 and g21 are two groups of the SAME classroom; g22 is C's group elsewhere.
 INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
@@ -66,7 +73,7 @@ INSERT INTO public.employee_assignments (id, classroom_id, teacher_id) VALUES
   ('00000000-0000-4000-9000-000000000023', '00000000-0000-4000-9000-00000000001a', '00000000-0000-4000-9000-000000000012'),
   ('00000000-0000-4000-9000-000000000024', '00000000-0000-4000-9000-00000000001b', '00000000-0000-4000-9000-000000000012');
 
--- The child is in A's group, in A's classroom and in both flexi programmes.
+-- The child is in A's group, in A's classroom and in both early classes.
 INSERT INTO public.children_classrooms (child_id, classroom_teacher_id, started_at) VALUES
   ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000020', '2026-01-01'),
   ('00000000-0000-4000-9000-000000000016', '00000000-0000-4000-9000-000000000023', '2026-01-01'),
@@ -604,7 +611,7 @@ RESET ROLE;
 SET LOCAL request.jwt.claims = '';
 
 -- ---------------------------------------------------------------------------
--- declare_substitution — the Gantikan Kelas button, on the flexi classrooms so today qualifies
+-- declare_substitution — the Gantikan Kelas button, on the early classes and the last weekday
 -- ---------------------------------------------------------------------------
 
 SET LOCAL ROLE authenticated;
@@ -612,7 +619,7 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000003","r
 
 DO $$
 DECLARE
-  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
+  v_date date := pg_temp.cover_day();
   v_id uuid;
   v_again uuid;
   v_counts boolean;
@@ -621,13 +628,13 @@ DECLARE
 BEGIN
   v_id := public.declare_substitution('00000000-0000-4000-9000-000000000023', v_date, 'A tidak hadir');
   IF v_id IS NULL THEN
-    RAISE EXCEPTION 'FAIL: B should be able to declare coverage of A''s flexi group today';
+    RAISE EXCEPTION 'FAIL: B should be able to declare coverage of A''s early group';
   END IF;
 
   SELECT counts_for_pay INTO v_counts
     FROM public.employee_substitutions WHERE id = v_id;
   IF NOT v_counts THEN
-    RAISE EXCEPTION 'FAIL: B holds no group in the flexi classroom, so this should be payable';
+    RAISE EXCEPTION 'FAIL: B holds no group in that class, so this should be payable';
   END IF;
   RAISE NOTICE 'PASS: a teacher can declare coverage for today, with the pay rule applied';
 
@@ -651,15 +658,15 @@ BEGIN
   -- selector, because attendance draws down a child's paid quota.
   BEGIN
     PERFORM public.declare_substitution(
-      '00000000-0000-4000-9000-000000000023', v_date + 1, NULL);
+      '00000000-0000-4000-9000-000000000023', (now() AT TIME ZONE 'Asia/Makassar')::date + 1, NULL);
     RAISE EXCEPTION 'FAIL: a future date must be refused';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
     RAISE NOTICE 'PASS: coverage cannot be declared for a future date';
   END;
 
-  -- The catch-up this change exists for: a real scheduled class (not flexi) on a past weekday, so
-  -- both the Mon–Fri rule and the skipped clock-in window are exercised. date_trunc gives last
+  -- The catch-up this change exists for: another class on an earlier past weekday, so the Mon–Fri
+  -- rule and the skipped clock-in window are exercised on a second date. date_trunc gives last
   -- week's Monday, which is always in the past and always a weekday whenever this runs.
   v_last_monday := (date_trunc('week', v_date - 7))::date;
   v_past_id := public.declare_substitution(
@@ -689,7 +696,7 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000004","r
 
 DO $$
 DECLARE
-  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
+  v_date date := pg_temp.cover_day();
   v_id uuid;
   v_rows int;
 BEGIN
@@ -736,14 +743,15 @@ SET LOCAL request.jwt.claims = '';
 
 -- A is standing right there, so her class is not a coverage situation.
 INSERT INTO public.employee_attendances (classroom_teacher_id, session_date, clocked_in_at, clocked_in_source)
-VALUES ('00000000-0000-4000-9000-000000000024', (now() AT TIME ZONE 'Asia/Makassar')::date, now(), 'teacher');
+VALUES ('00000000-0000-4000-9000-000000000024', pg_temp.cover_day(),
+        (pg_temp.cover_day() + time '05:00') AT TIME ZONE 'Asia/Makassar', 'teacher');
 
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000003","role":"authenticated","app_metadata":{"role":"teacher"}}';
 
 DO $$
 DECLARE
-  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
+  v_date date := pg_temp.cover_day();
 BEGIN
   BEGIN
     PERFORM public.declare_substitution('00000000-0000-4000-9000-000000000024', v_date, NULL);
@@ -775,7 +783,7 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000004","r
 
 DO $$
 DECLARE
-  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
+  v_date date := pg_temp.cover_day();
 BEGIN
   -- C withdraws her own share. B helped cover the same group that day, and B's row must survive:
   -- one teacher stepping back says nothing about the other.
@@ -810,7 +818,7 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-9000-000000000003","r
 
 DO $$
 DECLARE
-  v_date date := (now() AT TIME ZONE 'Asia/Makassar')::date;
+  v_date date := pg_temp.cover_day();
   v_rows int;
 BEGIN
   -- Visible to her beforehand, so the 0 below means "deleted" rather than "never readable".
