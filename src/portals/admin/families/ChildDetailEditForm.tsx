@@ -181,13 +181,10 @@ export const ChildDetailEditForm = forwardRef<ChildDetailEditFormHandle, Props>(
 
     void supabase
       .from('employee_assignments')
-      .select('id, classroom_id, classrooms(label, is_billable), employees(full_name, call_name)')
+      .select('id, classroom_id, classrooms(label), employees(full_name, call_name)')
       .then(({ data }) => {
-        // Enrolling a child only ever makes sense into a real fee-paying program — never into
-        // an internal work program (cleaning duty, content creation) that reuses the classroom
-        // table (see 20260815010000_classrooms_billable_and_flexi_hours.sql).
+        // Only teaching assignments: staff work has no classroom and is never enrolled into.
         const options: Group[] = (data ?? [])
-          .filter((row) => (row.classrooms as unknown as { is_billable: boolean } | null)?.is_billable)
           .flatMap((row) => (row.classroom_id ? [{ ...row, classroom_id: row.classroom_id }] : []))
           .map((row) => {
             const classroom = row.classrooms as unknown as { label: string } | null

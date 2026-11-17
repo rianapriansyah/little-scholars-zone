@@ -10,7 +10,6 @@ const base = {
   time_start: '11:00:00',
   time_end: '12:00:00',
   is_flexi_hours: false,
-  is_billable: false,
   active: true,
 }
 
@@ -25,7 +24,7 @@ describe('parseAssignmentSchedule', () => {
       timeStart: '11:00:00',
       timeEnd: '12:00:00',
       isFlexiHours: false,
-      isBillable: false,
+      isClass: false,
       active: true,
     })
   })
@@ -36,10 +35,9 @@ describe('parseAssignmentSchedule', () => {
       classroom_id: 'c1',
       work_item_id: null,
       label: 'Kelas Bimba Pukul 08.00 - 10.00',
-      is_billable: true,
     })
     expect(parsed?.classroomId).toBe('c1')
-    expect(parsed?.isBillable).toBe(true)
+    expect(parsed?.isClass).toBe(true)
   })
 
   it('drops a row it cannot schedule rather than inventing times', () => {

@@ -75,14 +75,12 @@ export async function fetchChildActiveClassrooms(childId: string): Promise<Resul
   return { ok: true, data: classrooms }
 }
 
-/** Real, fee-paying classrooms only — is_billable excludes internal work programs (cleaning
- *  duty, content creation) a child must never be offered as something to enroll into. */
+/** Active classes a child can be enrolled into (every classroom is one families pay for). */
 export async function fetchActiveClassrooms(): Promise<Result<ClassroomRow[]>> {
   const { data, error } = await supabase
     .from('classrooms')
     .select('*')
     .eq('active', true)
-    .eq('is_billable', true)
     .order('label')
   if (error) return { ok: false, error: error.message }
   return { ok: true, data: data ?? [] }

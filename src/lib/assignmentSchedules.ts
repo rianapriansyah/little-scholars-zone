@@ -19,9 +19,10 @@ export type AssignmentSchedule = {
   /** 'HH:MM:SS' WITA wall-clock times, as the classrooms table stores them. */
   timeStart: string
   timeEnd: string
+  /** No fixed hours to clock in/out against. Only staff work can be flexible; a class never is. */
   isFlexiHours: boolean
-  /** Only a real class parents pay for is billable; staff work never is. */
-  isBillable: boolean
+  /** Teaching a class (which parents pay for), as opposed to staff work. */
+  isClass: boolean
   active: boolean
 }
 
@@ -34,7 +35,6 @@ type ScheduleRow = {
   time_start: string | null
   time_end: string | null
   is_flexi_hours: boolean | null
-  is_billable: boolean | null
   active: boolean | null
 }
 
@@ -49,7 +49,7 @@ export function parseAssignmentSchedule(row: ScheduleRow): AssignmentSchedule | 
     timeStart: row.time_start,
     timeEnd: row.time_end,
     isFlexiHours: row.is_flexi_hours ?? false,
-    isBillable: row.is_billable ?? false,
+    isClass: row.classroom_id !== null,
     active: row.active ?? false,
   }
 }

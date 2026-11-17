@@ -370,11 +370,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                   </Tooltip>
                 </Box>
 
-                {/* Non-billable programs (Piket Pagi, Pembuatan Konten) have no roster — nobody
-                    is ever enrolled into an internal work item, so the whole Siswa section is
-                    just noise here. */}
-                {classroom.is_billable ? (
-                  <>
+                <>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                       Siswa ({group.roster.length}/{classroom.max_students_per_teacher})
                     </Typography>
@@ -399,8 +395,7 @@ export function ClassroomAssignmentTab({ classroom, onAssigned }: Props) {
                     >
                       Atur Siswa
                     </Button>
-                  </>
-                ) : null}
+                </>
               </Paper>
             )
           })

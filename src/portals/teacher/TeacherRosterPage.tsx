@@ -63,7 +63,11 @@ import { DAILY_REPORT_ENABLED } from '../../lib/featureFlags'
  * Konten, Caregiving) with no classroom gets a card exactly like a class does. `id` is the
  * classroom for teaching, the assignment for staff work.
  */
-type CardSlot = Pick<ClassroomRow, 'label' | 'time_start' | 'time_end' | 'is_billable' | 'is_flexi_hours'> & {
+type CardSlot = Pick<ClassroomRow, 'label' | 'time_start' | 'time_end'> & {
+  /** Teaching a class; false for staff work. */
+  is_class: boolean
+  /** No fixed hours (some staff work); a class never is. */
+  is_flexi_hours: boolean
   id: string
   max_students_per_teacher: number | null
 }
@@ -161,12 +165,12 @@ export function TeacherRosterPage() {
       }
       const schedules = schedulesResult.data.filter((s) => s.classroomId !== null || s.active)
 
-      // The student limit is a property of the class, only shown on billable cards.
-      const billableClassroomIds = [
-        ...new Set(schedules.filter((s) => s.isBillable && s.classroomId).map((s) => s.classroomId as string)),
+      // The student limit is a property of the class, only shown on class cards.
+      const classroomIds = [
+        ...new Set(schedules.filter((s) => s.isClass && s.classroomId).map((s) => s.classroomId as string)),
       ]
-      const { data: limitRows, error: lError } = billableClassroomIds.length
-        ? await supabase.from('classrooms').select('id, max_students_per_teacher').in('id', billableClassroomIds)
+      const { data: limitRows, error: lError } = classroomIds.length
+        ? await supabase.from('classrooms').select('id, max_students_per_teacher').in('id', classroomIds)
         : { data: [], error: null }
       if (lError) {
         if (!cancelled) {
@@ -184,17 +188,17 @@ export function TeacherRosterPage() {
           label: s.label,
           time_start: s.timeStart,
           time_end: s.timeEnd,
-          is_billable: s.isBillable,
+          is_class: s.isClass,
           is_flexi_hours: s.isFlexiHours,
           max_students_per_teacher: s.classroomId ? (limitByClassroom.get(s.classroomId) ?? null) : null,
         } satisfies CardSlot,
       }))
 
-      // A billable class only lists children who also hold an unfinished learning period in it
+      // A class only lists children who also hold an unfinished learning period in it
       // (Berjalan or Belum Mulai). Enrolment alone outlives the period: a child whose periods are
       // all Selesai stayed on this card while Laporan Harian — which needs a period — had no row
       // for them. Fetched once per class, since a teacher can hold two groups of the same class.
-      // Non-billable work items (Piket Pagi) have no periods at all, so they are not filtered.
+      // Staff work (Piket, Konten) have no periods at all, so they are not filtered.
       const openByClassroom = new Map<string, Set<string>>()
       const results: GroupWithRoster[] = []
       for (const group of groupRows) {
@@ -205,7 +209,7 @@ export function TeacherRosterPage() {
             .select('child_id, children(full_name)')
             .eq('classroom_teacher_id', group.id)
             .is('ended_at', null),
-          classroom.is_billable && !openByClassroom.has(classroom.id)
+          classroom.is_class && !openByClassroom.has(classroom.id)
             ? fetchChildIdsWithOpenPeriod(classroom.id)
             : Promise.resolve(null),
         ])
@@ -217,7 +221,7 @@ export function TeacherRosterPage() {
           return
         }
         if (openResult?.ok) openByClassroom.set(classroom.id, openResult.data)
-        const openChildIds = classroom.is_billable ? openByClassroom.get(classroom.id) : undefined
+        const openChildIds = classroom.is_class ? openByClassroom.get(classroom.id) : undefined
 
         const roster = (enrollmentRows ?? [])
           .filter((row) => !openChildIds || openChildIds.has(row.child_id))
@@ -429,7 +433,7 @@ export function TeacherRosterPage() {
   function renderAttendanceControl(group: GroupWithRoster, todaysStart: Date | null, todaysEnd: Date | null) {
     const record = attendance.get(group.id)
     const isClocking = clockingId === group.id
-    const isBillable = group.classroom.is_billable
+    const isClass = group.classroom.is_class
 
     if (group.classroom.is_flexi_hours) {
       // No schedule to gate against — always clickable, any time, any day. Never chains (that's
@@ -475,7 +479,7 @@ export function TeacherRosterPage() {
       ].filter((note): note is string => note !== null)
       return (
         <Typography variant="body2" color="text.secondary">
-          {isBillable ? 'Kelas selesai' : 'Selesai'} · {record.minutesTaught ?? '—'} menit
+          {isClass ? 'Kelas selesai' : 'Selesai'} · {record.minutesTaught ?? '—'} menit
           {notes.length > 0 ? ` · ${notes.join(', ')}` : ''}
         </Typography>
       )
@@ -491,7 +495,7 @@ export function TeacherRosterPage() {
             disabled={!canClockOut || isClocking}
             onClick={() => handleFinishClick(group)}
           >
-            {isClocking ? 'Menyimpan…' : isBillable ? 'Selesaikan Kelas' : 'Selesaikan'}
+            {isClocking ? 'Menyimpan…' : isClass ? 'Selesaikan Kelas' : 'Selesaikan'}
           </Button>
           {record.arrivalStatus === 'late' ? (
             <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5 }}>
@@ -510,7 +514,7 @@ export function TeacherRosterPage() {
         disabled={windowStatus !== 'open' || isClocking}
         onClick={() => void handleClockIn(group.id)}
       >
-        {isClocking ? 'Menyimpan…' : isBillable ? 'Masuk Kelas' : 'Masuk'}
+        {isClocking ? 'Menyimpan…' : isClass ? 'Masuk Kelas' : 'Masuk'}
       </Button>
     )
   }
@@ -523,15 +527,15 @@ export function TeacherRosterPage() {
   function renderCard(group: GroupWithRoster) {
     const { classroom } = group
     const isFlexi = classroom.is_flexi_hours
-    const isBillable = classroom.is_billable
+    const isClass = classroom.is_class
     const todaysStart = isFlexi ? null : getTodaysClassStartInWita(classroom.time_start, now)
     const todaysEnd = isFlexi ? null : getTodaysClassEndInWita(classroom.time_end, now)
     const status = todaysStart ? getClassStatus(todaysStart, now, todaysEnd) : null
-    const statusLabel = status?.label ? (isBillable ? status.label : (NON_BILLABLE_STATUS_LABEL[status.label] ?? status.label)) : null
+    const statusLabel = status?.label ? (isClass ? status.label : (NON_BILLABLE_STATUS_LABEL[status.label] ?? status.label)) : null
     const borderColor = status ? STATUS_BORDER_COLOR[status.border] : undefined
     // No roster/curriculum to report on for an internal work item — the card never becomes a
     // Laporan Harian nav target regardless of the feature flag.
-    const canOpenDailyReport = DAILY_REPORT_ENABLED && isBillable
+    const canOpenDailyReport = DAILY_REPORT_ENABLED && isClass
 
     const cardBody = (
       <CardContent>
@@ -555,7 +559,7 @@ export function TeacherRosterPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Jadwal fleksibel · kapan saja
           </Typography>
-        ) : isBillable ? (
+        ) : isClass ? (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Sen–Jum · {classroom.time_start.slice(0, 5)}

@@ -90,12 +90,6 @@ export function ClassroomsPage() {
         renderCell: (params) => (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
             <Typography variant="body2">{params.row.label}</Typography>
-            {/* Internal work program (cleaning duty, content creation) — never a real class a
-                family enrolls a child into. Distinct from the grid so it can't be mistaken
-                for one while browsing this list. */}
-            {!params.row.is_billable ? (
-              <Chip size="small" label="Non-Billable" color="default" variant="outlined" />
-            ) : null}
           </Box>
         ),
       },

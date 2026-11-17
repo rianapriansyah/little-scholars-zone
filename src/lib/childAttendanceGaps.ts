@@ -190,15 +190,14 @@ type ClassMeta = {
  * check needs a third table again — joining all of that in Postgrest's embedding syntax would
  * not survive the first schema change. Assembled client-side instead, by the pure function above.
  *
- * Only active, billable classrooms are considered: is_billable excludes internal work programs
- * (cleaning duty, content creation), which no child is ever enrolled into.
+ * Only active classes are considered; staff work has no classroom and never holds children.
  */
 export async function fetchUnfilledClassAttendance(date: string): Promise<Result<ClassAttendanceGap[]>> {
   const [groupsRes, enrollmentsRes, periodsRes, attendancesRes] = await Promise.all([
     supabase
       .from('employee_assignments')
       .select(
-        'id, classroom_id, teacher_id, classrooms(label, time_start, time_end, active, is_billable), employees(full_name, call_name, contact_phone)',
+        'id, classroom_id, teacher_id, classrooms(label, time_start, time_end, active), employees(full_name, call_name, contact_phone)',
       ),
     supabase
       .from('children_classrooms')
@@ -220,13 +219,13 @@ export async function fetchUnfilledClassAttendance(date: string): Promise<Result
   const classes = new Map<string, ClassMeta>()
   for (const group of groupsRes.data ?? []) {
     const classroom = group.classrooms as unknown as
-      | { label: string; time_start: string; time_end: string; active: boolean; is_billable: boolean }
+      | { label: string; time_start: string; time_end: string; active: boolean }
       | null
     const teacher = group.employees as unknown as
       | { full_name: string; call_name: string | null; contact_phone: string | null }
       | null
     // Staff work (no classroom) never holds children, so it has no class attendance to fill.
-    if (!classroom || !group.classroom_id || !classroom.active || !classroom.is_billable) continue
+    if (!classroom || !group.classroom_id || !classroom.active) continue
 
     classes.set(group.id, {
       classroomId: group.classroom_id,

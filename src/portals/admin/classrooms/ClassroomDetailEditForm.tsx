@@ -59,8 +59,6 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
     const [maxStudents, setMaxStudents] = useState('6')
     const [guaranteedDays, setGuaranteedDays] = useState('20')
     const [active, setActive] = useState(true)
-    const [isBillable, setIsBillable] = useState(true)
-    const [isFlexiHours, setIsFlexiHours] = useState(false)
     const [roster, setRoster] = useState<RosterEntry[]>([])
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
@@ -78,8 +76,6 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
       setMaxStudents(String(classroom?.max_students_per_teacher ?? 6))
       setGuaranteedDays(String(classroom?.guaranteed_days ?? 20))
       setActive(classroom?.active ?? true)
-      setIsBillable(classroom?.is_billable ?? true)
-      setIsFlexiHours(classroom?.is_flexi_hours ?? false)
       setError(null)
       setTeacherNames([])
 
@@ -147,20 +143,19 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         return
       }
       // `price` holds digits only, so this cannot be negative or non-finite — an empty field
-      // is the only way it goes wrong. Not required when non-billable: price/guaranteed_days
-      // are meaningless for an internal work program nobody is ever charged for, so they're
-      // hidden from the form entirely and just saved as 0/the column default.
-      if (isBillable && price === '') {
+      // is the only way it goes wrong. Every class is one families pay for; staff work lives in
+      // Kelola Item Kerja, not here.
+      if (price === '') {
         setError('Masukkan harga program. Isi 0 bila kelas ini memang tidak dipungut biaya.')
         return
       }
-      if (isBillable && !selectedProgram) {
+      if (!selectedProgram) {
         setError('Pilih program. Rate guru diambil dari program ini.')
         return
       }
-      const priceValue = isBillable ? Number(price) : 0
-      const guaranteedDaysValue = isBillable ? Number(guaranteedDays) : 20
-      if (isBillable && (!Number.isInteger(guaranteedDaysValue) || guaranteedDaysValue < 1)) {
+      const priceValue = Number(price)
+      const guaranteedDaysValue = Number(guaranteedDays)
+      if ((!Number.isInteger(guaranteedDaysValue) || guaranteedDaysValue < 1)) {
         setError('Jumlah hari dijamin harus bilangan bulat minimal 1.')
         return
       }
@@ -172,10 +167,8 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
         return
       }
 
-      // A billable class takes its program, and its teachers are paid the program's rate. A
-      // non-billable class has no program.
-      const programFields =
-        isBillable && selectedProgram ? { program_id: selectedProgram.id } : { program_id: null }
+      // Its teachers are paid the program's rate.
+      const programFields = { program_id: selectedProgram.id }
 
       setSaving(true)
       if (isEdit) {
@@ -190,8 +183,6 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
             max_students_per_teacher: maxStudentsValue,
             guaranteed_days: guaranteedDaysValue,
             active,
-            is_billable: isBillable,
-            is_flexi_hours: isFlexiHours,
           })
           .eq('id', classroom.id)
         setSaving(false)
@@ -208,8 +199,6 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           ...programFields,
           max_students_per_teacher: maxStudentsValue,
           guaranteed_days: guaranteedDaysValue,
-          is_billable: isBillable,
-          is_flexi_hours: isFlexiHours,
         })
         setSaving(false)
         if (iErr) {
@@ -291,18 +280,7 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
           </Box>
 
           <Divider />
-          <FormControlLabel
-            control={<Switch checked={isBillable} onChange={(e) => setIsBillable(e.target.checked)} />}
-            label="Bisa Ditagih"
-          />
-          <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5 }}>
-            {isBillable
-              ? 'Kelas nyata yang dibayar keluarga — muncul di wizard pendaftaran dan pilihan periode belajar.'
-              : 'Program internal (mis. piket kebersihan, pembuatan konten) — tidak pernah ditagih, tidak muncul di pendaftaran. Guru/staf tetap absen masuk/keluar lewat penugasan biasa.'}
-          </Typography>
-
-          {isBillable ? (
-            <>
+          <>
               <Typography variant="subtitle2">Program & Biaya</Typography>
               <TextField
                 id="classroom-program"
@@ -354,8 +332,6 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
                 />
               </Box>
 
-              {/* Billable only: no child is ever enrolled into an internal work program, so the
-                  limit has nothing to bind on there. */}
               <TextField
                 size="small"
                 label="Maksimal Siswa per Guru"
@@ -368,24 +344,6 @@ export const ClassroomDetailEditForm = forwardRef<ClassroomDetailEditFormHandle,
                 helperText="Berlaku untuk setiap guru di kelas ini — kelas dengan 3 guru menampung 3 kali angka ini. Menurunkannya tidak mengeluarkan siswa yang sudah terdaftar, hanya menutup pendaftaran berikutnya."
               />
             </>
-          ) : (
-            <FormControlLabel
-              control={<Switch checked={isFlexiHours} onChange={(e) => setIsFlexiHours(e.target.checked)} />}
-              label="Jam Fleksibel"
-            />
-          )}
-          {!isBillable && isFlexiHours ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5 }}>
-              Waktu Mulai/Selesai di atas hanya ditampilkan, tidak dipakai untuk membatasi jam absen — guru/staf bisa
-              absen masuk/keluar kapan saja.
-            </Typography>
-          ) : null}
-
-          {isBillable ? null : (
-            <Typography variant="body2" color="text.secondary">
-              Rate kerja internal (piket, konten, pengasuhan) diatur per cabang di Kelola Item Kerja, bukan di kelas.
-            </Typography>
-          )}
 
           {isEdit ? (
             <>

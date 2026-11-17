@@ -108,7 +108,7 @@ export type ClassroomTeacherAttendanceListEntry = {
   branchName: string | null
   timeStart: string
   timeEnd: string
-  /** No real schedule to clock in/out against (e.g. Pembuatan Konten) — see classrooms.is_flexi_hours. */
+  /** No real schedule to clock in/out against (e.g. Pembuatan Konten) — see employee_assignments.is_flexi_hours. */
   isFlexiHours: boolean
   /** null means no row exists yet for this class on this date — nobody has logged anything. */
   status: ClassroomTeacherAttendanceStatus | null
