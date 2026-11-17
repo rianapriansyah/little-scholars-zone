@@ -460,7 +460,6 @@ export type Database = {
           classroom_id: string | null
           created_at: string | null
           id: string
-          is_flexi_hours: boolean | null
           teacher_id: string
           time_end: string | null
           time_start: string | null
@@ -470,7 +469,6 @@ export type Database = {
           classroom_id?: string | null
           created_at?: string | null
           id?: string
-          is_flexi_hours?: boolean | null
           teacher_id: string
           time_end?: string | null
           time_start?: string | null
@@ -480,7 +478,6 @@ export type Database = {
           classroom_id?: string | null
           created_at?: string | null
           id?: string
-          is_flexi_hours?: boolean | null
           teacher_id?: string
           time_end?: string | null
           time_start?: string | null
