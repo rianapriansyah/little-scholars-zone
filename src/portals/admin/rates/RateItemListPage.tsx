@@ -18,6 +18,8 @@ export type RateItemEntry = {
   name: string
   hourly_rate: number
   active: boolean
+  /** Work items only; absent for a program. */
+  is_flexi_hours?: boolean
   branchName: string
   usageCount: number
 }
@@ -38,6 +40,8 @@ type Props = {
   onDelete: (id: string) => Promise<Result<void>>
   /** Extra section in the edit dialog; `reload` refreshes this list's counts. */
   renderExtra?: (id: string, reload: () => void) => ReactNode
+  /** Kelola Item Kerja: the item's "Jam Fleksibel" switch and a column showing it. */
+  showFlexiHours?: boolean
 }
 
 /**
@@ -58,6 +62,7 @@ export function RateItemListPage({
   onSave,
   onDelete,
   renderExtra,
+  showFlexiHours = false,
 }: Props) {
   const [rows, setRows] = useState<RateItemEntry[]>([])
   const [branches, setBranches] = useState<OfficeBranchRow[]>([])
@@ -106,6 +111,16 @@ export function RateItemListPage({
         headerAlign: 'right',
         valueFormatter: (value: number) => formatIdr(Number(value)),
       },
+      ...(showFlexiHours
+        ? [
+            {
+              field: 'is_flexi_hours',
+              headerName: 'Jam',
+              width: 110,
+              valueFormatter: (value: boolean | undefined) => (value ? 'Fleksibel' : 'Tetap'),
+            } satisfies GridColDef<RateItemEntry>,
+          ]
+        : []),
       { field: 'usageCount', headerName: usageHeader, width: 130, align: 'right', headerAlign: 'right' },
       {
         field: 'active',
@@ -119,7 +134,7 @@ export function RateItemListPage({
           ),
       },
     ],
-    [noun, usageHeader],
+    [noun, usageHeader, showFlexiHours],
   )
 
   const handleCellClick = (params: GridCellParams<RateItemEntry>) => {
@@ -201,6 +216,7 @@ export function RateItemListPage({
                 name: editItem.name,
                 hourlyRate: Number(editItem.hourly_rate),
                 active: editItem.active,
+                isFlexiHours: editItem.is_flexi_hours ?? false,
               }
             : null
         }
@@ -212,6 +228,7 @@ export function RateItemListPage({
         onClose={() => setDialogOpen(false)}
         onSaved={() => void reload()}
         renderExtra={renderExtra ? (id) => renderExtra(id, () => void reload()) : undefined}
+        showFlexiHours={showFlexiHours}
       />
     </Box>
   )

@@ -6,8 +6,8 @@ import { RateItemListPage, type RateItemEntry } from './RateItemListPage'
 import { WorkItemAssignmentsSection } from './WorkItemAssignmentsSection'
 
 /**
- * Kelola Item Kerja: paid work that is not teaching a class — Piket, Konten, Caregiving, Kasir,
- * Kerja Akhir Pekan — one row per branch, each with the hourly rate everyone doing it earns.
+ * Kelola Item Kerja: paid work that is not teaching a class — Piket, Konten, Daily Activity Work,
+ * Front Office, Kerja Akhir Pekan — one row per branch, each with the hourly rate everyone doing it earns.
  */
 export function WorkItemsPage() {
   const load = useCallback(async (): Promise<Result<RateItemEntry[]>> => {
@@ -34,6 +34,7 @@ export function WorkItemsPage() {
       load={load}
       onSave={save}
       onDelete={deleteWorkItem}
+      showFlexiHours
       renderExtra={(id, reload) => <WorkItemAssignmentsSection workItemId={id} onChanged={reload} />}
     />
   )

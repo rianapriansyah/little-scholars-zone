@@ -24,7 +24,14 @@ import type { Result } from '../../../lib/result'
 import type { OfficeBranchRow } from '../../../types/officeBranch'
 
 /** The fields a program and a work item share: each is one priced kind of work in one branch. */
-export type RateItemValues = { branchId: string; name: string; hourlyRate: number; active: boolean }
+export type RateItemValues = {
+  branchId: string
+  name: string
+  hourlyRate: number
+  active: boolean
+  /** Work items only (see showFlexiHours); always false for a program. */
+  isFlexiHours: boolean
+}
 
 type Props = {
   open: boolean
@@ -43,6 +50,8 @@ type Props = {
   onSaved: () => void
   /** Extra section shown when editing an existing item (Kelola Item Kerja: its assignments). */
   renderExtra?: (id: string) => ReactNode
+  /** Show the "Jam Fleksibel" switch (Kelola Item Kerja). A class always has fixed hours. */
+  showFlexiHours?: boolean
 }
 
 /**
@@ -62,6 +71,7 @@ export function RateItemDialog({
   onClose,
   onSaved,
   renderExtra,
+  showFlexiHours = false,
 }: Props) {
   const isEdit = item !== null
 
@@ -70,6 +80,7 @@ export function RateItemDialog({
   /** Raw digits, dot-grouped only for display — same money-input convention as the class price. */
   const [rate, setRate] = useState('')
   const [active, setActive] = useState(true)
+  const [isFlexiHours, setIsFlexiHours] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -80,6 +91,7 @@ export function RateItemDialog({
     setBranchId(item?.branchId ?? (branches.length === 1 ? branches[0].id : ''))
     setRate(item ? String(Math.round(item.hourlyRate)) : '')
     setActive(item?.active ?? true)
+    setIsFlexiHours(item?.isFlexiHours ?? false)
     setError(null)
   }, [open, item, branches])
 
@@ -104,7 +116,7 @@ export function RateItemDialog({
     }
     setSaving(true)
     setError(null)
-    const result = await onSave({ branchId, name, hourlyRate, active }, item?.id ?? null)
+    const result = await onSave({ branchId, name, hourlyRate, active, isFlexiHours }, item?.id ?? null)
     setSaving(false)
     if (!result.ok) {
       setError(result.error)
@@ -202,6 +214,31 @@ export function RateItemDialog({
               control={<Switch id="rate-item-active" checked={active} onChange={(e) => setActive(e.target.checked)} />}
               label="Aktif"
             />
+            {showFlexiHours ? (
+              <>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      id="rate-item-flexi"
+                      checked={isFlexiHours}
+                      onChange={(e) => setIsFlexiHours(e.target.checked)}
+                    />
+                  }
+                  label="Jam Fleksibel"
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5 }}>
+                  {isFlexiHours
+                    ? 'Semua yang ditugaskan bisa absen masuk/keluar kapan saja, dengan jeda; jam penugasan hanya ditampilkan dan tidak ada status telat atau pulang cepat.'
+                    : 'Semua yang ditugaskan absen sesuai jam penugasannya masing-masing.'}
+                </Typography>
+                {isEdit && item.isFlexiHours !== isFlexiHours ? (
+                  <Typography variant="body2" color="warning.main" sx={{ mt: -1 }}>
+                    Berlaku untuk semua orang di item ini mulai sekarang. Jam kerja dan gaji yang sudah tercatat tidak
+                    berubah; status telat/pulang cepat pada riwayat ikut dihitung ulang.
+                  </Typography>
+                ) : null}
+              </>
+            ) : null}
 
             {isEdit && renderExtra ? (
               <>

@@ -4,13 +4,11 @@ import {
   Alert,
   Box,
   Button,
-  FormControlLabel,
   IconButton,
   List,
   ListItem,
   ListItemText,
   MenuItem,
-  Switch,
   TextField,
   Typography,
 } from '@mui/material'
@@ -46,16 +44,23 @@ export function WorkItemAssignmentsSection({ workItemId, onChanged }: Props) {
   const [employeeId, setEmployeeId] = useState('')
   const [timeStart, setTimeStart] = useState('08:00')
   const [timeEnd, setTimeEnd] = useState('10:00')
+  /** The item's work_items.is_flexi_hours: the same for everyone assigned to it. */
   const [isFlexi, setIsFlexi] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState<WorkItemAssignment | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [assignmentsResult, employeesResult] = await Promise.all([
+    const [assignmentsResult, employeesResult, itemResult] = await Promise.all([
       fetchWorkItemAssignments(workItemId),
       supabase.from('employees').select('id, full_name, call_name').eq('active', true).order('full_name'),
+      supabase.from('work_items').select('is_flexi_hours').eq('id', workItemId).maybeSingle(),
     ])
     setLoading(false)
+    if (itemResult.error) {
+      setError(itemResult.error.message)
+      return
+    }
+    setIsFlexi(itemResult.data?.is_flexi_hours ?? false)
     if (!assignmentsResult.ok) {
       setError(assignmentsResult.error)
       return
@@ -79,7 +84,7 @@ export function WorkItemAssignmentsSection({ workItemId, onChanged }: Props) {
     }
     setBusy(true)
     setError(null)
-    const result = await createWorkItemAssignment(workItemId, { employeeId, timeStart, timeEnd, isFlexiHours: isFlexi })
+    const result = await createWorkItemAssignment(workItemId, { employeeId, timeStart, timeEnd })
     setBusy(false)
     if (!result.ok) {
       setError(result.error)
@@ -144,7 +149,7 @@ export function WorkItemAssignmentsSection({ workItemId, onChanged }: Props) {
             >
               <ListItemText
                 primary={a.employeeName}
-                secondary={`${a.isFlexiHours ? 'Fleksibel' : `${a.timeStart.slice(0, 5)}–${a.timeEnd.slice(0, 5)}`} · ${a.clockInCount} hari absen`}
+                secondary={`${isFlexi ? 'Fleksibel' : `${a.timeStart.slice(0, 5)}–${a.timeEnd.slice(0, 5)}`} · ${a.clockInCount} hari absen`}
               />
             </ListItem>
           ))}
@@ -186,18 +191,15 @@ export function WorkItemAssignmentsSection({ workItemId, onChanged }: Props) {
           slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 1800 } }}
         />
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-        <FormControlLabel
-          control={<Switch id="work-item-assignment-flexi" checked={isFlexi} onChange={(e) => setIsFlexi(e.target.checked)} />}
-          label="Jam Fleksibel"
-        />
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
         <Button variant="outlined" onClick={() => void handleAdd()} disabled={busy || !employeeId}>
           Tambah Penugasan
         </Button>
       </Box>
       {isFlexi ? (
         <Typography variant="body2" color="text.secondary" sx={{ mt: -1 }}>
-          Jam di atas hanya ditampilkan; absen masuk/keluar bisa kapan saja, dan tidak ada status telat atau pulang cepat.
+          Item ini berjam fleksibel: jam di atas hanya ditampilkan; absen masuk/keluar bisa kapan saja, dan tidak ada
+          status telat atau pulang cepat.
         </Typography>
       ) : null}
 

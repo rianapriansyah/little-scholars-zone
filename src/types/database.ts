@@ -1120,6 +1120,7 @@ export type Database = {
           created_at: string
           hourly_rate: number
           id: string
+          is_flexi_hours: boolean
           name: string
         }
         Insert: {
@@ -1128,6 +1129,7 @@ export type Database = {
           created_at?: string
           hourly_rate: number
           id?: string
+          is_flexi_hours?: boolean
           name: string
         }
         Update: {
@@ -1136,6 +1138,7 @@ export type Database = {
           created_at?: string
           hourly_rate?: number
           id?: string
+          is_flexi_hours?: boolean
           name?: string
         }
         Relationships: [

@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 import type { Result } from './result'
 import { teacherDisplayName } from './teacherName'
 
-/** One person assigned to a work item, with the times they work it. */
+/** One person assigned to a work item, with the times they work it (flexible hours are the item's). */
 export type WorkItemAssignment = {
   /** employee_assignments.id — what they clock in against. */
   id: string
@@ -11,7 +11,6 @@ export type WorkItemAssignment = {
   /** 'HH:MM:SS' WITA. */
   timeStart: string
   timeEnd: string
-  isFlexiHours: boolean
   /** Clock-in days recorded on it. An assignment with history is never deleted. */
   clockInCount: number
 }
@@ -21,14 +20,13 @@ export type WorkItemAssignmentInput = {
   /** 'HH:MM' WITA. */
   timeStart: string
   timeEnd: string
-  isFlexiHours: boolean
 }
 
 /** Everyone assigned to the work item, by start time then name. Admin only. */
 export async function fetchWorkItemAssignments(workItemId: string): Promise<Result<WorkItemAssignment[]>> {
   const { data, error } = await supabase
     .from('employee_assignments')
-    .select('id, teacher_id, time_start, time_end, is_flexi_hours, employees(full_name, call_name), employee_attendances(count)')
+    .select('id, teacher_id, time_start, time_end, employees(full_name, call_name), employee_attendances(count)')
     .eq('work_item_id', workItemId)
   if (error) return { ok: false, error: error.message }
 
@@ -41,7 +39,6 @@ export async function fetchWorkItemAssignments(workItemId: string): Promise<Resu
       employeeName: employee ? teacherDisplayName(employee) : '—',
       timeStart: row.time_start ?? '',
       timeEnd: row.time_end ?? '',
-      isFlexiHours: row.is_flexi_hours ?? false,
       clockInCount: attendances?.[0]?.count ?? 0,
     }
   })
@@ -60,7 +57,6 @@ export async function createWorkItemAssignment(
     classroom_id: null,
     time_start: input.timeStart,
     time_end: input.timeEnd,
-    is_flexi_hours: input.isFlexiHours,
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, data: undefined }

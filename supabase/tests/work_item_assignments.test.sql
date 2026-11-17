@@ -34,9 +34,10 @@ VALUES
 INSERT INTO public.employees (id, full_name, call_name, email, auth_user_id) VALUES
   ('00000000-0000-4000-c000-000000000010', 'Work Item Test Staff', 'Bu W', 'wi-test-staff@example.test', '00000000-0000-4000-c000-000000000002');
 
-INSERT INTO public.work_items (id, branch_id, name, hourly_rate) VALUES
-  ('00000000-0000-4000-c000-000000000030', (SELECT id FROM public.office_branch WHERE name = 'Rumah Main Rumah Kecil (Rucil)'), 'WI Test Kasir',  9000),
-  ('00000000-0000-4000-c000-000000000031', (SELECT id FROM public.office_branch WHERE name = 'Rumah Main Rumah Kecil (Rucil)'), 'WI Test Konten', 7000);
+-- Flexible hours belong to the work item (20261118050000): Konten is flexible, Kasir is not.
+INSERT INTO public.work_items (id, branch_id, name, hourly_rate, is_flexi_hours) VALUES
+  ('00000000-0000-4000-c000-000000000030', (SELECT id FROM public.office_branch WHERE name = 'Rumah Main Rumah Kecil (Rucil)'), 'WI Test Kasir',  9000, false),
+  ('00000000-0000-4000-c000-000000000031', (SELECT id FROM public.office_branch WHERE name = 'Rumah Main Rumah Kecil (Rucil)'), 'WI Test Konten', 7000, true);
 
 CREATE OR REPLACE FUNCTION pg_temp.status(p_group uuid)
 RETURNS public.employee_attendance_status LANGUAGE sql STABLE AS $fn$
@@ -71,11 +72,11 @@ $fn$;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-c000-000000000001","role":"authenticated","app_metadata":{"role":"admin"}}';
 
-INSERT INTO public.employee_assignments (id, teacher_id, classroom_id, work_item_id, time_start, time_end, is_flexi_hours) VALUES
+INSERT INTO public.employee_assignments (id, teacher_id, classroom_id, work_item_id, time_start, time_end) VALUES
   ('00000000-0000-4000-c000-000000000020', '00000000-0000-4000-c000-000000000010', NULL, '00000000-0000-4000-c000-000000000030',
-   '00:00', ((now() AT TIME ZONE 'Asia/Makassar') + interval '3 minutes')::time, false),
+   '00:00', ((now() AT TIME ZONE 'Asia/Makassar') + interval '3 minutes')::time),
   ('00000000-0000-4000-c000-000000000021', '00000000-0000-4000-c000-000000000010', NULL, '00000000-0000-4000-c000-000000000031',
-   '08:00', '17:00', true);
+   '08:00', '17:00');
 
 DO $$
 BEGIN
@@ -93,13 +94,14 @@ BEGIN
     RAISE NOTICE 'PASS: an assignment needs a class or a work item';
   END;
 
-  BEGIN
-    INSERT INTO public.employee_assignments (teacher_id, work_item_id, time_start, time_end)
-    VALUES ('00000000-0000-4000-c000-000000000010', '00000000-0000-4000-c000-000000000030', '08:00', '09:00');
-    RAISE EXCEPTION 'FAIL: a work-item assignment without its flexi flag was accepted';
-  EXCEPTION WHEN check_violation THEN
-    RAISE NOTICE 'PASS: a work-item assignment states whether it is flexi';
-  END;
+  -- Nobody chooses flexible hours per person: the schedule takes the work item's.
+  IF (SELECT is_flexi_hours FROM public.employee_assignment_schedules
+       WHERE classroom_teacher_id = '00000000-0000-4000-c000-000000000021') IS NOT TRUE
+     OR (SELECT is_flexi_hours FROM public.employee_assignment_schedules
+       WHERE classroom_teacher_id = '00000000-0000-4000-c000-000000000020') IS NOT FALSE THEN
+    RAISE EXCEPTION 'FAIL: an assignment''s flexible hours must follow its work item';
+  END IF;
+  RAISE NOTICE 'PASS: flexible hours come from the work item';
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -123,8 +125,8 @@ BEGIN
   RAISE NOTICE 'PASS: the staff member sees their own staff work, labelled with its branch';
 
   BEGIN
-    INSERT INTO public.employee_assignments (teacher_id, work_item_id, time_start, time_end, is_flexi_hours)
-    VALUES ('00000000-0000-4000-c000-000000000010', '00000000-0000-4000-c000-000000000030', '08:00', '09:00', false);
+    INSERT INTO public.employee_assignments (teacher_id, work_item_id, time_start, time_end)
+    VALUES ('00000000-0000-4000-c000-000000000010', '00000000-0000-4000-c000-000000000030', '08:00', '09:00');
     RAISE EXCEPTION 'FAIL: a teacher was able to assign themselves';
   EXCEPTION WHEN insufficient_privilege THEN
     RAISE NOTICE 'PASS: a teacher cannot assign staff work';

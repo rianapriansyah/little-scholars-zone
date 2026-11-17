@@ -7,7 +7,14 @@ const UNIQUE_VIOLATION = '23505'
 /** Postgres foreign_key_violation: an assignment still points at the work item. */
 const FOREIGN_KEY_VIOLATION = '23503'
 
-export type WorkItemInput = { branchId: string; name: string; hourlyRate: number; active: boolean }
+export type WorkItemInput = {
+  branchId: string
+  name: string
+  hourlyRate: number
+  active: boolean
+  /** Everyone on the item clocks in without fixed hours (work_items.is_flexi_hours). */
+  isFlexiHours: boolean
+}
 
 function saveError(error: { code?: string; message: string }): string {
   if (error.code === UNIQUE_VIOLATION) return 'Item kerja dengan nama ini sudah ada di cabang tersebut.'
@@ -40,6 +47,7 @@ export async function createWorkItem(input: WorkItemInput): Promise<Result<void>
     name: input.name.trim(),
     hourly_rate: input.hourlyRate,
     active: input.active,
+    is_flexi_hours: input.isFlexiHours,
   })
   if (error) return { ok: false, error: saveError(error) }
   return { ok: true, data: undefined }
@@ -48,7 +56,13 @@ export async function createWorkItem(input: WorkItemInput): Promise<Result<void>
 export async function updateWorkItem(id: string, input: WorkItemInput): Promise<Result<void>> {
   const { error } = await supabase
     .from('work_items')
-    .update({ branch_id: input.branchId, name: input.name.trim(), hourly_rate: input.hourlyRate, active: input.active })
+    .update({
+      branch_id: input.branchId,
+      name: input.name.trim(),
+      hourly_rate: input.hourlyRate,
+      active: input.active,
+      is_flexi_hours: input.isFlexiHours,
+    })
     .eq('id', id)
   if (error) return { ok: false, error: saveError(error) }
   return { ok: true, data: undefined }

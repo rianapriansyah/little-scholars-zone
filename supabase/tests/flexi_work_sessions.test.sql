@@ -17,8 +17,8 @@
 --
 -- Two things shape how this is written:
 --   * The RPCs read today's WITA date and now() themselves, so the fixtures cannot use a fixed
---     date. Flexible-hours assignments (staff work on a work item, 20261118040000) are what make the
---     script deterministic anyway: they skip
+--     date. Assignments on flexible-hours work items (work_items.is_flexi_hours, 20261118050000) are
+--     what make the script deterministic anyway: they skip
 --     every window check, so the cycle below behaves identically whatever time of day — or day of
 --     week — the suite runs.
 --   * now() does not advance inside a transaction, so every session the RPCs open would otherwise
@@ -44,17 +44,17 @@ INSERT INTO public.employees (id, full_name, call_name, email, auth_user_id) VAL
 -- The scheduled control runs 00:00–23:59 so that its own clock-in window ("from an hour before
 -- the start") is open whenever this suite runs — the point of it is the sessions behaviour, not
 -- the window, and a realistic 10:00–12:00 would make the script pass or fail by wall-clock time.
-INSERT INTO public.work_items (id, branch_id, name, hourly_rate) VALUES
-  ('00000000-0000-4000-b000-000000000017', (SELECT id FROM public.office_branch ORDER BY name LIMIT 1), 'Flexi Test Picked',    8000),
-  ('00000000-0000-4000-b000-000000000018', (SELECT id FROM public.office_branch ORDER BY name LIMIT 1), 'Flexi Test Programme', 8000);
+INSERT INTO public.work_items (id, branch_id, name, hourly_rate, is_flexi_hours) VALUES
+  ('00000000-0000-4000-b000-000000000017', (SELECT id FROM public.office_branch ORDER BY name LIMIT 1), 'Flexi Test Picked',    8000, true),
+  ('00000000-0000-4000-b000-000000000018', (SELECT id FROM public.office_branch ORDER BY name LIMIT 1), 'Flexi Test Programme', 8000, true);
 
 INSERT INTO public.classrooms (id, label, time_start, time_end, price) VALUES
   ('00000000-0000-4000-b000-000000000019', 'Flexi Test Scheduled', '00:00', '23:59', 0);
 
-INSERT INTO public.employee_assignments (id, classroom_id, work_item_id, teacher_id, time_start, time_end, is_flexi_hours) VALUES
-  ('00000000-0000-4000-b000-000000000020', NULL, '00000000-0000-4000-b000-000000000018', '00000000-0000-4000-b000-000000000010', '08:00', '17:00', true),
-  ('00000000-0000-4000-b000-000000000021', '00000000-0000-4000-b000-000000000019', NULL, '00000000-0000-4000-b000-000000000010', NULL, NULL, NULL),
-  ('00000000-0000-4000-b000-000000000022', NULL, '00000000-0000-4000-b000-000000000017', '00000000-0000-4000-b000-000000000010', '08:00', '17:00', true);
+INSERT INTO public.employee_assignments (id, classroom_id, work_item_id, teacher_id, time_start, time_end) VALUES
+  ('00000000-0000-4000-b000-000000000020', NULL, '00000000-0000-4000-b000-000000000018', '00000000-0000-4000-b000-000000000010', '08:00', '17:00'),
+  ('00000000-0000-4000-b000-000000000021', '00000000-0000-4000-b000-000000000019', NULL, '00000000-0000-4000-b000-000000000010', NULL, NULL),
+  ('00000000-0000-4000-b000-000000000022', NULL, '00000000-0000-4000-b000-000000000017', '00000000-0000-4000-b000-000000000010', '08:00', '17:00');
 
 -- Shorthands, so each assertion below reads as the thing it is checking rather than as a join.
 CREATE OR REPLACE FUNCTION pg_temp.attendance_id(p_group uuid) RETURNS uuid LANGUAGE sql STABLE AS $fn$
